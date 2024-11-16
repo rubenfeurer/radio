@@ -1,0 +1,8 @@
+# Default radio stations configuration
+default_stations = [
+    "GDS.FM",
+    "Ambi Nature Radio",
+    "SRF 3"
+] 
+# Default volume setting (0-100)
+default_volume = 80
