@@ -93,25 +93,43 @@ def load_selected_stations():
             state = json.load(f)
             selected_stations = state.get('selected_stations', [])
             
-            # Get all available streams for lookup
+        # If no stations in state, load defaults from config.toml
+        if not selected_stations:
+            with open('config/config.toml', 'r') as f:
+                config = toml.load(f)
+                default_stations = config.get('default_stations', [])
+                logger.info(f"Default stations from config: {default_stations}")
+                
+            # Get all available streams
             all_streams = load_streams()
+            logger.info(f"Available streams: {[s['name'] for s in all_streams]}")
             
-            # Convert any string entries to full station objects
-            for i, station in enumerate(selected_stations):
-                if isinstance(station, str):
-                    # Find the full station object by name
-                    full_station = next((s for s in all_streams if s['name'] == station), None)
-                    if full_station:
-                        selected_stations[i] = full_station
+            # Convert default station names to full station objects
+            selected_stations = []
+            for station_name in default_stations:
+                station = next((s for s in all_streams if s['name'] == station_name), None)
+                if station:
+                    selected_stations.append(station)
+                else:
+                    logger.warning(f"Station not found: {station_name}")
             
-            # Filter out any invalid entries
-            selected_stations = [s for s in selected_stations if isinstance(s, dict)]
-            
-            logger.info(f"Loaded selected stations: {selected_stations}")
-            return selected_stations
+        logger.info(f"Final selected stations: {[s['name'] for s in selected_stations]}")
+        return selected_stations
             
     except Exception as e:
         logger.error(f"Error loading selected stations: {e}")
+        return load_default_stations()
+
+def load_default_stations():
+    try:
+        with open('config/config.toml', 'r') as f:
+            config = toml.load(f)
+            default_stations = config.get('default_stations', [])
+            
+        all_streams = load_streams()
+        return [s for s in all_streams if s['name'] in default_stations]
+    except Exception as e:
+        logger.error(f"Error loading default stations: {e}")
         return []
 
 @app.route('/api/status')

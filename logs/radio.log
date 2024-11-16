@@ -1,0 +1,606 @@
+2024-11-16 14:41:23,393 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-16 14:41:23,394 - src.app.routes - INFO - Creating RadioService instance
+2024-11-16 14:41:23,394 - src.app.routes - INFO - Initializing radio service...
+2024-11-16 14:41:23,460 - src.player.radio_player - INFO - Initializing ALSA volume settings
+2024-11-16 14:41:23,461 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 400
+2024-11-16 14:41:23,479 - src.player.radio_player - INFO - ALSA volume initialized: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 400 [100%] [4.00dB] [on]
+
+2024-11-16 14:41:23,480 - src.player.radio_player - INFO - Setting volume to 80
+2024-11-16 14:41:23,481 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 0
+2024-11-16 14:41:23,499 - src.player.radio_player - INFO - ALSA volume set successfully: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 0 [96%] [0.00dB] [on]
+
+2024-11-16 14:41:23,499 - src.player.radio_player - INFO - Player initialized with ALSA output and volume 80
+2024-11-16 14:41:23,500 - src.app.routes - INFO - Radio service initialized successfully
+2024-11-16 14:41:23,501 - src.app.routes - INFO - RadioService created successfully
+2024-11-16 14:41:23,522 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-16 14:41:23,522 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-16 14:41:30,527 - src.app.routes - INFO - Loaded selected stations: []
+2024-11-16 14:41:30,543 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:30] "GET / HTTP/1.1" 200 -
+2024-11-16 14:41:30,580 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:30] "GET /static/style.css HTTP/1.1" 200 -
+2024-11-16 14:41:30,621 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:30] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2024-11-16 14:41:31,769 - src.player.radio_player - INFO - Stopping playback
+2024-11-16 14:41:31,772 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:31] "POST /api/stop HTTP/1.1" 200 -
+2024-11-16 14:41:32,610 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:41:32,613 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:32] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:34,610 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:41:34,613 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:34] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:36,606 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:41:36,608 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:36] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:37,811 - src.app.routes - INFO - Play request received with data: {'url': 'https://radio.garden/api/ara/content/listen/lQ5fQGJj/channel.mp3'}
+2024-11-16 14:41:37,812 - src.app.routes - INFO - Attempting to play URL: https://radio.garden/api/ara/content/listen/lQ5fQGJj/channel.mp3
+2024-11-16 14:41:38,035 - src.app.routes - INFO - URL test response: 302
+2024-11-16 14:41:38,036 - src.player.radio_player - INFO - Attempting to play stream: https://radio.garden/api/ara/content/listen/lQ5fQGJj/channel.mp3
+2024-11-16 14:41:38,037 - src.player.radio_player - INFO - Setting media to player
+2024-11-16 14:41:38,038 - src.player.radio_player - INFO - Current volume before play: -1
+2024-11-16 14:41:38,038 - src.player.radio_player - INFO - Starting playback
+2024-11-16 14:41:38,039 - src.player.radio_player - INFO - Play result: 0
+2024-11-16 14:41:38,609 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/lQ5fQGJj/channel.mp3', 'volume': 80}
+2024-11-16 14:41:38,610 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:38] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:38,979 - src.app.routes - INFO - Play request received with data: {'url': 'https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3'}
+2024-11-16 14:41:38,980 - src.app.routes - INFO - Attempting to play URL: https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3
+2024-11-16 14:41:39,202 - src.app.routes - INFO - URL test response: 302
+2024-11-16 14:41:39,203 - src.player.radio_player - INFO - Attempting to play stream: https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3
+2024-11-16 14:41:39,204 - src.player.radio_player - INFO - Stopping current stream
+2024-11-16 14:41:39,204 - src.player.radio_player - INFO - Stopping playback
+2024-11-16 14:41:40,039 - src.app.routes - INFO - Successfully started playback
+2024-11-16 14:41:40,040 - src.app.routes - INFO - Player status after play: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/lQ5fQGJj/channel.mp3', 'volume': 80}
+2024-11-16 14:41:40,041 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:40] "POST /api/play HTTP/1.1" 200 -
+2024-11-16 14:41:40,232 - src.player.radio_player - INFO - Setting media to player
+2024-11-16 14:41:40,233 - src.player.radio_player - INFO - Current volume before play: -1
+2024-11-16 14:41:40,233 - src.player.radio_player - INFO - Starting playback
+2024-11-16 14:41:40,233 - src.player.radio_player - INFO - Play result: 0
+2024-11-16 14:41:40,600 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3', 'volume': 80}
+2024-11-16 14:41:40,601 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:40] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:42,234 - src.app.routes - INFO - Successfully started playback
+2024-11-16 14:41:42,234 - src.app.routes - INFO - Player status after play: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3', 'volume': 80}
+2024-11-16 14:41:42,236 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:42] "POST /api/play HTTP/1.1" 200 -
+2024-11-16 14:41:42,604 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3', 'volume': 80}
+2024-11-16 14:41:42,605 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:42] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:42,736 - src.app.routes - INFO - Loaded 139 streams for slot 1
+2024-11-16 14:41:42,750 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:42] "GET /stations/1 HTTP/1.1" 200 -
+2024-11-16 14:41:42,781 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:42] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:41:44,827 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3', 'volume': 80}
+2024-11-16 14:41:44,829 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:44] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:46,320 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:46] "POST /api/select_station HTTP/1.1" 200 -
+2024-11-16 14:41:46,434 - src.app.routes - INFO - Loaded selected stations: [{'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:41:46,436 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:46] "GET / HTTP/1.1" 200 -
+2024-11-16 14:41:46,476 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:46] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:41:48,494 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3', 'volume': 80}
+2024-11-16 14:41:48,495 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:48] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:50,250 - src.app.routes - INFO - Play request received with data: {'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3'}
+2024-11-16 14:41:50,251 - src.app.routes - INFO - Attempting to play URL: https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3
+2024-11-16 14:41:50,459 - src.app.routes - INFO - URL test response: 302
+2024-11-16 14:41:50,460 - src.player.radio_player - INFO - Attempting to play stream: https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3
+2024-11-16 14:41:50,460 - src.player.radio_player - INFO - Stopping current stream
+2024-11-16 14:41:50,461 - src.player.radio_player - INFO - Stopping playback
+2024-11-16 14:41:50,493 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3', 'volume': 80}
+2024-11-16 14:41:50,494 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:50] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:51,483 - src.player.radio_player - INFO - Setting media to player
+2024-11-16 14:41:51,484 - src.player.radio_player - INFO - Current volume before play: -1
+2024-11-16 14:41:51,485 - src.player.radio_player - INFO - Starting playback
+2024-11-16 14:41:51,486 - src.player.radio_player - INFO - Play result: 0
+2024-11-16 14:41:52,495 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:41:52,496 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:52] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:53,229 - src.app.routes - INFO - Loaded selected stations: [{'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:41:53,231 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:53] "GET / HTTP/1.1" 200 -
+2024-11-16 14:41:53,262 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:53] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:41:53,487 - src.app.routes - INFO - Successfully started playback
+2024-11-16 14:41:53,488 - src.app.routes - INFO - Player status after play: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:41:53,489 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:53] "POST /api/play HTTP/1.1" 200 -
+2024-11-16 14:41:55,281 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:41:55,282 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:55] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:57,281 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:41:57,284 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:57] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:41:59,284 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:41:59,287 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:41:59] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:01,288 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:01,290 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:03,282 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:03,283 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:03] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:05,282 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:05,283 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:05] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:07,437 - src.app.routes - INFO - Loaded selected stations: [{'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:42:07,439 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:07] "GET / HTTP/1.1" 200 -
+2024-11-16 14:42:07,464 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:07] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:42:09,494 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:09,496 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:09] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:11,496 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:11,497 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:11] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:13,502 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:13,503 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:13] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:15,497 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:15,498 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:15] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:17,492 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:17,493 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:17] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:19,496 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:19,497 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:19] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:21,499 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:21,500 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:21] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:23,495 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:23,496 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:23] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:25,503 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:25,505 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:25] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:27,516 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:27,517 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:27] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:29,491 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:29,492 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:29] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:31,492 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:31,493 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:31] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:33,494 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:33,496 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:33] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:35,503 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:35,505 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:35] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:37,494 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:37,496 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:37] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:39,494 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:39,495 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:39] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:41,489 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:41,490 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:41] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:43,497 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:43,500 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:43] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:45,497 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:45,498 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:45] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:47,488 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:47,489 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:47] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:49,098 - src.app.routes - INFO - Loaded 139 streams for slot 0
+2024-11-16 14:42:49,107 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:49] "GET /stations/0 HTTP/1.1" 200 -
+2024-11-16 14:42:49,149 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:49] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:42:50,503 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:50] "POST /api/select_station HTTP/1.1" 200 -
+2024-11-16 14:42:50,603 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:42:50,605 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:50] "GET / HTTP/1.1" 200 -
+2024-11-16 14:42:50,648 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:50] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:42:52,669 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:52,670 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:52] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:54,455 - src.app.routes - INFO - Loaded 139 streams for slot 1
+2024-11-16 14:42:54,461 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:54] "GET /stations/1 HTTP/1.1" 200 -
+2024-11-16 14:42:54,490 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:54] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:42:55,819 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:42:55,821 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:55] "GET / HTTP/1.1" 200 -
+2024-11-16 14:42:55,865 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:55] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:42:58,030 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:58,031 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:58] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:42:59,886 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:42:59,887 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:42:59] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:01,915 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:01,916 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:03,885 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:03,886 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:03] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:05,884 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:05,885 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:05] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:07,895 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:07,896 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:07] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:09,881 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:09,882 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:09] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:12,495 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:12,497 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:12] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:13,910 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:13,911 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:13] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:15,882 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:15,883 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:15] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:17,884 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:17,887 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:17] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:19,885 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:19,887 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:19] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:21,889 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:21,891 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:21] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:23,881 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:23,882 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:23] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:25,887 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:25,888 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:25] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:27,886 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:27,887 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:27] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:29,886 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:29,887 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:29] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:31,885 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:31,886 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:31] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:33,888 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:33,889 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:33] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:35,889 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:35,890 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:35] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:37,885 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:37,886 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:37] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:39,880 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:39,881 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:39] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:41,886 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:41,888 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:41] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:43,885 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:43,888 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:43] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:45,880 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:45,883 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:45] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:47,883 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:47,885 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:47] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:49,886 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:49,888 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:49] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:51,883 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:51,886 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:51] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:53,883 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:53,884 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:53] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:55,883 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:55,884 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:55] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:57,881 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:57,882 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:57] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:43:59,882 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:43:59,884 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:43:59] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:01,883 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:44:01,884 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:03,884 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:44:03,885 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:03] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:05,887 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:44:05,888 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:05] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:07,883 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:44:07,884 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:07] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:09,888 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:44:09,890 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:09] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:11,890 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'volume': 80}
+2024-11-16 14:44:11,893 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:11] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:13,553 - src.app.routes - INFO - Received shutdown signal
+2024-11-16 14:44:13,553 - src.app.routes - INFO - Cleaning up radio service...
+2024-11-16 14:44:13,646 - src.app.routes - INFO - Cleanup complete
+2024-11-16 14:44:14,341 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-16 14:44:14,341 - src.app.routes - INFO - Creating RadioService instance
+2024-11-16 14:44:14,341 - src.app.routes - INFO - Initializing radio service...
+2024-11-16 14:44:14,409 - src.player.radio_player - INFO - Initializing ALSA volume settings
+2024-11-16 14:44:14,410 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 400
+2024-11-16 14:44:14,427 - src.player.radio_player - INFO - ALSA volume initialized: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 400 [100%] [4.00dB] [on]
+
+2024-11-16 14:44:14,428 - src.player.radio_player - INFO - Setting volume to 80
+2024-11-16 14:44:14,429 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 0
+2024-11-16 14:44:14,447 - src.player.radio_player - INFO - ALSA volume set successfully: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 0 [96%] [0.00dB] [on]
+
+2024-11-16 14:44:14,448 - src.player.radio_player - INFO - Player initialized with ALSA output and volume 80
+2024-11-16 14:44:14,448 - src.app.routes - INFO - Radio service initialized successfully
+2024-11-16 14:44:14,449 - src.app.routes - INFO - RadioService created successfully
+2024-11-16 14:44:14,478 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-16 14:44:14,479 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-16 14:44:15,794 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:15,811 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:15] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:15,843 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:15] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:17,872 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:17,873 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:17] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:19,080 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:19,082 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:19] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:19,100 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:19] "GET /static/style.css HTTP/1.1" 200 -
+2024-11-16 14:44:19,117 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:19] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2024-11-16 14:44:20,574 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:20,576 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:20] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:20,598 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:20] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:21,192 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:21,193 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:21] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:21,214 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:21] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:21,402 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:21,404 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:21] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:21,422 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:21] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:21,604 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:21,606 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:21] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:21,625 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:21] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:23,172 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:23,174 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:23] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:23,191 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:23] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:23,667 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:23,669 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:23] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:23,696 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:23] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:23,890 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:23,893 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:23] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:23,918 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:23] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:24,032 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:24,034 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:24] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:24,056 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:24] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:24,978 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:24,980 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:24] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:25,000 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:25] "GET /static/style.css HTTP/1.1" 200 -
+2024-11-16 14:44:25,017 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:25] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2024-11-16 14:44:25,531 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:25,533 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:25] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:25,550 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:25] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:25,723 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:25,725 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:25] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:25,744 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:25] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:25,897 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:25,899 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:25] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:25,918 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:25] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:26,063 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:26,064 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:26] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:26,079 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:26] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:26,224 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:26,225 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:26] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:26,240 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:26] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:26,371 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:26,373 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:26] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:26,388 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:26] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:27,768 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:27,770 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:27] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:27,788 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:27] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:29,812 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:29,813 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:29] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:31,807 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:31,808 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:31] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:33,809 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:33,810 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:33] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:35,810 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:35,811 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:35] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:37,809 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:37,810 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:37] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:39,810 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:39,811 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:39] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:41,807 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:41,808 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:41] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:43,805 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:43,806 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:43] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:45,804 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:45,805 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:45] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:47,807 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:47,808 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:47] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:49,802 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:49,804 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:49] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:51,805 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:51,806 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:51] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:53,808 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:53,809 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:53] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:53,935 - src.app.routes - INFO - Loaded selected stations: [{'name': 'GDS.FM', 'url': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'country': 'Switzerland', 'location': ''}, {'name': '80s Forever Radio', 'url': 'https://radio.garden/api/ara/content/listen/jLLD76tj/channel.mp3', 'country': 'Switzerland', 'location': 'Bergdietikon'}]
+2024-11-16 14:44:53,937 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:53] "GET / HTTP/1.1" 200 -
+2024-11-16 14:44:53,955 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:53] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:44:55,976 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:55,979 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:55] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:57,974 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:57,976 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:57] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:44:59,980 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:44:59,981 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:44:59] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:01,979 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:01,980 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:03,975 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:03,977 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:03] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:05,973 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:05,976 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:05] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:07,975 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:07,976 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:07] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:09,977 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:09,978 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:09] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:11,979 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:11,982 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:11] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:14,456 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:14,457 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:14] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:15,969 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:15,970 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:15] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:17,979 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:17,980 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:17] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:19,974 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:19,975 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:19] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:21,977 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:21,978 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:21] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:23,977 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:23,978 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:23] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:25,976 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:25,977 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:25] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:27,982 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:27,985 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:27] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:29,976 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:29,979 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:29] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:31,974 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:31,976 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:31] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:33,971 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:33,972 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:33] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:35,975 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:35,976 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:35] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:37,972 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:37,974 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:37] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:40,658 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:40,659 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:40] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:42,644 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:42,645 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:42] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:44,650 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:44,653 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:44] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:46,359 - src.app.routes - INFO - Received shutdown signal
+2024-11-16 14:45:46,360 - src.app.routes - INFO - Received shutdown signal
+2024-11-16 14:45:46,360 - src.app.routes - INFO - Cleaning up radio service...
+2024-11-16 14:45:46,405 - src.app.routes - INFO - Cleanup complete
+2024-11-16 14:45:47,096 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-16 14:45:47,096 - src.app.routes - INFO - Creating RadioService instance
+2024-11-16 14:45:47,097 - src.app.routes - INFO - Initializing radio service...
+2024-11-16 14:45:47,162 - src.player.radio_player - INFO - Initializing ALSA volume settings
+2024-11-16 14:45:47,162 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 400
+2024-11-16 14:45:47,179 - src.player.radio_player - INFO - ALSA volume initialized: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 400 [100%] [4.00dB] [on]
+
+2024-11-16 14:45:47,179 - src.player.radio_player - INFO - Setting volume to 80
+2024-11-16 14:45:47,181 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 0
+2024-11-16 14:45:47,200 - src.player.radio_player - INFO - ALSA volume set successfully: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 0 [96%] [0.00dB] [on]
+
+2024-11-16 14:45:47,200 - src.player.radio_player - INFO - Player initialized with ALSA output and volume 80
+2024-11-16 14:45:47,201 - src.app.routes - INFO - Radio service initialized successfully
+2024-11-16 14:45:47,201 - src.app.routes - INFO - RadioService created successfully
+2024-11-16 14:45:47,224 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-16 14:45:47,224 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-16 14:45:48,646 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:48,648 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:48] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:50,382 - src.app.routes - INFO - Received shutdown signal
+2024-11-16 14:45:50,383 - src.app.routes - INFO - Received shutdown signal
+2024-11-16 14:45:50,383 - src.app.routes - INFO - Cleaning up radio service...
+2024-11-16 14:45:50,430 - src.app.routes - INFO - Cleanup complete
+2024-11-16 14:45:51,162 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-16 14:45:51,163 - src.app.routes - INFO - Creating RadioService instance
+2024-11-16 14:45:51,163 - src.app.routes - INFO - Initializing radio service...
+2024-11-16 14:45:51,228 - src.player.radio_player - INFO - Initializing ALSA volume settings
+2024-11-16 14:45:51,228 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 400
+2024-11-16 14:45:51,244 - src.player.radio_player - INFO - ALSA volume initialized: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 400 [100%] [4.00dB] [on]
+
+2024-11-16 14:45:51,245 - src.player.radio_player - INFO - Setting volume to 80
+2024-11-16 14:45:51,246 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 0
+2024-11-16 14:45:51,264 - src.player.radio_player - INFO - ALSA volume set successfully: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 0 [96%] [0.00dB] [on]
+
+2024-11-16 14:45:51,265 - src.player.radio_player - INFO - Player initialized with ALSA output and volume 80
+2024-11-16 14:45:51,265 - src.app.routes - INFO - Radio service initialized successfully
+2024-11-16 14:45:51,265 - src.app.routes - INFO - RadioService created successfully
+2024-11-16 14:45:51,288 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-16 14:45:51,288 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-16 14:45:52,647 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:52,649 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:52] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:53,964 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:53,976 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:53] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:53,999 - src.app.routes - INFO - Final selected stations: ['GDS.FM', '80s Forever Radio']
+2024-11-16 14:45:54,015 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:54] "GET / HTTP/1.1" 200 -
+2024-11-16 14:45:54,049 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:54] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:45:55,831 - src.app.routes - INFO - Final selected stations: ['GDS.FM', '80s Forever Radio']
+2024-11-16 14:45:55,833 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:55] "GET / HTTP/1.1" 200 -
+2024-11-16 14:45:55,851 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:55] "GET /static/style.css HTTP/1.1" 200 -
+2024-11-16 14:45:55,869 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:55] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2024-11-16 14:45:57,869 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:57,870 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:57] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:45:59,876 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:45:59,877 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:45:59] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:01,745 - src.app.routes - INFO - Final selected stations: ['GDS.FM', '80s Forever Radio']
+2024-11-16 14:46:01,748 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:01] "GET / HTTP/1.1" 200 -
+2024-11-16 14:46:01,773 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:01] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:46:03,799 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:03,801 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:03] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:05,798 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:05,801 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:05] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:07,796 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:07,797 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:07] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:09,801 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:09,802 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:09] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:11,799 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:11,800 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:11] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:13,792 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:13,794 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:13] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:15,791 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:15,792 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:15] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:17,794 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:17,795 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:17] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:19,803 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:19,805 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:19] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:21,820 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:21,821 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:21] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:23,797 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:23,798 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:23] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:25,805 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:25,808 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:25] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:27,797 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:27,798 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:27] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:29,794 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:29,796 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:29] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:31,794 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:31,797 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:31] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:33,803 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:33,804 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:33] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:35,299 - src.app.routes - INFO - Received shutdown signal
+2024-11-16 14:46:35,299 - src.app.routes - INFO - Cleaning up radio service...
+2024-11-16 14:46:35,301 - src.app.routes - INFO - Received shutdown signal
+2024-11-16 14:46:35,302 - src.app.routes - INFO - Cleaning up radio service...
+2024-11-16 14:46:35,346 - src.app.routes - INFO - Cleanup complete
+2024-11-16 14:46:36,008 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-16 14:46:36,008 - src.app.routes - INFO - Creating RadioService instance
+2024-11-16 14:46:36,009 - src.app.routes - INFO - Initializing radio service...
+2024-11-16 14:46:36,076 - src.player.radio_player - INFO - Initializing ALSA volume settings
+2024-11-16 14:46:36,076 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 400
+2024-11-16 14:46:36,094 - src.player.radio_player - INFO - ALSA volume initialized: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 400 [100%] [4.00dB] [on]
+
+2024-11-16 14:46:36,094 - src.player.radio_player - INFO - Setting volume to 80
+2024-11-16 14:46:36,096 - src.player.radio_player - INFO - Executing ALSA command: amixer -c 2 set PCM 0
+2024-11-16 14:46:36,113 - src.player.radio_player - INFO - ALSA volume set successfully: Simple mixer control 'PCM',0
+  Capabilities: pvolume pvolume-joined pswitch pswitch-joined
+  Playback channels: Mono
+  Limits: Playback -10239 - 400
+  Mono: Playback 0 [96%] [0.00dB] [on]
+
+2024-11-16 14:46:36,114 - src.player.radio_player - INFO - Player initialized with ALSA output and volume 80
+2024-11-16 14:46:36,114 - src.app.routes - INFO - Radio service initialized successfully
+2024-11-16 14:46:36,115 - src.app.routes - INFO - RadioService created successfully
+2024-11-16 14:46:36,138 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-16 14:46:36,138 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-16 14:46:37,780 - src.app.routes - INFO - Final selected stations: ['GDS.FM', 'Ambi Nature Radio', 'SRF 3']
+2024-11-16 14:46:37,788 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:37,796 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:37] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:37,810 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:37] "GET / HTTP/1.1" 200 -
+2024-11-16 14:46:37,860 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:37] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:46:39,764 - src.player.radio_player - INFO - Stopping playback
+2024-11-16 14:46:39,765 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:39] "POST /api/stop HTTP/1.1" 200 -
+2024-11-16 14:46:39,898 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:39,899 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:39] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:41,887 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:41,888 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:41] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:43,884 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:43,887 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:43] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:45,889 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:45,892 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:45] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:47,332 - src.app.routes - INFO - Final selected stations: ['GDS.FM', 'Ambi Nature Radio', 'SRF 3']
+2024-11-16 14:46:47,334 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:47] "GET / HTTP/1.1" 200 -
+2024-11-16 14:46:47,362 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:47] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+2024-11-16 14:46:49,377 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-16 14:46:49,378 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:49] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:50,042 - src.app.routes - INFO - Play request received with data: {'url': 'https://gdsfm.out.airtime.pro/gdsfm_a'}
+2024-11-16 14:46:50,043 - src.app.routes - INFO - Attempting to play URL: https://gdsfm.out.airtime.pro/gdsfm_a
+2024-11-16 14:46:50,660 - src.app.routes - INFO - URL test response: 200
+2024-11-16 14:46:50,662 - src.player.radio_player - INFO - Attempting to play stream: https://gdsfm.out.airtime.pro/gdsfm_a
+2024-11-16 14:46:50,663 - src.player.radio_player - INFO - Setting media to player
+2024-11-16 14:46:50,663 - src.player.radio_player - INFO - Current volume before play: -1
+2024-11-16 14:46:50,663 - src.player.radio_player - INFO - Starting playback
+2024-11-16 14:46:50,664 - src.player.radio_player - INFO - Play result: 0
+2024-11-16 14:46:51,386 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-16 14:46:51,387 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:51] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:52,667 - src.app.routes - INFO - Successfully started playback
+2024-11-16 14:46:52,668 - src.app.routes - INFO - Player status after play: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-16 14:46:52,671 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:52] "POST /api/play HTTP/1.1" 200 -
+2024-11-16 14:46:53,380 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-16 14:46:53,380 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:53] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:55,379 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-16 14:46:55,380 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:55] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:57,385 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-16 14:46:57,386 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:57] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:46:59,491 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-16 14:46:59,492 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:46:59] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:47:01,383 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-16 14:47:01,384 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:47:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:47:03,401 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-16 14:47:03,402 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:47:03] "GET /api/status HTTP/1.1" 200 -
+2024-11-16 14:47:05,385 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-16 14:47:05,386 - werkzeug - INFO - 192.168.1.5 - - [16/Nov/2024 14:47:05] "GET /api/status HTTP/1.1" 200 -
