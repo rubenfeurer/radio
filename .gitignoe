@@ -1,0 +1,17 @@
+# Logs
+logs/
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Application state
+config/radio_state.json
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/
