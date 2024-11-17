@@ -2,6 +2,7 @@ import logging
 from src.utils.stream_manager import StreamManager
 from src.player.radio_player import RadioPlayer
 from src.hardware.gpio_handler import GPIOHandler
+from src.hardware.rotary_handler import RotaryHandler
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class RadioService:
             self.stream_manager = StreamManager()
             self.player = RadioPlayer()
             self.gpio_handler = GPIOHandler()
+            self.rotary_handler = RotaryHandler(self.player)
             
             # Set up dependencies
             logger.info("Setting up GPIO handler dependencies...")

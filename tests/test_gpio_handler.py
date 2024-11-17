@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 from src.hardware.gpio_handler import GPIOHandler
 import tomli
 import os
+import time
 
 @pytest.fixture(autouse=True)
 def mock_gpio():
@@ -22,38 +23,54 @@ def mock_gpio():
 @pytest.fixture
 def mock_player():
     player = Mock()
-    # Default status is stopped
-    player.get_status.return_value = {"state": "stopped", "current_station": None, "volume": 80}
+    
+    # Initialize status
+    player._status = {
+        "state": "stopped",
+        "current_station": None,
+        "volume": 80
+    }
+    
+    # Create get_status method
+    def get_status():
+        print(f"DEBUG: get_status called, returning: {player._status}")
+        return player._status.copy()
+    player.get_status = Mock(side_effect=get_status)
+    
+    # Create stop method
+    def stop():
+        print("DEBUG: stop() called")
+        player._status.update({
+            "state": "stopped",
+            "current_station": None
+        })
+    player.stop = Mock(side_effect=stop)
+    
+    # Create play method
+    def play(stream):
+        print(f"DEBUG: play() called with {stream}")
+        player._status.update({
+            "state": "playing",
+            "current_station": stream
+        })
+    player.play = Mock(side_effect=play)
+    
     return player
 
 @pytest.fixture
 def mock_stream_manager():
     manager = Mock()
-    manager.get_streams_by_slots.return_value = [
-        {"name": "Test Station 1", "url": "http://test1.com/stream"},
-        {"name": "Test Station 2", "url": "http://test2.com/stream"},
-        {"name": "Test Station 3", "url": "http://test3.com/stream"}
-    ]
+    # Return a dictionary instead of a list
+    manager.get_streams_by_slots.return_value = {
+        1: "http://test1.com/stream",
+        2: "http://test2.com/stream",
+        3: "http://test3.com/stream"
+    }
     return manager
 
 @pytest.fixture
 def mock_config(tmp_path):
-    config = {
-        "gpio": {
-            "button_1_pin": 17,
-            "button_2_pin": 16,
-            "button_3_pin": 26,
-            "settings": {
-                "debounce_time": 300,
-                "pull_up": True
-            }
-        }
-    }
-    config_path = tmp_path / "config.toml"
-    
-    # Write the config manually instead of using tomli.dump
-    with open(config_path, "w") as f:
-        f.write("""
+    config_content = """
 [gpio]
 button_1_pin = 17
 button_2_pin = 16
@@ -62,8 +79,10 @@ button_3_pin = 26
 [gpio.settings]
 debounce_time = 300
 pull_up = true
-""")
-    
+"""
+    config_path = tmp_path / "config.toml"
+    with open(config_path, "w") as f:
+        f.write(config_content)
     return str(config_path)
 
 @pytest.fixture
@@ -71,23 +90,46 @@ def gpio_handler(mock_gpio, mock_player, mock_stream_manager, mock_config):
     handler = GPIOHandler(config_file=mock_config)
     handler.player = mock_player
     handler.stream_manager = mock_stream_manager
+    handler.last_button_press = 0
+    handler.debounce_time = 300
     return handler
 
 def test_button_1_controls_first_slot(gpio_handler, mock_player):
+    # Initial state
+    mock_player._status = {
+        "state": "stopped",
+        "current_station": None,
+        "volume": 80
+    }
+    
+    print("\nDEBUG: Initial status:", mock_player.get_status())
+    
     # Press button 1 (GPIO 17) - should play first slot
     gpio_handler.button_callback(17)
     mock_player.play.assert_called_with("http://test1.com/stream")
     
-    # Update status to playing
-    mock_player.get_status.return_value = {
+    # Update mock status to playing
+    mock_player._status.update({
         "state": "playing",
         "current_station": "http://test1.com/stream",
         "volume": 80
-    }
+    })
+    
+    # Verify first press state
+    current_status = mock_player.get_status()
+    print("DEBUG: Status after first press:", current_status)
+    assert current_status["state"] == "playing"
+    assert current_status["current_station"] == "http://test1.com/stream"
     
     # Press button 1 again - should stop
     gpio_handler.button_callback(17)
+    current_status = mock_player.get_status()
+    print("DEBUG: Status after second press:", current_status)
+    
+    # Verify stop was called and state is updated
     mock_player.stop.assert_called_once()
+    assert current_status["state"] == "stopped"
+    assert current_status["current_station"] is None
 
 def test_pressing_different_button_switches_streams(gpio_handler, mock_player):
     # Start playing first slot
@@ -177,3 +219,17 @@ def test_button_press_with_missing_streams(gpio_handler, mock_player, mock_strea
 def test_button_debounce(gpio_handler, mock_player):
     """Test that rapid button presses are debounced"""
     mock_player.get_status.return_value = {'state': 'stopped', 'current_station': None}
+
+def test_debounce_functionality(gpio_handler, mock_player, mock_stream_manager):
+    """Test that button debouncing works correctly"""
+    # First press should work
+    assert gpio_handler._debounce() == True
+    
+    # Immediate second press should be blocked
+    assert gpio_handler._debounce() == False
+    
+    # Wait for debounce time from config (300ms)
+    time.sleep(0.4)  # Wait slightly longer than debounce time
+    
+    # Third press should work after waiting
+    assert gpio_handler._debounce() == True

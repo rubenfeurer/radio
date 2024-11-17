@@ -11,9 +11,11 @@ WorkingDirectory=/home/radio/internetRadio
 Environment=PYTHONUNBUFFERED=1
 Environment=FLASK_APP=app.py
 Environment=FLASK_DEBUG=0
-Environment=ALSA_CARD=2
+Environment=ALSA_CARD=0
 Environment=ALSA_PCM_CARD=2
 Environment=ALSA_DEVICE=hw:2,0
+Environment=PULSE_SERVER=/run/pulse/native
+Environment=PULSE_COOKIE=/run/pulse/cookie
 ExecStart=/usr/bin/python3 /home/radio/internetRadio/main.py
 ExecStop=/bin/kill -SIGTERM $MAINPID
 KillMode=control-group

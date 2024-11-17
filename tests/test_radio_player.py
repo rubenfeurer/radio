@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from src.player.radio_player import RadioPlayer
+import subprocess
 
 @pytest.fixture(autouse=True)
 def reset_singleton():
-    """Reset the singleton instance before each test"""
+    """Reset the RadioPlayer singleton between tests"""
     RadioPlayer._instance = None
-    RadioPlayer._initialized = False
     yield
 
 @pytest.fixture
@@ -60,3 +60,49 @@ def test_play_stop(mock_subprocess, mock_vlc):
     # Test stop
     player.stop()
     mock_player.stop.assert_called_once()
+
+def test_alsa_audio_output():
+    """Test ALSA audio output configuration"""
+    player = RadioPlayer()
+    
+    # Test if ALSA device exists
+    result = subprocess.run(['aplay', '-l'], 
+                          capture_output=True, 
+                          text=True)
+    assert 'card 2: Headphones' in result.stdout
+    
+    # Test if we can set volume through ALSA
+    test_volume = 75
+    player.set_volume(test_volume)
+    current_volume = player.get_volume()
+    assert abs(current_volume - test_volume) <= 5  # Allow small difference due to ALSA rounding
+
+def test_vlc_alsa_configuration():
+    """Test VLC ALSA configuration"""
+    player = RadioPlayer()
+    vlc_instance = player.instance
+    
+    # Check if instance is using ALSA
+    assert '--aout=alsa' in player.get_vlc_configuration()
+    assert '--alsa-audio-device=plughw:2,0' in player.get_vlc_configuration()
+
+def test_get_status(mock_subprocess):
+    """Test that get_status returns the correct status dictionary"""
+    player = RadioPlayer()
+    
+    # Test initial status
+    initial_status = player.get_status()
+    assert initial_status == {
+        'state': 'stopped',
+        'current_station': None,
+        'volume': 80
+    }
+    
+    # Test status after playing
+    player.play('test_url')
+    play_status = player.get_status()
+    assert play_status == {
+        'state': 'playing',
+        'current_station': 'test_url',
+        'volume': 80
+    }
