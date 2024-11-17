@@ -17,3 +17,14 @@ button_3_pin = 26  # Third station control
 [gpio.settings]
 debounce_time = 300  # Debounce time in milliseconds
 pull_up = true       # Use pull-up resistors
+
+# Rotary Encoder Configuration
+[rotary]
+clk_pin = 11        # Clock pin (GPIO11)
+dt_pin = 9          # Data pin (GPIO9)
+sw_pin = 10         # Switch pin (GPIO10)
+
+[rotary.settings]
+volume_step = 5              # Volume change per rotation step
+double_click_timeout = 500   # Double click timeout in milliseconds
+debounce_time = 50          # Debounce time for button in milliseconds
