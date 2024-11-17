@@ -1,6 +1,14 @@
 import os
 import sys
 from src.app.routes import app
+from src.hardware.gpio_handler import GPIOHandler
+import atexit
+
+# Initialize GPIO handler
+gpio_handler = GPIOHandler()
+
+# Register cleanup
+atexit.register(gpio_handler.cleanup)
 
 if __name__ == '__main__':
     try:

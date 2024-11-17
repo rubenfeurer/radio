@@ -17,15 +17,26 @@ class RadioPlayer:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(RadioPlayer, cls).__new__(cls)
-            cls._instance.current_status = {
-                "state": "stopped",
-                "current_station": None,
-                "volume": 50
-            }
-            cls._instance.current_media = None
-            cls._instance.current_url = None
-            cls._instance.initialize()
+            cls._instance._initialized = False
         return cls._instance
+    
+    def __init__(self):
+        if self._initialized:
+            return
+            
+        # Initialize VLC instance
+        self.instance = vlc.Instance()
+        self.player = self.instance.media_player_new()
+        
+        # Initialize volume and status
+        self.volume = 80  # Default volume
+        self.current_status = {
+            "state": "stopped",
+            "current_station": None,
+            "volume": self.volume
+        }
+        
+        self._initialized = True
     
     def _init_alsa_volume(self):
         """Initialize ALSA volume settings"""
@@ -100,60 +111,40 @@ class RadioPlayer:
             # Force kill any remaining VLC processes
             os.system("pkill vlc")
     
-    def play(self, stream_url):
+    def play(self, url):
+        """Play a stream from the given URL"""
         try:
-            logger.info(f"Attempting to play stream: {stream_url}")
-            
-            # Stop current stream if any
-            if self.is_playing():
-                logger.info("Stopping current stream")
-                self.stop()
-                time.sleep(1)
-            
-            # Create media
-            media = self.instance.media_new(stream_url)
-            if not media:
-                raise Exception("Failed to create media")
-            
-            logger.info("Setting media to player")
+            # Create a new media instance
+            media = self.instance.media_new(url)
             self.player.set_media(media)
-            self.current_media = media
             
-            # Ensure volume is set before playing
-            current_vol = self.player.audio_get_volume()
-            logger.info(f"Current volume before play: {current_vol}")
-            if current_vol == 0:
-                logger.info("Volume is 0, resetting to previous value")
-                self.set_volume(self.current_status["volume"])
-            
-            logger.info("Starting playback")
-            play_result = self.player.play()
-            logger.info(f"Play result: {play_result}")
+            # Start playback
+            self.player.play()
             
             # Update status
-            self.current_status.update({
+            self.current_status = {
                 "state": "playing",
-                "current_station": stream_url
-            })
-            
-            time.sleep(2)
-            return True
+                "current_station": url,
+                "volume": self.volume
+            }
             
         except Exception as e:
-            logger.error(f"Error playing stream: {e}", exc_info=True)
-            self.current_status["state"] = "error"
-            return False
+            logger.error(f"Error playing stream: {e}")
+            self.current_status = {
+                "state": "error",
+                "current_station": None,
+                "volume": self.volume
+            }
     
     def stop(self):
-        try:
-            logger.info("Stopping playback")
+        """Stop the current stream"""
+        if self.player:
             self.player.stop()
-            self.current_media = None
-            self.current_url = None
-            return True
-        except Exception as e:
-            print(f"Error stopping stream: {e}")
-            return False
+            self.current_status = {
+                "state": "stopped",
+                "current_station": None,
+                "volume": self.volume
+            }
     
     def is_playing(self):
         return bool(self.player.is_playing())
