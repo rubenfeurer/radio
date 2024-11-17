@@ -26,7 +26,8 @@ pip3 install \
     flask \
     python-vlc \
     requests \
-    tomli
+    tomli \
+    pytest
 
 # Add radio user to required groups
 usermod -a -G audio,video radio

@@ -19,7 +19,7 @@ rm -f /etc/systemd/system/radio.service
 echo "Do you want to remove installed Python packages? (y/N)"
 read -r response
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
-    pip3 uninstall -y flask python-vlc requests tomli
+    pip3 uninstall -y flask python-vlc requests tomli pytest
 fi
 
 # Clean up system packages (optional)
