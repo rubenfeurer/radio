@@ -18,18 +18,20 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install dependencies
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pytest
         pip install python-vlc
         pip install toml
+        pip install requests
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     
     - name: Setup mock RPi.GPIO
       run: |
-        # Create the directory if it doesn't exist
-        sudo mkdir -p /usr/local/lib/python3.11/dist-packages/
+        # Create Python package directory
+        SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+        sudo mkdir -p ${SITE_PACKAGES}/RPi
         
         # Create mock GPIO module
         echo '
@@ -54,16 +56,25 @@ jobs:
             
             @staticmethod
             def output(*args): pass
-        ' | sudo tee /usr/local/lib/python3.11/dist-packages/RPi.py
+        ' | sudo tee ${SITE_PACKAGES}/RPi/GPIO.py
         
-        # Create __init__.py to make it a package
-        sudo touch /usr/local/lib/python3.11/dist-packages/__init__.py
+        # Create __init__.py to make it a proper package
+        echo "from .GPIO import GPIO" | sudo tee ${SITE_PACKAGES}/RPi/__init__.py
     
     - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y vlc
     
+    - name: List project structure
+      run: |
+        echo "Project structure:"
+        ls -R
+        echo "Python path:"
+        python -c "import sys; print('\n'.join(sys.path))"
+        echo "Site packages:"
+        python -c "import site; print('\n'.join(site.getsitepackages()))"
+    
     - name: Run tests with detailed output
       run: |
-        python -m pytest -v --tb=long
+        PYTHONPATH=$PYTHONPATH:$(pwd) python -m pytest -v --tb=long
