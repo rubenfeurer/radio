@@ -21,8 +21,7 @@ def sample_radio_state():
             {"name": "Test Station 1", "url": "http://test1.com/stream"},
             {"name": "Test Station 2", "url": "http://test2.com/stream"},
             {"name": "Test Station 3", "url": "http://test3.com/stream"}
-        ],
-        "current_stream": None
+        ]
     }
 
 @pytest.fixture

@@ -1,5 +1,6 @@
 import RPi.GPIO as GPIO
 import logging
+import tomli
 from time import sleep, time
 
 logger = logging.getLogger(__name__)
@@ -8,34 +9,44 @@ class GPIOHandler:
     _instance = None
     _initialized = False
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(GPIOHandler, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, config_file='config/config.toml'):
         if self._initialized:
             return
             
-        # GPIO Pins for buttons
-        self.BUTTON1_PIN = 17  # First slot control
-        self.BUTTON2_PIN = 16  # Second slot control
-        self.BUTTON3_PIN = 26  # Third slot control
-        
-        self.player = None
-        self.stream_manager = None
-        self.last_button_press = 0
-        self.DEBOUNCE_TIME = 0.3  # 300ms debounce
-        
         try:
+            # Load configuration
+            with open(config_file, 'rb') as f:
+                config = tomli.load(f)
+            
+            # Get GPIO configuration
+            gpio_config = config.get('gpio', {})
+            self.BUTTON1_PIN = gpio_config.get('button_1_pin', 17)
+            self.BUTTON2_PIN = gpio_config.get('button_2_pin', 16)
+            self.BUTTON3_PIN = gpio_config.get('button_3_pin', 26)
+            
+            # Get GPIO settings
+            gpio_settings = gpio_config.get('settings', {})
+            self.DEBOUNCE_TIME = gpio_settings.get('debounce_time', 300)
+            pull_up = gpio_settings.get('pull_up', True)
+            
+            self.player = None
+            self.stream_manager = None
+            self.last_button_press = 0
+            
             GPIO.setmode(GPIO.BCM)
             
             # Setup button pins
+            pull_up_down = GPIO.PUD_UP if pull_up else GPIO.PUD_DOWN
             for pin in [self.BUTTON1_PIN, self.BUTTON2_PIN, self.BUTTON3_PIN]:
-                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                GPIO.setup(pin, GPIO.IN, pull_up_down=pull_up_down)
                 GPIO.add_event_detect(pin, GPIO.FALLING, 
                                     callback=self.button_callback, 
-                                    bouncetime=300)
+                                    bouncetime=self.DEBOUNCE_TIME)
             
             logger.info("GPIO Handler initialized successfully")
             logger.info(f"Initial pin states - Button1: {GPIO.input(self.BUTTON1_PIN)}, "

@@ -6,3 +6,14 @@ default_stations = [
 ] 
 # Default volume setting (0-100)
 default_volume = 80
+
+# GPIO Pin Configuration
+[gpio]
+button_1_pin = 17  # First station control
+button_2_pin = 16  # Second station control
+button_3_pin = 26  # Third station control
+
+# GPIO Settings
+[gpio.settings]
+debounce_time = 300  # Debounce time in milliseconds
+pull_up = true       # Use pull-up resistors

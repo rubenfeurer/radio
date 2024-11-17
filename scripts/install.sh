@@ -27,6 +27,7 @@ pip3 install \
     python-vlc \
     requests \
     tomli \
+    tomli-w \
     pytest
 
 # Add radio user to required groups

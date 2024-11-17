@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import Mock, patch
 from src.hardware.gpio_handler import GPIOHandler
+import tomli
+import os
 
 @pytest.fixture(autouse=True)
 def mock_gpio():
@@ -35,9 +37,38 @@ def mock_stream_manager():
     return manager
 
 @pytest.fixture
-def gpio_handler(mock_gpio, mock_player, mock_stream_manager):
-    handler = GPIOHandler()
-    # Explicitly set the player and stream manager
+def mock_config(tmp_path):
+    config = {
+        "gpio": {
+            "button_1_pin": 17,
+            "button_2_pin": 16,
+            "button_3_pin": 26,
+            "settings": {
+                "debounce_time": 300,
+                "pull_up": True
+            }
+        }
+    }
+    config_path = tmp_path / "config.toml"
+    
+    # Write the config manually instead of using tomli.dump
+    with open(config_path, "w") as f:
+        f.write("""
+[gpio]
+button_1_pin = 17
+button_2_pin = 16
+button_3_pin = 26
+
+[gpio.settings]
+debounce_time = 300
+pull_up = true
+""")
+    
+    return str(config_path)
+
+@pytest.fixture
+def gpio_handler(mock_gpio, mock_player, mock_stream_manager, mock_config):
+    handler = GPIOHandler(config_file=mock_config)
     handler.player = mock_player
     handler.stream_manager = mock_stream_manager
     return handler
