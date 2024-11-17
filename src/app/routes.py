@@ -8,6 +8,7 @@ from src.utils.stream_manager import StreamManager
 from src.utils.state_manager import StateManager
 import toml
 import json
+from src.app.radio_service import RadioService
 
 # Set up logging with more detail and rotation
 logging.basicConfig(
@@ -29,35 +30,6 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, 
            template_folder='../../templates',
            static_folder='../../static')
-
-class RadioService:
-    def __init__(self):
-        try:
-            logger.info("Creating RadioService instance")
-            self.player = None
-            self.app = app
-            self.initialize()
-        except Exception as e:
-            logger.error(f"Failed to create RadioService: {e}")
-            raise
-    
-    def initialize(self):
-        try:
-            logger.info("Initializing radio service...")
-            self.player = RadioPlayer()
-            logger.info("Radio service initialized successfully")
-        except Exception as e:
-            logger.error(f"Error initializing radio service: {e}")
-            raise
-
-    def cleanup(self):
-        try:
-            logger.info("Cleaning up radio service...")
-            if self.player:
-                self.player.cleanup()
-            logger.info("Cleanup complete")
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
 
 # Global service instance
 try:

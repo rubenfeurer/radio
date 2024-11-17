@@ -1,56 +1,96 @@
 import RPi.GPIO as GPIO
-from src.player.radio_player import RadioPlayer
-from src.utils.state_manager import StateManager
 import logging
+from time import sleep, time
 
 logger = logging.getLogger(__name__)
 
 class GPIOHandler:
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(GPIOHandler, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
-        self.player = RadioPlayer()
-        self.state_manager = StateManager()
+        if self._initialized:
+            return
+            
+        # GPIO Pins for buttons
+        self.BUTTON1_PIN = 17  # First slot control
+        self.BUTTON2_PIN = 16  # Second slot control
+        self.BUTTON3_PIN = 26  # Third slot control
         
-        # GPIO Setup
-        self.BUTTON_PINS = {
-            'button1': 17,  # GPIO17
-            'button2': 16,  # GPIO16
-            'button3': 26   # GPIO26
-        }
+        self.player = None
+        self.stream_manager = None
+        self.last_button_press = 0
+        self.DEBOUNCE_TIME = 0.3  # 300ms debounce
         
-        self.setup_gpio()
-        
-    def setup_gpio(self):
-        GPIO.setmode(GPIO.BCM)
-        for pin in self.BUTTON_PINS.values():
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.add_event_detect(pin, GPIO.FALLING, 
-                                callback=self.button_callback, 
-                                bouncetime=300)
+        try:
+            GPIO.setmode(GPIO.BCM)
+            
+            # Setup button pins
+            for pin in [self.BUTTON1_PIN, self.BUTTON2_PIN, self.BUTTON3_PIN]:
+                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                GPIO.add_event_detect(pin, GPIO.FALLING, 
+                                    callback=self.button_callback, 
+                                    bouncetime=300)
+            
+            logger.info("GPIO Handler initialized successfully")
+            logger.info(f"Initial pin states - Button1: {GPIO.input(self.BUTTON1_PIN)}, "
+                       f"Button2: {GPIO.input(self.BUTTON2_PIN)}, "
+                       f"Button3: {GPIO.input(self.BUTTON3_PIN)}")
+            
+            self._initialized = True
+            
+        except Exception as e:
+            logger.error(f"Error initializing GPIO Handler: {str(e)}", exc_info=True)
     
     def button_callback(self, channel):
+        """Handle button press events"""
         try:
-            # Get button index (0-2) based on which pin was triggered
-            button_index = list(self.BUTTON_PINS.values()).index(channel)
-            
-            # Get selected stations
-            stations = self.state_manager.get_selected_stations()
-            if not stations or button_index >= len(stations):
-                logger.warning(f"No station configured for button {button_index + 1}")
-                return
-                
-            station = stations[button_index]
             current_status = self.player.get_status()
+            streams = self.stream_manager.get_streams_by_slots()
             
-            # If this station is currently playing, stop it
-            if (current_status["state"] == "playing" and 
-                current_status["current_station"] == station["url"]):
-                self.player.stop()
-            # If another station is playing or nothing is playing, play this station
+            if not streams:
+                logger.warning("No streams available")
+                return
+            
+            # Map GPIO pins to stream slots
+            button_to_slot = {
+                17: 0,  # Button 1 -> First stream
+                16: 1,  # Button 2 -> Second stream
+                26: 2   # Button 3 -> Third stream
+            }
+            
+            slot = button_to_slot.get(channel)
+            if slot is None or slot >= len(streams):
+                logger.warning(f"Invalid button channel: {channel}")
+                return
+            
+            stream = streams[slot]
+            
+            if current_status['state'] == 'playing':
+                if current_status['current_station'] == stream['url']:
+                    self.player.stop()
+                else:
+                    # Stop current stream before playing new one
+                    self.player.stop()
+                    self.player.play(stream['url'])
             else:
-                self.player.play(station["url"])
-                
+                self.player.play(stream['url'])
+            
         except Exception as e:
             logger.error(f"Error in button callback: {e}")
     
     def cleanup(self):
-        GPIO.cleanup() 
+        """Clean up GPIO resources"""
+        try:
+            GPIO.cleanup()
+            self.__class__._instance = None
+            self.__class__._initialized = False
+            logger.info("GPIO cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during GPIO cleanup: {e}")
+        

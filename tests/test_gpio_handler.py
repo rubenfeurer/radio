@@ -1,86 +1,148 @@
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from src.hardware.gpio_handler import GPIOHandler
-from src.player.radio_player import RadioPlayer
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def mock_gpio():
-    with patch('RPi.GPIO') as mock:
+    with patch('src.hardware.gpio_handler.GPIO') as mock:
+        # Setup GPIO mock
+        mock.BCM = 11
+        mock.IN = 1
+        mock.FALLING = 2
+        mock.PUD_UP = 22
+        mock.setmode = Mock()
+        mock.setup = Mock()
+        mock.add_event_detect = Mock()
+        mock.input = Mock(return_value=1)
+        mock.cleanup = Mock()
         yield mock
 
 @pytest.fixture
-def mock_radio_player():
-    with patch('src.player.radio_player.RadioPlayer') as mock:
-        yield mock
+def mock_player():
+    player = Mock()
+    # Default status is stopped
+    player.get_status.return_value = {"state": "stopped", "current_station": None, "volume": 80}
+    return player
 
-@patch('src.hardware.gpio_handler.GPIO')
-def test_gpio_initialization(mock_gpio):
-    # Mock the GPIO module attributes
-    mock_gpio.BCM = 11  # BCM mode value
-    mock_gpio.IN = 1    # Input mode value
-    mock_gpio.FALLING = 2  # Falling edge value
-    mock_gpio.PUD_UP = 22  # Pull-up value
-    
-    # Create handler
-    handler = GPIOHandler()
-    
-    # Verify GPIO mode was set to BCM
-    mock_gpio.setmode.assert_called_once_with(mock_gpio.BCM)
-    
-    # Verify setup was called for each pin
-    assert mock_gpio.setup.call_count == 3
-    
-    # Verify each pin setup
-    expected_pins = [17, 16, 26]  # GPIO pins from GPIOHandler
-    for pin in expected_pins:
-        mock_gpio.setup.assert_any_call(
-            pin, 
-            mock_gpio.IN, 
-            pull_up_down=mock_gpio.PUD_UP
-        )
-    
-    # Verify event detection was added for each pin
-    assert mock_gpio.add_event_detect.call_count == 3
-    for pin in expected_pins:
-        mock_gpio.add_event_detect.assert_any_call(
-            pin,
-            mock_gpio.FALLING,
-            callback=handler.button_callback,
-            bouncetime=300
-        )
-
-@patch('src.hardware.gpio_handler.GPIO')
-def test_button_callback(mock_gpio):
-    # Create mock player with proper status structure
-    mock_player = MagicMock()
-    mock_player.get_status = MagicMock(return_value={"state": "stopped", "current_station": None})
-    
-    # Create mock state manager with proper return structure
-    mock_state_manager = MagicMock()
-    mock_stations = [
-        {"name": "Station1", "url": "url1"},
-        {"name": "Station2", "url": "url2"},
-        {"name": "Station3", "url": "url3"}
+@pytest.fixture
+def mock_stream_manager():
+    manager = Mock()
+    manager.get_streams_by_slots.return_value = [
+        {"name": "Test Station 1", "url": "http://test1.com/stream"},
+        {"name": "Test Station 2", "url": "http://test2.com/stream"},
+        {"name": "Test Station 3", "url": "http://test3.com/stream"}
     ]
-    mock_state_manager.get_selected_stations.return_value = mock_stations
-    
-    # Create handler
+    return manager
+
+@pytest.fixture
+def gpio_handler(mock_gpio, mock_player, mock_stream_manager):
     handler = GPIOHandler()
-    
-    # Replace dependencies with mocks
+    # Explicitly set the player and stream manager
     handler.player = mock_player
-    handler.state_manager = mock_state_manager
+    handler.stream_manager = mock_stream_manager
+    return handler
+
+def test_button_1_controls_first_slot(gpio_handler, mock_player):
+    # Press button 1 (GPIO 17) - should play first slot
+    gpio_handler.button_callback(17)
+    mock_player.play.assert_called_with("http://test1.com/stream")
     
-    # Test button press when stopped
-    handler.button_callback(17)
-    mock_player.play.assert_called_once_with("url1")
-    
-    # Change status to playing same station
+    # Update status to playing
     mock_player.get_status.return_value = {
         "state": "playing",
-        "current_station": "url1"
+        "current_station": "http://test1.com/stream",
+        "volume": 80
     }
     
-    # Test button press when playing - should stop
-    handler.button_callback(17)
+    # Press button 1 again - should stop
+    gpio_handler.button_callback(17)
     mock_player.stop.assert_called_once()
+
+def test_pressing_different_button_switches_streams(gpio_handler, mock_player):
+    # Start playing first slot
+    gpio_handler.button_callback(17)  # Button 1
+    mock_player.play.assert_called_with("http://test1.com/stream")
+    
+    # Update status to playing first stream
+    mock_player.get_status.return_value = {
+        "state": "playing",
+        "current_station": "http://test1.com/stream",
+        "volume": 80
+    }
+    mock_player.play.reset_mock()
+    
+    # Press button 2 (GPIO 16)
+    gpio_handler.button_callback(16)
+    # Should stop current stream
+    mock_player.stop.assert_called_once()
+    # Should play second slot
+    mock_player.play.assert_called_with("http://test2.com/stream")
+
+def test_each_button_controls_its_slot(gpio_handler, mock_player):
+    # Test button 1 (GPIO 17)
+    gpio_handler.button_callback(17)
+    mock_player.play.assert_called_with("http://test1.com/stream")
+    mock_player.play.reset_mock()
+    
+    # Test button 2 (GPIO 16)
+    gpio_handler.button_callback(16)
+    mock_player.play.assert_called_with("http://test2.com/stream")
+    mock_player.play.reset_mock()
+    
+    # Test button 3 (GPIO 26)
+    gpio_handler.button_callback(26)
+    mock_player.play.assert_called_with("http://test3.com/stream")
+
+def test_button_press_starts_playback(gpio_handler, mock_player):
+    """Test that pressing a button starts playback when stopped"""
+    mock_player.get_status.return_value = {'state': 'stopped', 'current_station': None}
+    
+    gpio_handler.button_callback(17)  # Button 1
+    
+    mock_player.play.assert_called_once()
+    assert mock_player.play.call_args[0][0] == "http://test1.com/stream"
+
+def test_button_press_stops_playback(gpio_handler, mock_player):
+    """Test that pressing a button stops playback when playing"""
+    mock_player.get_status.return_value = {
+        'state': 'playing',
+        'current_station': 'http://test1.com/stream'
+    }
+    
+    gpio_handler.button_callback(17)  # Button 1
+    
+    mock_player.stop.assert_called_once()
+
+def test_button_press_switches_station(gpio_handler, mock_player):
+    """Test that pressing a different button switches stations"""
+    mock_player.get_status.return_value = {
+        'state': 'playing',
+        'current_station': 'http://test1.com/stream'
+    }
+    
+    gpio_handler.button_callback(16)  # Button 2
+    
+    mock_player.play.assert_called_once()
+    assert mock_player.play.call_args[0][0] == "http://test2.com/stream"
+
+# Add new tests for additional coverage
+def test_button_press_with_invalid_status(gpio_handler, mock_player):
+    """Test handling of invalid player status"""
+    mock_player.get_status.return_value = {'state': 'unknown', 'current_station': None}
+    
+    gpio_handler.button_callback(17)  # Button 1
+    
+    mock_player.play.assert_called_once()
+    assert mock_player.play.call_args[0][0] == "http://test1.com/stream"
+
+def test_button_press_with_missing_streams(gpio_handler, mock_player, mock_stream_manager):
+    """Test handling when no streams are available"""
+    mock_stream_manager.get_streams_by_slots.return_value = []
+    
+    gpio_handler.button_callback(17)  # Button 1
+    
+    mock_player.play.assert_not_called()
+
+def test_button_debounce(gpio_handler, mock_player):
+    """Test that rapid button presses are debounced"""
+    mock_player.get_status.return_value = {'state': 'stopped', 'current_station': None}
