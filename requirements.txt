@@ -1,0 +1,4 @@
+pytest
+python-vlc
+toml
+requests 
