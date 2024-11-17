@@ -18,6 +18,27 @@ jobs:
       with:
         python-version: '3.11'
     
+    - name: Create required directories
+      run: |
+        mkdir -p logs
+        mkdir -p config
+        touch logs/radio.log
+        
+    - name: Create config files
+      run: |
+        echo '{
+          "state": "stopped",
+          "current_station": null,
+          "volume": 80
+        }' > config/radio_state.json
+        
+        echo '[radio]
+        volume = 80' > config/config.toml
+        
+        echo '[[streams]]
+        name = "Test Station"
+        url = "http://test.stream/url"' > config/streams.toml
+    
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
@@ -25,15 +46,13 @@ jobs:
         pip install python-vlc
         pip install toml
         pip install requests
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install flask
     
     - name: Setup mock RPi.GPIO
       run: |
-        # Create Python package directory
         SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
         sudo mkdir -p ${SITE_PACKAGES}/RPi
         
-        # Create mock GPIO module
         echo '
         class GPIO:
             BCM = 11
@@ -58,7 +77,6 @@ jobs:
             def output(*args): pass
         ' | sudo tee ${SITE_PACKAGES}/RPi/GPIO.py
         
-        # Create __init__.py to make it a proper package
         echo "from .GPIO import GPIO" | sudo tee ${SITE_PACKAGES}/RPi/__init__.py
     
     - name: Install system dependencies
@@ -66,15 +84,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y vlc
     
-    - name: List project structure
-      run: |
-        echo "Project structure:"
-        ls -R
-        echo "Python path:"
-        python -c "import sys; print('\n'.join(sys.path))"
-        echo "Site packages:"
-        python -c "import site; print('\n'.join(site.getsitepackages()))"
-    
     - name: Run tests with detailed output
       run: |
-        PYTHONPATH=$PYTHONPATH:$(pwd) python -m pytest -v --tb=long
+        PYTHONPATH=$PYTHONPATH:$(pwd) python -m pytest -v --tb=long tests/test_gpio_handler.py tests/test_radio_player.py

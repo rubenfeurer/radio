@@ -1,4 +1,5 @@
 pytest
 python-vlc
 toml
-requests 
+requests
+flask 
