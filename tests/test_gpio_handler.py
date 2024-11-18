@@ -24,20 +24,20 @@ def mock_gpio():
 def mock_player():
     player = Mock()
     
-    # Initialize status
+    # Initialize status dictionary
     player._status = {
         "state": "stopped",
         "current_station": None,
         "volume": 80
     }
     
-    # Create get_status method
+    # Create get_status method that returns a copy
     def get_status():
         print(f"DEBUG: get_status called, returning: {player._status}")
         return player._status.copy()
     player.get_status = Mock(side_effect=get_status)
     
-    # Create stop method
+    # Create stop method that updates status
     def stop():
         print("DEBUG: stop() called")
         player._status.update({
@@ -46,7 +46,7 @@ def mock_player():
         })
     player.stop = Mock(side_effect=stop)
     
-    # Create play method
+    # Create play method that updates status
     def play(stream):
         print(f"DEBUG: play() called with {stream}")
         player._status.update({
@@ -60,7 +60,6 @@ def mock_player():
 @pytest.fixture
 def mock_stream_manager():
     manager = Mock()
-    # Return a dictionary instead of a list
     manager.get_streams_by_slots.return_value = {
         1: "http://test1.com/stream",
         2: "http://test2.com/stream",
@@ -86,50 +85,49 @@ pull_up = true
     return str(config_path)
 
 @pytest.fixture
-def gpio_handler(mock_gpio, mock_player, mock_stream_manager, mock_config):
-    handler = GPIOHandler(config_file=mock_config)
+def gpio_handler(mock_player, mock_stream_manager):
+    handler = GPIOHandler()
     handler.player = mock_player
     handler.stream_manager = mock_stream_manager
-    handler.last_button_press = 0
-    handler.debounce_time = 300
     return handler
 
 def test_button_1_controls_first_slot(gpio_handler, mock_player):
-    # Initial state
-    mock_player._status = {
-        "state": "stopped",
-        "current_station": None,
-        "volume": 80
-    }
-    
-    print("\nDEBUG: Initial status:", mock_player.get_status())
+    """Test that button 1 toggles playback of its assigned stream"""
+    # Initial state should be stopped
+    initial_status = mock_player.get_status()
+    print("\nDEBUG: Initial status:", initial_status)
+    assert initial_status["state"] == "stopped"
+    assert initial_status["current_station"] is None
     
     # Press button 1 (GPIO 17) - should play first slot
     gpio_handler.button_callback(17)
     mock_player.play.assert_called_with("http://test1.com/stream")
     
-    # Update mock status to playing
-    mock_player._status.update({
-        "state": "playing",
-        "current_station": "http://test1.com/stream",
-        "volume": 80
-    })
-    
     # Verify first press state
-    current_status = mock_player.get_status()
-    print("DEBUG: Status after first press:", current_status)
-    assert current_status["state"] == "playing"
-    assert current_status["current_station"] == "http://test1.com/stream"
+    first_press_status = mock_player.get_status()
+    print("DEBUG: Status after first press:", first_press_status)
+    assert first_press_status["state"] == "playing"
+    assert first_press_status["current_station"] == "http://test1.com/stream"
+    
+    # Reset the mock's call history but preserve the status
+    mock_player.stop.reset_mock()
+    mock_player.play.reset_mock()
+    
+    print("DEBUG: About to press button 1 again")
+    print("DEBUG: Current status before second press:", mock_player.get_status())
     
     # Press button 1 again - should stop
     gpio_handler.button_callback(17)
-    current_status = mock_player.get_status()
-    print("DEBUG: Status after second press:", current_status)
     
-    # Verify stop was called and state is updated
+    # Get final status
+    final_status = mock_player.get_status()
+    print("DEBUG: Status after second press:", final_status)
+    
+    # Verify stop was called and play wasn't
     mock_player.stop.assert_called_once()
-    assert current_status["state"] == "stopped"
-    assert current_status["current_station"] is None
+    mock_player.play.assert_not_called()
+    assert final_status["state"] == "stopped"
+    assert final_status["current_station"] is None
 
 def test_pressing_different_button_switches_streams(gpio_handler, mock_player):
     # Start playing first slot
