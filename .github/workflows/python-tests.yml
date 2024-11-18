@@ -70,7 +70,22 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y vlc
+        sudo apt-get install -y vlc alsa-utils libasound2-dev
+    
+    - name: Setup dummy sound device
+      run: |
+        # Load snd-dummy module if available
+        sudo modprobe snd-dummy || true
+        # Create dummy audio device configuration
+        echo 'pcm.dummy {
+            type hw
+            card 0
+        }
+        
+        ctl.dummy {
+            type hw
+            card 0
+        }' | sudo tee /etc/asound.conf
     
     - name: Run tests with detailed output
       run: |

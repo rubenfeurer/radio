@@ -2641,3 +2641,11 @@ AttributeError: type object 'ButtonMapper' has no attribute 'PIN_TO_BUTTON'
 2024-11-18 11:46:00,413 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:46:00] "GET /api/status HTTP/1.1" 200 -
 2024-11-18 11:47:00,406 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
 2024-11-18 11:47:00,408 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:47:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:48:02,040 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:48:02,042 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:48:02] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:49:00,419 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:49:00,421 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:49:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:50:00,642 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:50:00,643 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:50:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:51:00,832 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:51:00,835 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:51:00] "GET /api/status HTTP/1.1" 200 -
