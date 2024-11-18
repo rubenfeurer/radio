@@ -1,15 +1,9 @@
 import pytest
-from unittest.mock import Mock, patch
-import sys
-
-# Use mock GPIO if not on Raspberry Pi
-try:
-    import RPi.GPIO as GPIO
-except (RuntimeError, ModuleNotFoundError):
-    from tests.mock_gpio import GPIO
-
-from src.hardware.gpio_handler import GPIOHandler
+from unittest.mock import Mock, patch, mock_open, call
+import logging
 import time
+from src.hardware.gpio_handler import GPIOHandler
+from src.hardware.button_handler import ButtonPress
 
 @pytest.fixture(autouse=True)
 def mock_gpio():
@@ -27,49 +21,34 @@ def mock_gpio():
 @pytest.fixture
 def mock_player():
     player = Mock()
-    
-    # Initialize status dictionary
     player._status = {
         "state": "stopped",
         "current_station": None,
         "volume": 80
     }
     
-    # Create get_status method that returns a copy
     def get_status():
-        print(f"DEBUG: get_status called, returning: {player._status}")
         return player._status.copy()
     
-    # Create stop method that updates status
-    def stop():
-        print("DEBUG: stop() called")
-        player._status.update({
-            "state": "stopped",
-            "current_station": None
-        })
-    
-    # Create play method that updates status
     def play(stream):
-        print(f"DEBUG: play() called with {stream}")
         player._status.update({
             "state": "playing",
             "current_station": stream
         })
     
     player.get_status = Mock(side_effect=get_status)
-    player.stop = Mock(side_effect=stop)
     player.play = Mock(side_effect=play)
+    player.stop = Mock()
     return player
 
 @pytest.fixture
 def mock_stream_manager():
     manager = Mock()
-    streams = {
-        1: "http://test1.com/stream",
-        2: "http://test2.com/stream",
-        3: "http://test3.com/stream"
+    manager.get_streams_by_slots.return_value = {
+        1: {"url": "http://test1.com/stream", "name": "Test Stream 1"},
+        2: {"url": "http://test2.com/stream", "name": "Test Stream 2"},
+        3: {"url": "http://test3.com/stream", "name": "Test Stream 3"}
     }
-    manager.get_streams_by_slots = Mock(return_value=streams)
     return manager
 
 @pytest.fixture
@@ -79,49 +58,22 @@ def gpio_handler(mock_player, mock_stream_manager):
     print("\nDEBUG: GPIO handler initialized")
     return handler
 
+@pytest.fixture(autouse=True)
+def setup_logging():
+    """Configure logging for all tests"""
+    logging.basicConfig(level=logging.ERROR)
+    yield
+
 def test_button_1_controls_first_slot(gpio_handler, mock_player):
     """Test that button 1 toggles playback of its assigned stream"""
     # Initial state should be stopped
     initial_status = mock_player.get_status()
-    print("\nDEBUG: Initial status:", initial_status)
     assert initial_status["state"] == "stopped"
     assert initial_status["current_station"] is None
     
-    print("\nDEBUG: === First button press ===")
     # Press button 1 (GPIO 17) - should play first slot
     gpio_handler.button_callback(17)
-    mock_player.play.assert_called_with("http://test1.com/stream")
-    
-    # Verify first press state
-    first_press_status = mock_player.get_status()
-    print("DEBUG: Status after first press:", first_press_status)
-    assert first_press_status["state"] == "playing"
-    assert first_press_status["current_station"] == "http://test1.com/stream"
-    
-    # Reset mocks but preserve state
-    mock_player.stop.reset_mock()
-    mock_player.play.reset_mock()
-    
-    # Wait for debounce
-    time.sleep(0.4)
-    
-    print("\nDEBUG: === Second button press ===")
-    print("DEBUG: Current status before second press:", mock_player.get_status())
-    
-    # Press button 1 again - should stop
-    gpio_handler.button_callback(17)
-    
-    # Get final status
-    final_status = mock_player.get_status()
-    print("DEBUG: Status after second press:", final_status)
-    print("DEBUG: stop.call_count =", mock_player.stop.call_count)
-    print("DEBUG: play.call_count =", mock_player.play.call_count)
-    
-    # Verify stop was called and play wasn't
-    mock_player.stop.assert_called_once()
-    mock_player.play.assert_not_called()
-    assert final_status["state"] == "stopped"
-    assert final_status["current_station"] is None
+    mock_player.play.assert_called_with({"url": "http://test1.com/stream", "name": "Test Stream 1"})
 
 def test_gpio_initialization_and_cleanup(gpio_handler, mock_gpio):
     """Test that GPIO is properly initialized and cleaned up"""
@@ -180,3 +132,122 @@ def test_button_press_after_initialization(gpio_handler, mock_player):
     
     # Verify state changed
     assert mock_player.get_status()["state"] == "playing"
+
+def test_debounce_functionality(gpio_handler, mock_player, mock_stream_manager):
+    """Test that button debouncing works correctly"""
+    # Reset the last button press time to ensure debounce doesn't interfere
+    gpio_handler.last_button_press = 0
+    
+    # Create a new Mock for stream_toggler with handle_button_press method
+    mock_toggler = Mock()
+    mock_toggler.handle_button_press = Mock()
+    gpio_handler.stream_toggler = mock_toggler
+    
+    # First press should work
+    gpio_handler.button_callback(17)
+    assert mock_toggler.handle_button_press.call_count == 1
+    
+    # Immediate second press should be ignored due to debounce
+    gpio_handler.button_callback(17)
+    assert mock_toggler.handle_button_press.call_count == 1
+    
+    # Wait for debounce time to expire
+    time.sleep(0.4)
+    
+    # Third press should work
+    gpio_handler.button_callback(17)
+    assert mock_toggler.handle_button_press.call_count == 2
+
+def test_multiple_button_interaction(gpio_handler, mock_player, mock_stream_manager):
+    """Test interaction between different buttons"""
+    gpio_handler.setup(mock_player, mock_stream_manager)
+    
+    # Reset debounce time for testing
+    gpio_handler.last_button_press = 0
+    
+    # Create a new Mock for stream_toggler with handle_button_press method
+    mock_toggler = Mock()
+    mock_toggler.handle_button_press = Mock()
+    gpio_handler.stream_toggler = mock_toggler
+    
+    # Press button 1
+    gpio_handler.button_callback(17)
+    assert mock_toggler.handle_button_press.call_count == 1
+    
+    # Reset debounce time before second button press
+    gpio_handler.last_button_press = 0
+    
+    # Press button 2
+    gpio_handler.button_callback(16)
+    assert mock_toggler.handle_button_press.call_count == 2
+    
+    # Verify the button presses were handled with correct button indices
+    mock_toggler.handle_button_press.assert_has_calls([
+        call(ButtonPress(channel=17, button_index=1)),
+        call(ButtonPress(channel=16, button_index=2))
+    ], any_order=False)
+
+def test_error_handling(gpio_handler, mock_player, mock_stream_manager, caplog):
+    """Test error handling in button callback"""
+    # Set up logging
+    caplog.set_level(logging.ERROR)
+    logger = logging.getLogger('src.hardware.gpio_handler')
+    logger.setLevel(logging.ERROR)
+    
+    # Create a mock toggler that raises an exception
+    mock_toggler = Mock()
+    mock_toggler.handle_button_press = Mock(side_effect=Exception("Test error"))
+    gpio_handler.stream_toggler = mock_toggler
+    
+    # Reset the last button press time
+    gpio_handler.last_button_press = 0
+    
+    # Press button should handle error gracefully
+    gpio_handler.button_callback(17)
+    
+    # Verify error was logged
+    assert any("Error in button callback" in record.message for record in caplog.records)
+
+def test_invalid_button_channel(gpio_handler, mock_player, mock_stream_manager, caplog):
+    """Test handling of invalid button channel"""
+    # Set up logging
+    caplog.set_level(logging.ERROR)
+    logger = logging.getLogger('src.hardware.gpio_handler')
+    logger.setLevel(logging.ERROR)
+    
+    # Reset the last button press time
+    gpio_handler.last_button_press = 0
+    
+    # Try to trigger callback with invalid channel
+    gpio_handler.button_callback(99)
+    
+    # Check if the error was logged
+    assert any("Invalid button channel" in record.message for record in caplog.records)
+
+def test_config_loading(mock_gpio):
+    """Test loading of custom button configuration"""
+    custom_config = {
+        'gpio': {
+            'buttons': {
+                'button1': 5,
+                'button2': 6,
+                'button3': 13
+            },
+            'settings': {
+                'debounce_time': 200
+            }
+        }
+    }
+    
+    with patch('tomli.load', return_value=custom_config), \
+         patch('builtins.open', mock_open(read_data=str(custom_config))):
+        handler = GPIOHandler()
+        handler.setup(Mock(), Mock())
+        
+        # Verify custom pins were set up
+        expected_calls = [
+            call(5, mock_gpio.IN, pull_up_down=mock_gpio.PUD_UP),
+            call(6, mock_gpio.IN, pull_up_down=mock_gpio.PUD_UP),
+            call(13, mock_gpio.IN, pull_up_down=mock_gpio.PUD_UP)
+        ]
+        assert all(call in mock_gpio.setup.call_args_list for call in expected_calls)

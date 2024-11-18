@@ -1,12 +1,14 @@
 # Testing
 pytest>=7.2.1
 pytest-mock>=3.10.0
+pytest-cov>=4.1.0
 
 # Media Player
 python-vlc>=3.0.18
 
 # Configuration and Data Handling
 tomli>=2.0.1
+tomli-w>=1.0.0
 toml>=0.10.2
 
 # Web and Network
@@ -14,4 +16,7 @@ requests>=2.28.0
 flask>=2.0.0
 
 # Raspberry Pi Specific
-RPi.GPIO>=0.7.0  # Only needed on Raspberry Pi 
+RPi.GPIO>=0.7.0
+
+# Logging
+python-json-logger>=2.0.7
