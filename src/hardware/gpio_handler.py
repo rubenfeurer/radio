@@ -14,6 +14,12 @@ class GPIOHandler:
         if cls._instance is None:
             cls._instance = super(GPIOHandler, cls).__new__(cls)
             cls._instance._initialized = False
+            cls._instance.player = None
+            cls._instance.stream_manager = None
+            cls._instance.button_state = ButtonStateHandler()
+            cls._instance.stream_toggler = None
+            cls._instance.last_button_press = 0
+            cls._instance.debounce_time = 300  # milliseconds
         return cls._instance
 
     def __init__(self, config_file='config/config.toml'):
@@ -36,65 +42,56 @@ class GPIOHandler:
         except Exception as e:
             logger.error(f"Error loading config: {e}")
         
-        self._initialized = True
+        # Remove this line - initialization should happen in setup()
+        # self._initialized = True
 
     def setup(self, player, stream_manager):
-        """Initialize with required dependencies"""
-        if not player or not stream_manager:
-            logger.error("Cannot setup GPIO handler: missing dependencies")
-            return
-            
-        self.player = player
-        self.stream_manager = stream_manager
-        
-        # Initialize stream toggler with dependencies
-        self.stream_toggler = StreamToggler(player, stream_manager)
-        logger.debug(f"Stream toggler initialized with player: {player}")
-        
-        if not self.__class__._initialized:
-            self._setup_gpio()
-            self.__class__._initialized = True
-        
-        logger.info("GPIO handler initialized")
-
-    def _setup_gpio(self):
-        """Set up GPIO pins and event detection"""
-        GPIO.setmode(GPIO.BCM)
-        
+        """Set up GPIO handler with dependencies"""
         try:
-            # Load config
-            with open('config/config.toml', 'rb') as f:
-                config = tomli.load(f)
-                button_config = config['gpio']['buttons']
-                pin_mapping = {
-                    button_config['button1']: 1,
-                    button_config['button2']: 2,
-                    button_config['button3']: 3
-                }
-        except Exception as e:
-            logger.warning(f"Failed to load button config, using fallback: {e}")
-            # Fallback to hardcoded pin mapping matching physical setup
-            pin_mapping = {
-                17: 1,  # Button 1 - GPIO 17
-                16: 2,  # Button 2 - GPIO 16
-                26: 3   # Button 3 - GPIO 26
-            }
-        
-        # Setup button pins with error handling
-        for pin, button_num in pin_mapping.items():
+            # Initialize GPIO mode first
+            GPIO.setmode(GPIO.BCM)
+            
+            self.player = player
+            self.stream_manager = stream_manager
+            self.stream_toggler = StreamToggler(player, stream_manager)
+            
+            # Initialize pin mapping
             try:
+                # Load config
+                with open('config/config.toml', 'rb') as f:
+                    config = tomli.load(f)
+                    button_config = config['gpio']['buttons']
+                    self.pin_mapping = {
+                        button_config['button1']: 1,
+                        button_config['button2']: 2,
+                        button_config['button3']: 3
+                    }
+            except Exception as e:
+                logger.warning(f"Failed to load button config, using fallback: {e}")
+                # Fallback to hardcoded pin mapping matching physical setup
+                self.pin_mapping = {
+                    17: 1,  # Button 1 - GPIO 17
+                    16: 2,  # Button 2 - GPIO 16
+                    26: 3   # Button 3 - GPIO 26
+                }
+            
+            # Setup button pins
+            for pin in self.pin_mapping.keys():
                 GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
                 GPIO.add_event_detect(
                     pin,
                     GPIO.FALLING,
                     callback=self.button_callback,
-                    bouncetime=300
+                    bouncetime=self.debounce_time
                 )
-                logger.debug(f"Successfully setup GPIO pin {pin} for button {button_num}")
-            except Exception as e:
-                logger.error(f"Failed to setup GPIO pin {pin}: {e}")
-
-        self.pin_mapping = pin_mapping  # Store for button_callback use
+            
+            logger.info("GPIO handler initialized successfully")
+            self._initialized = True
+            
+        except Exception as e:
+            logger.error(f"Error setting up GPIO handler: {e}")
+            self._initialized = False
+            raise
 
     def button_callback(self, channel):
         """Handle button press events"""
@@ -117,6 +114,13 @@ class GPIOHandler:
         """Clean up GPIO resources"""
         try:
             GPIO.cleanup()
+            # Reset instance variables
+            self.player = None
+            self.stream_manager = None
+            self.stream_toggler = None
+            self.last_button_press = 0
+            # Reset singleton state properly
+            self._initialized = False
             self.__class__._instance = None
             self.__class__._initialized = False
             logger.info("GPIO cleanup completed")

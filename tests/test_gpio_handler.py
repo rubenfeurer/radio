@@ -122,3 +122,37 @@ def test_button_1_controls_first_slot(gpio_handler, mock_player):
     mock_player.play.assert_not_called()
     assert final_status["state"] == "stopped"
     assert final_status["current_station"] is None
+
+def test_gpio_initialization_and_cleanup(gpio_handler, mock_gpio):
+    """Test that GPIO is properly initialized and cleaned up"""
+    # Verify GPIO setup
+    mock_gpio.setmode.assert_called_once_with(mock_gpio.BCM)
+    
+    # Verify button pins are set up correctly
+    expected_pins = [17, 16, 26]  # The default pins from config
+    for pin in expected_pins:
+        mock_gpio.setup.assert_any_call(pin, mock_gpio.IN, pull_up_down=mock_gpio.PUD_UP)
+        mock_gpio.add_event_detect.assert_any_call(
+            pin, 
+            mock_gpio.FALLING,
+            callback=gpio_handler.button_callback,
+            bouncetime=300
+        )
+    
+    # Test cleanup
+    gpio_handler.cleanup()
+    mock_gpio.cleanup.assert_called_once()
+    assert GPIOHandler._initialized is False
+
+def test_button_handler_reinitialization(mock_gpio):
+    """Test that handler can be reinitialized after cleanup"""
+    handler1 = GPIOHandler()
+    handler1.cleanup()
+    
+    # Create new handler
+    handler2 = GPIOHandler()
+    assert handler2._initialized is False
+    
+    # Setup should work
+    handler2.setup(Mock(), Mock())
+    assert handler2._initialized is True
