@@ -15,18 +15,24 @@ systemctl disable radio
 # Remove service file
 rm -f /etc/systemd/system/radio.service
 
+# Remove sound configuration
+rm -f /etc/asound.conf
+
+# Remove log rotation configuration
+rm -f /etc/logrotate.d/radio
+
 # Clean up Python packages (optional)
 echo "Do you want to remove installed Python packages? (y/N)"
 read -r response
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
-    pip3 uninstall -y flask python-vlc requests tomli pytest
+    pip3 uninstall -y -r requirements.txt
 fi
 
 # Clean up system packages (optional)
 echo "Do you want to remove system packages (vlc, alsa-utils)? (y/N)"
 read -r response
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
-    apt-get remove -y vlc alsa-utils
+    apt-get remove -y vlc alsa-utils libasound2-dev
     apt-get autoremove -y
 fi
 
@@ -36,6 +42,14 @@ read -r response
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
     rm -rf /home/radio/internetRadio/logs/*
     rm -rf /home/radio/internetRadio/config/*
+    rm -rf /home/radio/internetRadio/sounds/*
+fi
+
+# Remove radio user (optional)
+echo "Do you want to remove the radio user? (y/N)"
+read -r response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+    userdel -r radio
 fi
 
 # Reload systemd daemon

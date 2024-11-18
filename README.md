@@ -178,3 +178,26 @@ Contributing
 License
 -------
 [License information]
+
+Open TODOs
+----------
+1. Testing:
+   - [ ] Add unit tests for SoundPlayer
+   - [ ] Add integration tests for RotaryHandler
+   - [ ] Add system tests for RadioService
+   - [ ] Add stress tests for GPIO handling
+   - [ ] Add network failure recovery tests
+   - [ ] Add mock tests for audio subsystem
+   - [ ] Add configuration validation tests
+
+2. Features:
+   - [ ] Implement station search functionality
+   - [ ] Add network status indicator
+   - [ ] Implement station metadata display
+
+3. Documentation:
+   - [ ] Add API documentation
+   - [ ] Add hardware setup guide
+   - [ ] Add troubleshooting guide
+   - [ ] Add development setup guide
+   - [ ] Document test coverage requirements

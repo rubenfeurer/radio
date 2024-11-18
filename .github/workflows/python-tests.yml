@@ -119,3 +119,12 @@ jobs:
         SOUND_DIR: /tmp/test_sounds
       run: |
         python -m pytest tests/ -v
+    
+    - name: Run tests with coverage
+      run: |
+        pytest --cov=src tests/ -v --cov-report=xml
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
