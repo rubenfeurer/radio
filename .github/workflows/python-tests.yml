@@ -105,9 +105,9 @@ jobs:
     
     - name: Set up test environment
       run: |
-        # Create test directories with correct permissions
-        sudo mkdir -p /tmp/test_sounds
-        sudo chown -R runner:runner /tmp/test_sounds
+        # Create temporary test directories
+        mkdir -p /tmp/test_sounds
+        chmod 777 /tmp/test_sounds
         
         # Create dummy sound files
         touch /tmp/test_sounds/success.wav
@@ -117,6 +117,5 @@ jobs:
     - name: Run tests
       env:
         SOUND_DIR: /tmp/test_sounds
-        PYTHONPATH: ${{ github.workspace }}
       run: |
-        pytest -v tests/
+        python -m pytest tests/ -v
