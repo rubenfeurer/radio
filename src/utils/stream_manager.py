@@ -1,6 +1,9 @@
 import tomli
-import json
+import tomli_w
 import logging
+import requests
+import json
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -49,3 +52,34 @@ class StreamManager:
         except Exception as e:
             logger.error(f"Error getting streams by slots: {e}")
             return {}
+    
+    def validate_stream_url(self, url: str) -> bool:
+        """Validate if a stream URL is accessible"""
+        if not url.startswith(('http://', 'https://')):
+            return False
+        try:
+            response = requests.head(url, timeout=5)
+            return response.status_code == 200
+        except (requests.RequestException, ValueError):
+            return False
+    
+    def save_stream_config(self, stream: Dict[str, str], slot: int) -> bool:
+        """Save stream configuration to a specific slot"""
+        try:
+            # Get existing state or create new
+            state = self.load_radio_state() or {"selected_stations": []}
+            
+            # Ensure selected_stations list is long enough
+            while len(state["selected_stations"]) < slot:
+                state["selected_stations"].append(None)
+            
+            # Update the stream for the given slot (1-based to 0-based index)
+            state["selected_stations"][slot-1] = stream
+            
+            # Save the updated configuration
+            with open(self.state_file, 'w') as f:
+                json.dump(state, f)
+            return True
+        except Exception as e:
+            logger.error(f"Error saving stream config: {e}")
+            return False

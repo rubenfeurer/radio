@@ -3,6 +3,7 @@ from src.utils.stream_manager import StreamManager
 import os
 import json
 import toml
+from unittest.mock import patch, mock_open
 
 @pytest.fixture
 def sample_streams():
@@ -71,4 +72,34 @@ def test_get_streams_by_slots_with_invalid_state_file(stream_manager, tmp_path):
     assert streams[1] == "http://test1.com/stream"
     assert streams[2] == "http://test2.com/stream"
     assert streams[3] == "http://test3.com/stream"
+
+def test_stream_validation():
+    """Test stream URL validation"""
+    with patch('requests.head') as mock_head:
+        manager = StreamManager()
+        
+        # Test valid stream
+        mock_head.return_value.status_code = 200
+        assert manager.validate_stream_url("http://valid.stream/url") == True
+        
+        # Test invalid stream
+        mock_head.return_value.status_code = 404
+        assert manager.validate_stream_url("http://invalid.stream/url") == False
+        
+        # Test malformed URL
+        assert manager.validate_stream_url("invalid_url") == False
+
+def test_stream_persistence():
+    """Test stream configuration persistence"""
+    with patch('builtins.open', mock_open()) as mock_file:
+        manager = StreamManager()
+        test_stream = {"name": "Test Station", "url": "http://test.com/stream"}
+        
+        # Test saving stream
+        assert manager.save_stream_config(test_stream, 1) == True
+        mock_file.assert_called()
+        
+        # Test loading saved stream
+        manager.get_streams_by_slots()
+        mock_file.assert_called()
   
