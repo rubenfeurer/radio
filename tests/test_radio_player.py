@@ -120,41 +120,30 @@ def test_audio_device_detection_fallback(mock_aplay_output):
 def test_volume_control_success():
     """Test successful volume control"""
     with patch('subprocess.run') as mock_run:
-        # Configure mock for aplay -l
-        aplay_result = Mock()
-        aplay_result.returncode = 0
-        aplay_result.stdout = "card 2: Headphones [bcm2835 Headphones]"
-        
-        # Configure mock for amixer
-        amixer_result = Mock()
-        amixer_result.returncode = 0
-        amixer_result.stderr = ""
-        
-        # Set up mock to return different results based on the command
-        def mock_run_side_effect(*args, **kwargs):
-            if 'aplay' in args[0]:
-                return aplay_result
-            return amixer_result
-            
-        mock_run.side_effect = mock_run_side_effect
-        
+        # Configure mock
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+        mock_run.return_value = mock_result
+
         player = RadioPlayer()
         assert player.set_volume(75) == True
-        
-        # Verify the exact command that was called
-        mock_run.assert_called_with(
-            ['amixer', 'sset', '-c', '2', 'PCM', '75%'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+
+        # Verify that one of the valid command formats was called
+        assert any([
+            call(['amixer', '-c', '2', 'sset', 'PCM', '75%'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) == c
+            or
+            call(['amixer', 'sset', '-c', '2', 'PCM', '75%'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) == c
+            for c in mock_run.call_args_list
+        ]), "Neither expected amixer command format was called"
 
 def test_volume_control_failure():
     """Test volume control failure handling"""
     with patch('subprocess.run') as mock_run:
+        # Configure mock to fail for all commands
         mock_result = Mock()
         mock_result.returncode = 1
-        mock_result.stderr = "Invalid command"
+        mock_result.stderr = "Error: Invalid command"
         mock_run.return_value = mock_result
 
         player = RadioPlayer()

@@ -103,23 +103,20 @@ jobs:
             }
         }' | sudo tee /etc/asound.conf
     
-    - name: Setup test environment
+    - name: Set up test environment
       run: |
         # Create test directories with correct permissions
         sudo mkdir -p /tmp/test_sounds
-        sudo chmod 777 /tmp/test_sounds
+        sudo chown -R runner:runner /tmp/test_sounds
         
-        # Create dummy sound files for testing
+        # Create dummy sound files
         touch /tmp/test_sounds/success.wav
         touch /tmp/test_sounds/error.wav
         touch /tmp/test_sounds/startup.wav
     
-    - name: Run tests with detailed output
+    - name: Run tests
       env:
         SOUND_DIR: /tmp/test_sounds
+        PYTHONPATH: ${{ github.workspace }}
       run: |
-        python -m pytest -v --tb=long tests/
-        
-    - name: Test rotary encoder functionality
-      run: |
-        python -m pytest -v tests/test_rotary_handler.py
+        pytest -v tests/

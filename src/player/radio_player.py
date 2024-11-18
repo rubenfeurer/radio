@@ -92,29 +92,25 @@ class RadioPlayer:
             volume = max(0, min(100, volume))
             self.volume = volume
             
+            # Try both command orders that are commonly used
             commands = [
-                ['amixer', 'sset', '-c', str(self.audio_card), 'PCM', f'{volume}%'],  # Changed order
-                ['amixer', '-c', str(self.audio_card), 'sset', 'PCM', f'{volume}%'],  # Original order as fallback
-                ['amixer', 'sset', 'PCM', f'{volume}%']  # Simple fallback
+                ['amixer', '-c', str(self.audio_card), 'sset', 'PCM', f'{volume}%'],  # Order 1
+                ['amixer', 'sset', '-c', str(self.audio_card), 'PCM', f'{volume}%'],  # Order 2
             ]
             
             for cmd in commands:
-                logger.debug(f"Trying volume set command: {' '.join(cmd)}")
                 result = subprocess.run(cmd, 
                                      stdout=subprocess.PIPE, 
                                      stderr=subprocess.PIPE,
                                      text=True)
                 if result.returncode == 0:
-                    logger.debug(f"Volume set to {volume}%")
                     return True
                     
-                logger.debug(f"Command failed: {result.stderr}")
-            
-            logger.error("All volume control commands failed")
+            logger.error("Volume control failed with all command variations")
             return False
                 
         except Exception as e:
-            logger.error(f"Error setting volume: {e}", exc_info=True)
+            logger.error(f"Error setting volume: {e}")
             return False
     
     def get_volume(self):
