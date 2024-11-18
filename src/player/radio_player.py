@@ -116,30 +116,72 @@ class RadioPlayer:
             # Force kill any remaining VLC processes
             os.system("pkill vlc")
     
-    def play(self, url):
-        """Play a stream from the given URL"""
+    def play(self, url: str) -> None:
+        """Play the given URL"""
         try:
-            # Create a new media instance
-            media = self.instance.media_new(url)
-            self.player.set_media(media)
+            # Stop any currently playing stream
+            self.stop()
             
-            # Start playback
-            self.player.play()
+            # Add retry logic for initial connection
+            max_retries = 3
+            retry_delay = 1.5  # Increased from 1 to 1.5 seconds
+            initial_buffer = 2.0  # Added initial buffer time
             
-            # Update status
+            for attempt in range(max_retries):
+                try:
+                    # Create new media and set it
+                    media = self.instance.media_new(url)
+                    self.player.set_media(media)
+                    
+                    # Attempt to play
+                    result = self.player.play()
+                    
+                    # Wait for initial buffering
+                    time.sleep(initial_buffer)
+                    
+                    # Check multiple times for playback status
+                    check_attempts = 3
+                    for _ in range(check_attempts):
+                        if self.player.is_playing():
+                            logging.info(f"Successfully started playing {url} on attempt {attempt + 1}")
+                            # Update current status
+                            self.current_status = {
+                                'state': 'playing',
+                                'current_station': url,
+                                'volume': self.volume
+                            }
+                            return
+                        time.sleep(0.5)
+                    
+                    if attempt < max_retries - 1:
+                        logging.warning(f"Failed to start playback on attempt {attempt + 1}, retrying...")
+                        time.sleep(retry_delay)
+                        self.stop()  # Ensure clean state before retry
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logging.warning(f"Connection error on attempt {attempt + 1}: {str(e)}, retrying...")
+                        time.sleep(retry_delay)
+                        self.stop()  # Ensure clean state before retry
+                    else:
+                        raise
+            
+            logging.error(f"Failed to start playback after {max_retries} attempts")
             self.current_status = {
-                "state": "playing",
-                "current_station": url,
-                "volume": self.volume
+                'state': 'stopped',
+                'current_station': None,
+                'volume': self.volume
             }
+            raise RuntimeError(f"Failed to start playback of {url} after {max_retries} attempts")
             
         except Exception as e:
-            logger.error(f"Error playing stream: {e}")
+            logging.error(f"Error playing URL {url}: {str(e)}")
             self.current_status = {
-                "state": "error",
-                "current_station": None,
-                "volume": self.volume
+                'state': 'stopped',
+                'current_station': None,
+                'volume': self.volume
             }
+            raise
     
     def stop(self):
         """Stop the current stream"""

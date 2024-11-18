@@ -111,7 +111,28 @@ def test_radio_service_singleton(mock_stream_manager, mock_radio_player, mock_gp
     service2 = RadioService()
     assert service1 is service2
 
+@patch('src.app.radio_service.GPIOHandler')
+@patch('src.app.radio_service.RadioPlayer')
+@patch('src.app.radio_service.StreamManager')
 def test_radio_service_initialization(mock_stream_manager, mock_radio_player, mock_gpio_handler):
+    """Test that RadioService initializes all components correctly"""
+    # Setup mocks
+    mock_player = Mock()
+    mock_gpio = Mock()
+    mock_streams = Mock()
+    
+    # Configure stream manager mock
+    mock_streams.get_streams_by_slots.return_value = {
+        1: "http://test1.stream",
+        2: "http://test2.stream"
+    }
+    
+    # Configure return values
+    mock_radio_player.return_value = mock_player
+    mock_gpio_handler.return_value = mock_gpio
+    mock_stream_manager.return_value = mock_streams
+    
+    # Create service
     service = RadioService()
     
     # Check components are initialized
@@ -119,12 +140,8 @@ def test_radio_service_initialization(mock_stream_manager, mock_radio_player, mo
     assert service.player is not None
     assert service.gpio_handler is not None
     
-    # Check GPIO handler dependencies are set
-    mock_gpio_handler.setup.assert_called_once_with(service.player, service.stream_manager)
-    
-    # Verify dependencies were properly set
-    assert mock_gpio_handler.player is service.player
-    assert mock_gpio_handler.stream_manager is service.stream_manager
+    # Verify GPIO handler was set up correctly
+    mock_gpio_handler.return_value.setup.assert_called_once_with(mock_player, mock_streams)
 
 def test_radio_service_cleanup(mock_stream_manager, mock_radio_player, mock_gpio_handler):
     service = RadioService()
@@ -152,3 +169,77 @@ def test_radio_service_error_handling():
         with pytest.raises(Exception) as exc_info:
             RadioService()
         assert "Test error" in str(exc_info.value)
+
+@patch('src.hardware.gpio_handler.GPIO')
+def test_radio_service_initialization_sound(mock_gpio):
+    """Test that RadioService plays initialization sound"""
+    # Setup GPIO mock
+    mock_gpio.BCM = 11
+    mock_gpio.IN = 1
+    mock_gpio.FALLING = 2
+    mock_gpio.PUD_UP = 22
+    mock_gpio.setmode = Mock()
+    mock_gpio.setup = Mock()
+    mock_gpio.add_event_detect = Mock()
+    mock_gpio.cleanup = Mock()
+    
+    # Create mocks for RadioPlayer
+    mock_player = Mock()
+    mock_instance = Mock()
+    mock_media = Mock()
+    mock_vlc_player = Mock()
+    
+    # Configure mock instance
+    mock_instance.media_new.return_value = mock_media
+    mock_player.instance = mock_instance
+    mock_player.player = mock_vlc_player
+    
+    # Patch the singleton instance directly
+    from src.player.radio_player import RadioPlayer
+    RadioPlayer._instance = mock_player
+    
+    try:
+        # Create service
+        service = RadioService()
+        
+        # Verify success sound was attempted to be played
+        mock_instance.media_new.assert_called_with("/home/radio/internetRadio/sounds/success.wav")
+        mock_vlc_player.set_media.assert_called_with(mock_media)
+        mock_vlc_player.play.assert_called_once()
+    finally:
+        # Clean up singleton
+        RadioPlayer._instance = None
+
+@patch('src.app.radio_service.GPIOHandler')
+@patch('src.app.radio_service.RadioPlayer')
+@patch('src.app.radio_service.StreamManager')
+def test_radio_service_preload_streams(mock_stream_manager, mock_radio_player, mock_gpio_handler):
+    """Test that streams are preloaded during initialization"""
+    # Setup mocks
+    mock_player = Mock()
+    mock_instance = Mock()
+    mock_media = Mock()
+    
+    # Configure mock instance
+    mock_instance.media_new.return_value = mock_media
+    mock_player.instance = mock_instance
+    mock_radio_player.return_value = mock_player
+    
+    # Configure stream manager mock
+    test_streams = {
+        1: "http://test1.stream",
+        2: "http://test2.stream"
+    }
+    mock_stream_manager.return_value.get_streams_by_slots.return_value = test_streams
+    
+    # Configure GPIO handler mock
+    mock_gpio_handler.return_value = Mock()
+    
+    # Create service
+    service = RadioService()
+    
+    # Verify streams were preloaded
+    assert mock_instance.media_new.call_count >= len(test_streams)
+    for stream in test_streams.values():
+        mock_instance.media_new.assert_any_call(stream)
+        mock_media.parse.assert_called()

@@ -42,8 +42,8 @@ def test_play_stop(mock_subprocess, mock_vlc):
     mock_instance.media_player_new.return_value = mock_player
     mock_instance.media_new.return_value = mock_media
     
-    # Configure subprocess mock
-    mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    # Configure player mock behavior
+    mock_player.is_playing.return_value = True
     
     # Create player
     player = RadioPlayer()
@@ -56,6 +56,9 @@ def test_play_stop(mock_subprocess, mock_vlc):
     mock_instance.media_new.assert_called_once_with(test_url)
     mock_player.set_media.assert_called_once_with(mock_media)
     mock_player.play.assert_called_once()
+    
+    # Reset mock to check stop call
+    mock_player.stop.reset_mock()
     
     # Test stop
     player.stop()
@@ -99,8 +102,28 @@ def test_vlc_alsa_configuration():
     assert '--aout=alsa' in player.get_vlc_configuration()
     assert '--alsa-audio-device=plughw:2,0' in player.get_vlc_configuration()
 
-def test_get_status(mock_subprocess):
+@patch('src.player.radio_player.vlc')
+@patch('subprocess.run')
+def test_get_status(mock_subprocess, mock_vlc):
     """Test that get_status returns the correct status dictionary"""
+    # Reset singleton state
+    RadioPlayer._instance = None
+    
+    # Setup mock VLC instance
+    mock_player = MagicMock()
+    mock_media = MagicMock()
+    mock_instance = MagicMock()
+    
+    # Configure VLC mocks
+    mock_vlc.Instance.return_value = mock_instance
+    mock_instance.media_player_new.return_value = mock_player
+    mock_instance.media_new.return_value = mock_media
+    
+    # Configure player mock behavior
+    mock_player.is_playing.side_effect = [False, True]  # First False for initial status, then True after play
+    mock_player.play.return_value = 0  # Successful play
+    
+    # Create player instance
     player = RadioPlayer()
     
     # Test initial status
@@ -112,10 +135,21 @@ def test_get_status(mock_subprocess):
     }
     
     # Test status after playing
-    player.play('test_url')
-    play_status = player.get_status()
-    assert play_status == {
+    test_url = 'http://test.stream/url'
+    
+    # Mock successful playback
+    def mock_play_success(*args, **kwargs):
+        player._current_station = test_url
+        return 0
+    
+    mock_player.play.side_effect = mock_play_success
+    
+    # Play the stream
+    player.play(test_url)
+    
+    playing_status = player.get_status()
+    assert playing_status == {
         'state': 'playing',
-        'current_station': 'test_url',
+        'current_station': test_url,
         'volume': 80
     }
