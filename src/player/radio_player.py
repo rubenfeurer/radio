@@ -8,6 +8,8 @@ import requests
 import subprocess
 import math
 import toml
+import re
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -15,254 +17,163 @@ class RadioPlayer:
     _instance = None
     
     def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(RadioPlayer, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-    
-    def __init__(self):
-        """Initialize the radio player"""
-        try:
-            # Create VLC instance with custom audio output
-            self.instance = vlc.Instance('--aout=alsa')  # Use ALSA instead of PulseAudio
-            self.player = self.instance.media_player_new()
-            self.volume = 80  # Default volume
-            self.player.audio_set_volume(self.volume)
-            logger.info("Radio player initialized successfully")
-        except Exception as e:
-            logger.error(f"Error initializing radio player: {e}")
-            raise
-        self.current_status = {
-            'state': 'stopped',
-            'current_station': None,
-            'volume': self.volume
-        }
-    
-    def _init_alsa_volume(self):
-        """Initialize ALSA volume settings"""
-        try:
-            logger.info("Initializing ALSA volume settings")
-            
-            # Set initial ALSA volume to maximum
-            cmd = ['amixer', '-c', '2', 'set', 'PCM', '400']  # 400 is max value for this device
-            logger.info(f"Executing ALSA command: {' '.join(cmd)}")
-            
-            result = subprocess.run(cmd, 
-                                stdout=subprocess.PIPE, 
-                                stderr=subprocess.PIPE,
-                                text=True)
-            
-            if result.returncode != 0:
-                logger.error(f"ALSA command failed: {result.stderr}")
-            else:
-                logger.info(f"ALSA volume initialized: {result.stdout}")
-                
-        except Exception as e:
-            logger.error(f"Error initializing ALSA volume: {e}")
-    
-    def get_vlc_args(self):
-        """Get VLC arguments for testing"""
-        return [
-            '--no-xlib',
-            '--aout=alsa',
-            '--alsa-audio-device=plughw:2,0'
-        ]
-    
-    def get_vlc_configuration(self):
-        """Get VLC configuration string"""
-        return '--no-xlib --aout=alsa --alsa-audio-device=plughw:2,0'
-    
-    def initialize(self):
-        """Initialize the VLC player with ALSA output"""
-        try:
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+            # Initialize attributes here to avoid AttributeError
+            cls._instance.initialized = False
+            cls._instance.current_status = {
+                'state': 'stopped',
+                'current_station': None,
+                'volume': 75  # Default volume
+            }
             # Load config
+            config_path = Path(__file__).parent.parent.parent / 'config' / 'config.toml'
             try:
-                with open('config/config.toml', 'r') as f:
+                with open(config_path, 'r') as f:
                     config = toml.load(f)
-                    default_volume = config.get('default_volume', 80)
+                    cls._instance.current_status['volume'] = config.get('audio', {}).get('initial_volume', 75)
             except Exception as e:
                 logger.error(f"Error loading config: {e}")
-                default_volume = 80
+        return cls._instance
+    
+    def _get_audio_device(self):
+        """Detect the audio device"""
+        try:
+            result = subprocess.run(['aplay', '-l'], 
+                                  stdout=subprocess.PIPE, 
+                                  stderr=subprocess.PIPE,
+                                  text=True)
             
-            # Initialize VLC with ALSA
-            vlc_config = '--no-xlib --aout=alsa --alsa-audio-device=plughw:2,0'
-            self.instance = vlc.Instance(vlc_config)
-            self.player = self.instance.media_player_new()
-            
-            # Set initial volume through ALSA
-            self.volume = default_volume
-            self.set_volume(default_volume)
-            
-            logger.info(f"Player initialized with ALSA output and volume {default_volume}")
-            return True
+            if result.returncode == 0 and result.stdout:
+                # Look for Headphones in the output
+                for line in result.stdout.split('\n'):
+                    if 'Headphones' in line:
+                        # Extract card number
+                        match = re.search(r'card (\d+):', line)
+                        if match:
+                            return match.group(1)
+                            
+            logger.warning("Headphones not found, using default")
+            return 'default'
             
         except Exception as e:
-            logger.error(f"Error initializing player: {e}")
-            return False
+            logger.error(f"Error detecting audio device: {e}")
+            return 'default'
     
-    def _signal_handler(self, signum, frame):
-        self.cleanup()
-    
-    def cleanup(self):
-        try:
-            if hasattr(self, 'player') and self.player:
-                self.player.stop()
-                del self.player
-            if hasattr(self, 'instance') and self.instance:
-                del self.instance
-        except:
-            pass
-        finally:
-            # Force kill any remaining VLC processes
-            os.system("pkill vlc")
-    
-    def play(self, url: str) -> None:
-        """Play the given URL"""
-        try:
-            # Stop any currently playing stream
-            self.stop()
-            
-            # Add retry logic for initial connection
-            max_retries = 3
-            retry_delay = 1.5  # Increased from 1 to 1.5 seconds
-            initial_buffer = 2.0  # Added initial buffer time
-            
-            for attempt in range(max_retries):
-                try:
-                    # Create new media and set it
-                    media = self.instance.media_new(url)
-                    self.player.set_media(media)
-                    
-                    # Attempt to play
-                    result = self.player.play()
-                    
-                    # Wait for initial buffering
-                    time.sleep(initial_buffer)
-                    
-                    # Check multiple times for playback status
-                    check_attempts = 3
-                    for _ in range(check_attempts):
-                        if self.player.is_playing():
-                            logging.info(f"Successfully started playing {url} on attempt {attempt + 1}")
-                            # Update current status
-                            self.current_status = {
-                                'state': 'playing',
-                                'current_station': url,
-                                'volume': self.volume
-                            }
-                            return
-                        time.sleep(0.5)
-                    
-                    if attempt < max_retries - 1:
-                        logging.warning(f"Failed to start playback on attempt {attempt + 1}, retrying...")
-                        time.sleep(retry_delay)
-                        self.stop()  # Ensure clean state before retry
-                    
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        logging.warning(f"Connection error on attempt {attempt + 1}: {str(e)}, retrying...")
-                        time.sleep(retry_delay)
-                        self.stop()  # Ensure clean state before retry
-                    else:
-                        raise
-            
-            logging.error(f"Failed to start playback after {max_retries} attempts")
-            self.current_status = {
-                'state': 'stopped',
-                'current_station': None,
-                'volume': self.volume
-            }
-            raise RuntimeError(f"Failed to start playback of {url} after {max_retries} attempts")
-            
-        except Exception as e:
-            logging.error(f"Error playing URL {url}: {str(e)}")
-            self.current_status = {
-                'state': 'stopped',
-                'current_station': None,
-                'volume': self.volume
-            }
-            raise
-    
-    def stop(self):
-        """Stop the current stream"""
-        if self.player:
-            self.player.stop()
-            self.current_status = {
-                "state": "stopped",
-                "current_station": None,
-                "volume": self.volume
-            }
-    
-    def is_playing(self):
-        return bool(self.player.is_playing())
-    
-    def get_current_stream(self):
-        return self.current_url
-    
-    def get_status(self):
-        """Get the current status of the player"""
-        try:
-            self.current_status['volume'] = self.volume
-            return self.current_status
-        except Exception as e:
-            self.logger.error(f"Error getting status: {str(e)}")
-            return None
+    def __init__(self):
+        """Initialize the RadioPlayer"""
+        if not self.initialized:
+            try:
+                # Get audio device
+                self.audio_card = self._get_audio_device()
+                
+                # Initialize VLC instance with ALSA audio output
+                vlc_args = ' '.join([
+                    '--aout=alsa',
+                    f'--alsa-audio-device=hw:{self.audio_card},0',
+                    '--verbose=2'
+                ])
+                self.instance = vlc.Instance(vlc_args)
+                self.player = self.instance.media_player_new()
+                
+                # Set initial volume
+                self.volume = self.current_status['volume']
+                self.set_volume(self.volume)
+                
+                self.initialized = True
+                
+            except Exception as e:
+                logger.error(f"Error initializing RadioPlayer: {e}")
+                raise
     
     def set_volume(self, volume):
         """Set volume using ALSA"""
         try:
-            # Ensure volume is within bounds
             volume = max(0, min(100, volume))
             
-            # Set ALSA volume
-            cmd = ['amixer', '-c', '2', 'set', 'PCM', f'{volume}%']
+            cmd = ['amixer', 'sset', '-c', str(self.audio_card), 'PCM', f'{volume}%']
+            
             result = subprocess.run(cmd, 
                                   stdout=subprocess.PIPE, 
                                   stderr=subprocess.PIPE,
                                   text=True)
             
             if result.returncode == 0:
-                self.volume = volume
-                logger.info(f"Volume set to {volume}%")
-                return True
-            else:
-                logger.error(f"Failed to set volume: {result.stderr}")
-                return False
+                if not result.stderr or 'Invalid' not in result.stderr:
+                    self.volume = volume
+                    self.current_status['volume'] = volume
+                    return True
                 
+            logger.error("Volume control attempt failed")
+            return False
+            
         except Exception as e:
-            logger.error(f"Error setting volume: {e}")
+            logger.error(f"Error setting volume: {e}", exc_info=True)
             return False
     
     def get_volume(self):
-        """Get current volume from ALSA"""
+        """Get current volume percentage"""
         try:
-            cmd = ['amixer', '-c', '2', 'get', 'PCM']
-            result = subprocess.run(cmd, 
-                                stdout=subprocess.PIPE, 
-                                stderr=subprocess.PIPE,
-                                text=True)
+            commands = [
+                ['amixer', 'get', 'PCM'],
+                ['amixer', '-c', '0', 'get', 'PCM'],
+                ['amixer', '-D', f'hw:CARD={self.audio_card}', 'get', 'PCM']
+            ]
             
-            if result.returncode == 0:
-                # Parse the volume value from amixer output
-                import re
-                match = re.search(r'\[(\d+)%\]', result.stdout)
-                if match:
-                    return int(match.group(1))
+            for cmd in commands:
+                result = subprocess.run(cmd, 
+                                      stdout=subprocess.PIPE, 
+                                      stderr=subprocess.PIPE,
+                                      text=True)
+                
+                if result.returncode == 0 and 'Invalid' not in result.stderr:
+                    # Parse the output to get the current percentage
+                    match = re.search(r'\[(\d+)%\]', result.stdout)
+                    if match:
+                        volume = int(match.group(1))
+                        volume = max(0, min(100, volume))
+                        return volume
             
-            # Return stored volume if we can't get it from ALSA
-            return self.volume
-            
+            logger.error("Failed to get volume from any command")
+            return self.volume  # Return last known volume as fallback
+                
         except Exception as e:
-            logger.error(f"Error getting volume: {e}")
-            return self.volume
+            logger.error(f"Error getting volume: {e}", exc_info=True)
+            return self.volume  # Return last known volume as fallback
     
-    def _setup_audio(self):
-        """Configure audio output"""
+    def get_status(self):
+        """Get current player status"""
+        return self.current_status.copy()  # Return a copy to prevent external modification
+    
+    def play(self, url):
+        """Play a stream URL"""
         try:
-            instance = vlc.Instance('--aout=alsa')
-            if not instance:
-                instance = vlc.Instance()  # Fallback to default
-            return instance
+            # Create a new media
+            media = self.instance.media_new(url)
+            self.player.set_media(media)
+            
+            # Attempt to play
+            if self.player.play() == 0:
+                self.current_status['state'] = 'playing'
+                self.current_status['current_station'] = url
+                logger.info(f"Playing stream: {url}")
+                return True
+            else:
+                logger.error("Failed to play stream")
+                return False
+                
         except Exception as e:
-            logger.warning(f"Failed to setup ALSA audio: {e}, falling back to default")
-            return vlc.Instance()
+            logger.error(f"Error playing stream: {e}")
+            return False
+    
+    def stop(self):
+        """Stop the current playback"""
+        try:
+            self.player.stop()
+            self.current_status['state'] = 'stopped'
+            self.current_status['current_station'] = None
+            logger.info("Playback stopped")
+            return True
+        except Exception as e:
+            logger.error(f"Error stopping playback: {e}")
+            return False

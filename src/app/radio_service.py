@@ -28,11 +28,9 @@ class RadioService:
             # Setup GPIO handler with player and stream manager
             self.gpio_handler.setup(self.player, self.stream_manager)
             
-            # Preload streams
-            self._preload_streams()
-            
-            # Play initialization sound
-            self._play_init_sound()
+            # Preload streams and play success sound only if preload succeeds
+            if self._preload_streams():
+                self._play_init_sound()
             
             logger.info("Radio service initialized successfully")
         except Exception as e:
@@ -40,28 +38,40 @@ class RadioService:
             raise
 
     def _preload_streams(self):
-        """Preload all streams to cache DNS and initial connections"""
+        """Preload all streams from radio_state.json
+        Returns:
+            bool: True if all streams were preloaded successfully, False otherwise
+        """
         try:
             logger.info("Preloading streams...")
             streams = self.stream_manager.get_streams_by_slots()
+            success = True
             
+            # Handle the streams dictionary
             for slot, stream in streams.items():
-                if stream:
-                    try:
-                        # Create media object but don't play
-                        media = self.player.instance.media_new(stream)
-                        # Parse media to resolve DNS and verify stream
-                        media.parse()
-                        logger.info(f"Preloaded stream for slot {slot}: {stream}")
-                    except Exception as e:
-                        logger.warning(f"Failed to preload stream {stream} for slot {slot}: {e}")
-                    
-                    # Small delay between preloads to prevent overwhelming network
-                    time.sleep(0.5)
+                try:
+                    # Create media object but don't play
+                    media = self.player.instance.media_new(stream)
+                    # Parse media to resolve DNS and verify stream
+                    media.parse()
+                    logger.info(f"Preloaded stream for slot {slot}: {stream}")
+                except Exception as e:
+                    logger.warning(f"Failed to preload stream for slot {slot}: {e}")
+                    success = False
+                
+                # Small delay between preloads to prevent overwhelming network
+                time.sleep(0.5)
             
-            logger.info("Stream preloading completed")
+            if success:
+                logger.info("Stream preloading completed successfully")
+                return True
+            else:
+                logger.warning("Stream preloading completed with some failures")
+                return False
+            
         except Exception as e:
             logger.warning(f"Stream preloading failed: {e}")
+            return False
 
     def _play_init_sound(self):
         """Play initialization sound using existing VLC instance"""

@@ -177,3 +177,38 @@ class RotaryHandler:
         if cls._instance is not None:
             cls._instance.cleanup()
         cls._instance = None
+
+    def _handle_rotation(self, channel):
+        """Handle rotary encoder rotation"""
+        try:
+            clk_state = GPIO.input(self.clk_pin)
+            dt_state = GPIO.input(self.dt_pin)
+            
+            logger.debug(f"Rotary rotation detected - CLK: {clk_state}, DT: {dt_state}")
+            
+            if clk_state != self.last_clk_state:
+                if dt_state != clk_state:
+                    # Clockwise rotation
+                    current_volume = self.radio_service.player.get_volume()
+                    new_volume = min(100, current_volume + self.volume_step)
+                    logger.debug(f"Volume increase: {current_volume} -> {new_volume}")
+                    success = self.radio_service.player.set_volume(new_volume)
+                    if success:
+                        logger.info(f"Volume increased to {new_volume}%")
+                    else:
+                        logger.error("Failed to increase volume")
+                else:
+                    # Counter-clockwise rotation
+                    current_volume = self.radio_service.player.get_volume()
+                    new_volume = max(0, current_volume - self.volume_step)
+                    logger.debug(f"Volume decrease: {current_volume} -> {new_volume}")
+                    success = self.radio_service.player.set_volume(new_volume)
+                    if success:
+                        logger.info(f"Volume decreased to {new_volume}%")
+                    else:
+                        logger.error("Failed to decrease volume")
+                    
+            self.last_clk_state = clk_state
+            
+        except Exception as e:
+            logger.error(f"Error handling rotation: {e}", exc_info=True)

@@ -47,9 +47,9 @@ def test_get_streams_by_slots(stream_manager):
     """Test that get_streams_by_slots returns the stations from radio_state.json"""
     streams = stream_manager.get_streams_by_slots()
     assert len(streams) == 3
-    assert streams[0]["name"] == "Test Station 1"
-    assert streams[1]["name"] == "Test Station 2"
-    assert streams[2]["name"] == "Test Station 3"
+    assert streams[1] == "http://test1.com/stream"
+    assert streams[2] == "http://test2.com/stream"
+    assert streams[3] == "http://test3.com/stream"
 
 def test_get_streams_by_slots_with_missing_state_file(stream_manager, tmp_path):
     """Test fallback behavior when radio_state.json is missing"""
@@ -57,7 +57,9 @@ def test_get_streams_by_slots_with_missing_state_file(stream_manager, tmp_path):
     
     streams = stream_manager.get_streams_by_slots()
     assert len(streams) == 3
-    assert streams[0]["name"] == "Test Station 1"
+    assert streams[1] == "http://test1.com/stream"
+    assert streams[2] == "http://test2.com/stream"
+    assert streams[3] == "http://test3.com/stream"
 
 def test_get_streams_by_slots_with_invalid_state_file(stream_manager, tmp_path):
     """Test fallback behavior when radio_state.json is invalid"""
@@ -66,5 +68,7 @@ def test_get_streams_by_slots_with_invalid_state_file(stream_manager, tmp_path):
     
     streams = stream_manager.get_streams_by_slots()
     assert len(streams) == 3
-    assert streams[0]["name"] == "Test Station 1"
+    assert streams[1] == "http://test1.com/stream"
+    assert streams[2] == "http://test2.com/stream"
+    assert streams[3] == "http://test3.com/stream"
   
