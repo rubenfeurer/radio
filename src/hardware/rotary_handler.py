@@ -73,32 +73,27 @@ class RotaryHandler:
             clk_state = GPIO.input(self.clk_pin)
             dt_state = GPIO.input(self.dt_pin)
             
-            logger.debug(f"CLK: {clk_state}, DT: {dt_state}, Last CLK: {self.last_clk}, Last DT: {self.last_dt}")
-            
             if clk_state != self.last_clk:
-                logger.debug("CLK state changed")
-                if dt_state != clk_state:  # Clockwise rotation
-                    logger.debug("Clockwise rotation detected")
-                    if self.CLOCKWISE_INCREASES:
-                        logger.debug("Increasing volume")
-                        self.volume_up()
-                    else:
-                        logger.debug("Decreasing volume")
-                        self.volume_down()
-                else:  # Counter-clockwise rotation
-                    logger.debug("Counter-clockwise rotation detected")
-                    if self.CLOCKWISE_INCREASES:
-                        logger.debug("Decreasing volume")
-                        self.volume_down()
-                    else:
-                        logger.debug("Increasing volume")
-                        self.volume_up()
+                # Only process on falling edge of CLK
+                if self.last_clk == 1:
+                    # Determine rotation direction based on DT state
+                    if dt_state == 1:  # Clockwise rotation
+                        if self.CLOCKWISE_INCREASES:
+                            self.volume_up()
+                        else:
+                            self.volume_down()
+                    else:  # Counter-clockwise rotation
+                        if self.CLOCKWISE_INCREASES:
+                            self.volume_down()
+                        else:
+                            self.volume_up()
                 
+                # Update states
                 self.last_clk = clk_state
                 self.last_dt = dt_state
                 
         except Exception as e:
-            logger.error(f"Error in rotary callback: {e}")
+            logger.error(f"Error in rotary callback: {e}", exc_info=True)
     
     def _button_callback(self, channel):
         """Internal button callback implementation"""
