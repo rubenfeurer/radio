@@ -156,3 +156,27 @@ def test_button_handler_reinitialization(mock_gpio):
     # Setup should work
     handler2.setup(Mock(), Mock())
     assert handler2._initialized is True
+
+def test_button_press_after_initialization(gpio_handler, mock_player):
+    """Test that first button press after initialization works correctly"""
+    # Create mock stream manager
+    mock_stream_manager = Mock()
+    mock_stream_manager.get_streams_by_slots.return_value = {
+        1: "http://test1.com/stream",
+        2: "http://test2.com/stream",
+        3: "http://test3.com/stream"
+    }
+    
+    # Setup GPIO handler with dependencies
+    gpio_handler.setup(mock_player, mock_stream_manager)
+    
+    # Initial state should be stopped
+    initial_status = mock_player.get_status()
+    assert initial_status["state"] == "stopped"
+    
+    # First button press after initialization
+    gpio_handler.button_callback(17)  # Button 1
+    mock_player.play.assert_called_with("http://test1.com/stream")
+    
+    # Verify state changed
+    assert mock_player.get_status()["state"] == "playing"
