@@ -91,18 +91,36 @@ class RadioPlayer:
         try:
             volume = max(0, min(100, volume))
             
-            cmd = ['amixer', 'sset', '-c', str(self.audio_card), 'PCM', f'{volume}%']
+            # Try multiple amixer commands to ensure compatibility
+            commands = [
+                ['amixer', '-c', str(self.audio_card), 'sset', 'PCM', f'{volume}%'],
+                ['amixer', 'sset', '-c', str(self.audio_card), 'PCM', f'{volume}%'],
+                ['amixer', '-c', str(self.audio_card), 'set', 'PCM', f'{volume}%'],
+                ['amixer', '-M', '-c', str(self.audio_card), 'set', 'PCM', f'{volume}%']
+            ]
             
-            result = subprocess.run(cmd, 
-                                  stdout=subprocess.PIPE, 
-                                  stderr=subprocess.PIPE,
-                                  text=True)
-            
-            if result.returncode == 0:
-                if not result.stderr or 'Invalid' not in result.stderr:
-                    self.volume = volume
-                    self.current_status['volume'] = volume
-                    return True
+            for cmd in commands:
+                result = subprocess.run(cmd, 
+                                     stdout=subprocess.PIPE, 
+                                     stderr=subprocess.PIPE,
+                                     text=True)
+                
+                if result.returncode == 0:
+                    if not result.stderr or 'Invalid' not in result.stderr:
+                        # Also set VLC volume as backup
+                        if hasattr(self, 'player') and self.player:
+                            self.player.audio_set_volume(volume)
+                        
+                        self.volume = volume
+                        self.current_status['volume'] = volume
+                        return True
+                        
+            # If all commands failed, try setting only VLC volume
+            if hasattr(self, 'player') and self.player:
+                self.player.audio_set_volume(volume)
+                self.volume = volume
+                self.current_status['volume'] = volume
+                return True
                 
             logger.error("Volume control attempt failed")
             return False
@@ -115,12 +133,13 @@ class RadioPlayer:
         """Get current volume percentage"""
         try:
             commands = [
+                ['amixer', '-c', str(self.audio_card), 'get', 'PCM'],
                 ['amixer', 'get', 'PCM'],
-                ['amixer', '-c', '0', 'get', 'PCM'],
                 ['amixer', '-D', f'hw:CARD={self.audio_card}', 'get', 'PCM']
             ]
             
             for cmd in commands:
+                logger.debug(f"Trying volume get command: {' '.join(cmd)}")
                 result = subprocess.run(cmd, 
                                       stdout=subprocess.PIPE, 
                                       stderr=subprocess.PIPE,
@@ -132,7 +151,10 @@ class RadioPlayer:
                     if match:
                         volume = int(match.group(1))
                         volume = max(0, min(100, volume))
+                        logger.debug(f"Got volume: {volume}%")
                         return volume
+                
+                logger.debug(f"Command failed: {result.stderr}")
             
             logger.error("Failed to get volume from any command")
             return self.volume  # Return last known volume as fallback
@@ -177,3 +199,15 @@ class RadioPlayer:
         except Exception as e:
             logger.error(f"Error stopping playback: {e}")
             return False
+    
+    def _handle_volume_change(self, volume_delta):
+        """Handle volume change from rotary encoder"""
+        try:
+            new_volume = max(0, min(100, self.volume + volume_delta))
+            logger.debug(f"Attempting to change volume from {self.volume} to {new_volume}")
+            if self.set_volume(new_volume):
+                logger.info(f"Volume changed to {new_volume}")
+            else:
+                logger.error(f"Failed to change volume to {new_volume}")
+        except Exception as e:
+            logger.error(f"Error in volume change handler: {e}", exc_info=True)

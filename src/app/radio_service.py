@@ -25,6 +25,9 @@ class RadioService:
             self.stream_manager = StreamManager()
             self.gpio_handler = GPIOHandler()
             
+            # Initialize rotary handler with player
+            self.rotary_handler = RotaryHandler(self.player)
+            
             # Setup GPIO handler with player and stream manager
             self.gpio_handler.setup(self.player, self.stream_manager)
             

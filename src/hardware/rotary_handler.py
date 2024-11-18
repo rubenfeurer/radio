@@ -129,17 +129,29 @@ class RotaryHandler:
     
     def volume_up(self):
         """Increase volume by VOLUME_STEP"""
-        current_volume = self.radio_player.get_volume()
-        new_volume = min(100, current_volume + self.VOLUME_STEP)
-        self.radio_player.set_volume(new_volume)
-        logger.info(f"Volume up: {current_volume} -> {new_volume}")
+        try:
+            current_volume = self.radio_player.get_volume()
+            logger.debug(f"Current volume before increase: {current_volume}")
+            new_volume = min(100, current_volume + self.VOLUME_STEP)
+            logger.debug(f"Attempting to set new volume: {new_volume}")
+            result = self.radio_player.set_volume(new_volume)
+            logger.debug(f"Volume set result: {result}")
+            logger.info(f"Volume up: {current_volume} -> {new_volume}")
+        except Exception as e:
+            logger.error(f"Error in volume_up: {e}", exc_info=True)
     
     def volume_down(self):
         """Decrease volume by VOLUME_STEP"""
-        current_volume = self.radio_player.get_volume()
-        new_volume = max(0, current_volume - self.VOLUME_STEP)
-        self.radio_player.set_volume(new_volume)
-        logger.info(f"Volume down: {current_volume} -> {new_volume}")
+        try:
+            current_volume = self.radio_player.get_volume()
+            logger.debug(f"Current volume before decrease: {current_volume}")
+            new_volume = max(0, current_volume - self.VOLUME_STEP)
+            logger.debug(f"Attempting to set new volume: {new_volume}")
+            result = self.radio_player.set_volume(new_volume)
+            logger.debug(f"Volume set result: {result}")
+            logger.info(f"Volume down: {current_volume} -> {new_volume}")
+        except Exception as e:
+            logger.error(f"Error in volume_down: {e}", exc_info=True)
     
     def cleanup(self):
         """Clean up GPIO resources"""
