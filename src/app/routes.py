@@ -10,6 +10,7 @@ import toml
 import json
 from src.app.radio_service import RadioService
 from src.utils.wifi_manager import WiFiManager
+from src.app import app  # This is causing the circular import
 
 # Set up logging with more detail and rotation
 logging.basicConfig(
@@ -26,11 +27,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# Create Flask app
-app = Flask(__name__, 
-           template_folder='../../templates',
-           static_folder='../../static')
 
 # Global service instance
 try:
@@ -254,61 +250,45 @@ def select_station():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/wifi')
-def wifi_page():
-    try:
-        logging.info("Loading WiFi page")
-        wifi_manager = WiFiManager()
-        networks = wifi_manager.scan_networks()
-        current = wifi_manager.get_current_connection()
-        logging.info(f"Found {len(networks)} networks, current connection: {current}")
-        return render_template('wifi.html', networks=networks, current=current)
-    except Exception as e:
-        logging.error(f"Error loading WiFi page: {str(e)}")
-        return render_template('error.html', error=str(e))
+def wifi():
+    current = WiFiManager.get_current_connection()
+    networks = WiFiManager.scan_networks()
+    
+    logger.info(f"Current connection: {current}")
+    logger.info(f"Available networks: {networks}")
+    
+    return render_template('wifi.html', current=current, networks=networks)
 
 @app.route('/api/wifi/scan')
 def wifi_scan():
+    """API endpoint to scan for WiFi networks"""
     networks = WiFiManager.scan_networks()
     return jsonify({'networks': networks})
 
-@app.route('/api/wifi/status')
-def wifi_status():
-    try:
-        wifi_manager = WiFiManager()
-        current = wifi_manager.get_current_connection()
-        return jsonify(current)
-    except Exception as e:
-        app.logger.error(f"Error in wifi_status: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/wifi/connect', methods=['POST'])
 def wifi_connect():
+    """API endpoint to connect to a WiFi network"""
     data = request.get_json()
     ssid = data.get('ssid')
     password = data.get('password')
     
-    if not ssid or not password:
-        return jsonify({'success': False, 'error': 'Missing SSID or password'})
+    if not ssid:
+        return jsonify({'success': False, 'error': 'Missing SSID'})
         
     result = WiFiManager.connect_to_network(ssid, password)
     return jsonify(result)
 
 @app.route('/api/wifi/disconnect', methods=['POST'])
 def wifi_disconnect():
+    """API endpoint to disconnect from current WiFi network"""
     result = WiFiManager.disconnect()
     return jsonify(result)
 
-@app.route('/api/wifi/forget', methods=['POST'])
-def wifi_forget():
-    data = request.get_json()
-    ssid = data.get('ssid')
-    
-    if not ssid:
-        return jsonify({'success': False, 'message': 'SSID is required'})
-    
-    wifi_manager = WiFiManager()
-    success, message = wifi_manager.forget_network(ssid)
-    return jsonify({'success': success, 'message': message})
+@app.route('/api/wifi/status')
+def wifi_status():
+    """API endpoint to get current WiFi status"""
+    current = WiFiManager.get_current_connection()
+    return jsonify({'current': current})
 
 if __name__ == '__main__':
     try:

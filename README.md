@@ -20,6 +20,12 @@ The project follows a modular design pattern with these key components:
      * Handles audio device detection
      * Controls volume and playback
      * Maintains player state
+   
+   - WiFiManager (src/utils/wifi_manager.py)
+     * Manages WiFi connections using nmcli
+     * Scans available networks
+     * Handles connection/disconnection
+     * Provides network status information
 
 2. Hardware Interface:
    - GPIOHandler (src/hardware/gpio_handler.py)
@@ -47,6 +53,17 @@ The project follows a modular design pattern with these key components:
      * Provides REST API endpoints
      * Enables remote control
      * Reports system status
+
+5. Network Management:
+   - WiFi Configuration
+     * Web-based network selection
+     * Password-protected connections
+     * Current connection status
+     * Signal strength monitoring
+   - Connection Management
+     * Automatic reconnection
+     * Network scanning
+     * Connection status monitoring
 
 Directory Structure
 -----------------
@@ -107,6 +124,7 @@ Core:
 - RPi.GPIO: Hardware interface
 - Flask: Web API
 - toml/tomli: Configuration parsing
+- NetworkManager: WiFi management (nmcli)
 
 Development:
 - pytest: Testing framework

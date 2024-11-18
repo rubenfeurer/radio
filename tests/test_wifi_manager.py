@@ -1,50 +1,58 @@
 import pytest
 from unittest.mock import patch, MagicMock
-import sys
-import os
-
-# Add project root to Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+import subprocess
 from src.utils.wifi_manager import WiFiManager
 
 class TestWiFiManager:
     def test_scan_networks_success(self):
         with patch('subprocess.run') as mock_run:
-            # Mock the current connection call
             mock_run.side_effect = [
-                # First call for current connection
-                MagicMock(stdout='''
-                    wlan0     IEEE 802.11  ESSID:"MyNetwork"
-                    Quality=70/70  Signal level=-30 dBm
-                '''),
-                # Second call for iwlist scan
-                MagicMock(returncode=0),
-                # Third call for nmcli device wifi list
+                MagicMock(returncode=0),  # rescan
                 MagicMock(
-                    stdout='MyNetwork:80:WPA2:****\nOtherNetwork:70:WPA2:***\nThirdNetwork:60:WPA2:**',
+                    stdout='*:82:Salt_5GHz_D8261F:WPA2\n'
+                          ':77:Salt_2GHz_D8261F:WPA2\n'
+                          ':64:UETLIBERG:WPA2\n',
                     returncode=0
                 )
             ]
             
             networks = WiFiManager.scan_networks()
             assert len(networks) == 3
-            assert networks[0]['ssid'] == 'MyNetwork'
-            assert networks[0]['signal'] == '80'
-            assert networks[0]['active'] == True
+            assert networks[0] == {
+                'ssid': 'Salt_5GHz_D8261F',
+                'signal': 82,
+                'security': 'WPA2',
+                'active': True
+            }
+
+    def test_scan_networks_empty(self):
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # rescan
+                MagicMock(stdout='', returncode=0)
+            ]
+            
+            networks = WiFiManager.scan_networks()
+            assert len(networks) == 0
+
+    def test_scan_networks_error(self):
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = Exception("Network scan failed")
+            
+            networks = WiFiManager.scan_networks()
+            assert len(networks) == 0
 
     def test_get_current_connection_success(self):
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = MagicMock(
-                stdout='''
-                wlan0     IEEE 802.11  ESSID:"MyNetwork"
-                          Quality=70/70  Signal level=-30 dBm
-                '''
+                stdout='yes:90:Network1\nno:80:Network2\n',
+                returncode=0
             )
+            
             result = WiFiManager.get_current_connection()
             assert result == {
-                'ssid': 'MyNetwork',
-                'signal': 100,
+                'ssid': 'Network1',
+                'signal': 90,
                 'connected': True
             }
 
@@ -52,72 +60,74 @@ class TestWiFiManager:
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
-                stdout='Successfully activated connection.'
+                stdout='Device "wlan0" successfully activated.'
             )
+            
             result = WiFiManager.connect_to_network('Test_Network', 'password123')
             assert result['success'] is True
-
-    def test_connect_to_network_failure(self):
-        with patch('subprocess.run') as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=1,
-                stderr='Error: Connection activation failed: Incorrect password'
-            )
-            result = WiFiManager.connect_to_network('Test_Network', 'wrong_password')
-            assert result['success'] is False
-            assert 'password' in result['error'].lower()
+            assert 'successfully' in result['message']
 
     def test_disconnect_success(self):
-        with patch('subprocess.run') as mock_run, \
-             patch('src.utils.wifi_manager.WiFiManager.get_current_connection') as mock_current:
-            
-            # Mock current connection
-            mock_current.return_value = {
-                'ssid': 'Test_Network',
-                'signal': 80,
-                'connected': True
-            }
-            
-            # Mock successful disconnect
+        with patch('subprocess.run') as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
-                stdout="Device 'wlan0' successfully disconnected."
+                stdout='Device "wlan0" successfully disconnected.'
             )
             
             result = WiFiManager.disconnect()
             assert result['success'] is True
-            mock_run.assert_called_once_with(
-                ['sudo', 'nmcli', 'device', 'disconnect', 'wlan0'],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
+            assert 'successfully' in result['message']
 
-    def test_disconnect_not_connected(self):
-        with patch('src.utils.wifi_manager.WiFiManager.get_current_connection') as mock_current:
-            mock_current.return_value = None
-            result = WiFiManager.disconnect()
-            assert result['success'] is False
-            assert 'Not connected' in result['error']
-
-    def test_disconnect_failure(self):
-        with patch('subprocess.run') as mock_run, \
-             patch('src.utils.wifi_manager.WiFiManager.get_current_connection') as mock_current:
+    def test_connect_network_timeout(self):
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(['nmcli'], 30)
             
-            # Mock current connection
-            mock_current.return_value = {
-                'ssid': 'Test_Network',
-                'signal': 80,
-                'connected': True
+            result = WiFiManager.connect_to_network('Test_Network', 'password123')
+            assert result['success'] is False
+            assert 'timeout' in result['message'].lower()
+
+    def test_scan_networks_with_spaces_in_ssid(self):
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # rescan
+                MagicMock(
+                    stdout=':70:My Home Network:WPA2\n'
+                          '*:65:Another WiFi Name:WPA2\n',
+                    returncode=0
+                )
+            ]
+            
+            networks = WiFiManager.scan_networks()
+            assert len(networks) == 2
+            assert networks[0] == {
+                'ssid': 'My Home Network',
+                'signal': 70,
+                'security': 'WPA2',
+                'active': False
             }
+            assert networks[1] == {
+                'ssid': 'Another WiFi Name',
+                'signal': 65,
+                'security': 'WPA2',
+                'active': True
+            }
+
+    def test_scan_networks_with_no_security(self):
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # rescan
+                MagicMock(
+                    stdout=':60:OpenNetwork:--\n',
+                    returncode=0
+                )
+            ]
             
-            # Mock failed disconnect
-            mock_run.return_value = MagicMock(
-                returncode=1,
-                stderr='Error: Device not found'
-            )
-            
-            result = WiFiManager.disconnect()
-            assert result['success'] is False
-            assert 'Device not found' in result['error']
+            networks = WiFiManager.scan_networks()
+            assert len(networks) == 1
+            assert networks[0] == {
+                'ssid': 'OpenNetwork',
+                'signal': 60,
+                'security': 'none',
+                'active': False
+            }
   

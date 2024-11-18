@@ -76,7 +76,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y vlc alsa-utils libasound2-dev
+        sudo apt-get install -y vlc alsa-utils libasound2-dev network-manager
     
     - name: Setup dummy sound device
       run: |
@@ -113,6 +113,25 @@ jobs:
         touch /tmp/test_sounds/success.wav
         touch /tmp/test_sounds/error.wav
         touch /tmp/test_sounds/startup.wav
+    
+    - name: Setup mock NetworkManager
+      run: |
+        # Create mock nmcli responses
+        echo '#!/bin/bash
+        case "$*" in
+          "device wifi list")
+            echo "IN-USE  SIGNAL  SSID              SECURITY"
+            echo "*       90      TestNetwork       WPA2"
+            ;;
+          "device wifi rescan")
+            exit 0
+            ;;
+          *)
+            exit 0
+            ;;
+        esac' | sudo tee /usr/local/bin/mock-nmcli
+        sudo chmod +x /usr/local/bin/mock-nmcli
+        sudo ln -sf /usr/local/bin/mock-nmcli /usr/bin/nmcli
     
     - name: Run tests
       env:

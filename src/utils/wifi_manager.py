@@ -4,75 +4,85 @@ import time
 from typing import List, Dict, Tuple, Any
 import re
 import logging
+import os
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 class WiFiManager:
-    @staticmethod
-    def scan_networks() -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_networks(cls):
+        """Scan for available WiFi networks"""
+        logger.info("Scanning for WiFi networks...")
         try:
-            # Get current connection first
-            current = WiFiManager.get_current_connection()
-            current_ssid = current.get('ssid', '')
-
             # Force a rescan
-            subprocess.run(
-                ['sudo', 'iwlist', 'wlan0', 'scan'],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-
-            # Get scan results with more detailed output
+            subprocess.run(['sudo', 'nmcli', 'device', 'wifi', 'rescan'], 
+                         capture_output=True, text=True)
+            
+            # Get all networks with tabular format
             result = subprocess.run(
-                ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,BARS', 'device', 'wifi', 'list', '--rescan', 'yes'],
-                capture_output=True,
-                text=True,
-                check=True
+                ['sudo', 'nmcli', '-t', '-f', 'IN-USE,SIGNAL,SSID,SECURITY', 'device', 'wifi', 'list'], 
+                capture_output=True, text=True
             )
-
+            
+            if result.returncode != 0:
+                logger.error(f"nmcli failed: {result.stderr}")
+                return []
+            
             networks = []
             seen_ssids = set()
-
+            
             for line in result.stdout.strip().split('\n'):
                 try:
                     if not line:
                         continue
-                        
-                    parts = line.split(':')
-                    if len(parts) < 3:
-                        continue
-                        
-                    ssid = parts[0].strip()
-                    signal = parts[1]
-                    security = parts[2] if len(parts) > 2 else ''
                     
-                    # Enhanced validation for SSID
-                    if not ssid or ssid.isspace() or '\x00' in ssid or len(ssid) < 1:
-                        logging.debug(f"Skipping invalid SSID: {repr(ssid)}")
-                        continue
+                    parts = line.split(':')
+                    if len(parts) >= 3:
+                        in_use = parts[0] == '*'
+                        signal = int(parts[1])
+                        ssid = parts[2]
+                        security = parts[3] if len(parts) > 3 and parts[3] != '--' else 'none'
                         
-                    if ssid in seen_ssids:
-                        logging.debug(f"Skipping duplicate SSID: {ssid}")
-                        continue
-                        
+                        if ssid and ssid not in seen_ssids:
+                            seen_ssids.add(ssid)
+                            networks.append({
+                                'ssid': ssid,
+                                'signal': signal,
+                                'security': security,
+                                'active': in_use
+                            })
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Error parsing line '{line}': {str(e)}")
+                    continue
+            
+            networks.sort(key=lambda x: x['signal'], reverse=True)
+            logger.info(f"Found {len(networks)} unique networks: {networks}")
+            return networks
+            
+        except Exception as e:
+            logger.error(f"Error scanning networks: {str(e)}", exc_info=True)
+            return []
+
+    @classmethod
+    def _parse_network_list(cls, output):
+        """Helper method to parse network list output"""
+        networks = []
+        seen_ssids = set()
+        for line in output.strip().split('\n'):
+            if ':' in line:
+                parts = line.split(':')
+                if len(parts) >= 3 and parts[1] and parts[1] not in seen_ssids:
+                    ssid = parts[1]
                     seen_ssids.add(ssid)
                     networks.append({
                         'ssid': ssid,
-                        'signal': signal,
-                        'security': security,
-                        'active': ssid == current_ssid
+                        'signal': int(parts[0]),
+                        'security': parts[2] if parts[2] else 'none',
+                        'active': len(parts) > 3 and parts[3] == 'yes'
                     })
-                except Exception as e:
-                    logging.warning(f"Error parsing network entry {line}: {str(e)}")
-                    continue
-
-            return sorted(networks, key=lambda x: int(x.get('signal', '0')), reverse=True)
-
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Error running nmcli: {e.stderr}")
-            return []
-        except Exception as e:
-            logging.error(f"Unexpected error in scan_networks: {str(e)}")
-            return []
+        networks.sort(key=lambda x: x['signal'], reverse=True)
+        return networks
 
     @staticmethod
     def get_saved_connections() -> List[str]:
@@ -92,106 +102,62 @@ class WiFiManager:
             print(f"Error getting saved connections: {str(e)}")
             return []
 
-    @staticmethod
-    def connect_to_network(ssid: str, password: str) -> dict:
-        """Connect to a WiFi network."""
+    @classmethod
+    def connect_to_network(cls, ssid, password=None):
+        """Connect to a WiFi network using nmcli"""
+        logger.info(f"Connecting to network: {ssid}")
         try:
-            result = subprocess.run(
-                ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password],
-                capture_output=True,
-                text=True
-            )
-            
-            if result.returncode == 0:
-                return {'success': True, 'message': 'Successfully connected'}
-            
-            error_msg = result.stderr.lower()
-            if 'password' in error_msg:
-                return {'success': False, 'error': 'Incorrect password'}
-            elif 'timeout' in error_msg:
-                return {'success': False, 'error': 'Connection timed out'}
-            elif 'device not found' in error_msg:
-                return {'success': False, 'error': 'Network device not found'}
+            if password:
+                cmd = ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password]
             else:
-                return {'success': False, 'error': 'Failed to connect to network'}
+                cmd = ['nmcli', 'device', 'wifi', 'connect', ssid]
             
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            return {
+                'success': result.returncode == 0,
+                'message': result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+            }
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"Connection timeout: {str(e)}")
+            return {'success': False, 'message': 'Connection timeout'}
         except Exception as e:
-            logging.error(f"Error connecting to network: {str(e)}")
-            return {'success': False, 'error': str(e)}
+            logger.error(f"Error connecting to network: {str(e)}", exc_info=True)
+            return {'success': False, 'message': str(e)}
 
-    @staticmethod
-    def forget_network(ssid: str) -> Tuple[bool, str]:
+    @classmethod
+    def disconnect(cls):
+        """Disconnect from current WiFi network using nmcli"""
+        logger.info("Disconnecting from WiFi")
         try:
-            cmd = ['nmcli', 'connection', 'delete', ssid]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                return True, "Network forgotten"
-            return False, result.stderr
-            
-        except subprocess.SubprocessError as e:
-            return False, str(e)
+            result = subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], 
+                                 capture_output=True, text=True)
+            return {
+                'success': result.returncode == 0,
+                'message': result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+            }
+        except Exception as e:
+            logger.error(f"Error disconnecting: {str(e)}", exc_info=True)
+            return {'success': False, 'message': str(e)}
 
-    @staticmethod
-    def get_current_connection() -> dict:
+    @classmethod
+    def get_current_connection(cls):
         """Get current WiFi connection details"""
+        logger.info("Getting current WiFi connection...")
         try:
-            # Run iwconfig to get current connection info
-            result = subprocess.run(['iwconfig', 'wlan0'], capture_output=True, text=True)
-            output = result.stdout
-
-            if 'ESSID:' in output:
-                # Extract SSID
-                ssid = output.split('ESSID:')[1].split('"')[1]
-                
-                # Extract signal strength
-                quality = 0
-                if 'Quality=' in output:
-                    quality_str = output.split('Quality=')[1].split(' ')[0]
-                    try:
-                        current, max_val = map(int, quality_str.split('/'))
-                        quality = int((current / max_val) * 100)
-                    except:
-                        quality = 0
-
-                if ssid:  # Only return if actually connected
-                    return {
-                        'ssid': ssid,
-                        'signal': quality,
-                        'connected': True
-                    }
-        except Exception as e:
-            logging.error(f"Error getting current connection: {e}")
-        
-        return None
-
-    @staticmethod
-    def disconnect() -> Dict[str, Any]:
-        """Disconnect from current WiFi network"""
-        try:
-            # Get current connection to check if we're actually connected
-            current = WiFiManager.get_current_connection()
-            if not current:
-                return {'success': False, 'error': 'Not connected to any network'}
-
-            # Run nmcli to disconnect
-            result = subprocess.run(
-                ['sudo', 'nmcli', 'device', 'disconnect', 'wlan0'],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-
+            result = subprocess.run(['nmcli', '-t', '-f', 'ACTIVE,SIGNAL,SSID', 'device', 'wifi'], 
+                                 capture_output=True, text=True)
+            
             if result.returncode == 0:
-                return {'success': True}
-            else:
-                return {
-                    'success': False,
-                    'error': result.stderr.strip() or 'Failed to disconnect'
-                }
-
-        except subprocess.TimeoutExpired:
-            return {'success': False, 'error': 'Disconnect operation timed out'}
+                for line in result.stdout.strip().split('\n'):
+                    if ':' in line:
+                        active, signal, ssid = line.split(':')
+                        if active == 'yes':
+                            return {
+                                'ssid': ssid,
+                                'signal': int(signal),
+                                'connected': True
+                            }
+            return None
         except Exception as e:
-            logging.error(f"Error disconnecting from network: {str(e)}")
-            return {'success': False, 'error': str(e)}
+            logger.error(f"Error getting current connection: {str(e)}", exc_info=True)
+            return None
