@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>WiFi Settings</h1>
+    
+    <!-- Status Messages -->
+    <div id="status-message" class="alert" style="display: none;"></div>
+    
+    <div class="current-connection">
+        <h2>Current Connection</h2>
+        {% if current and current.ssid %}
+            <div class="wifi-item active-network">
+                <div class="wifi-info">
+                    <h3>{{ current.ssid }}</h3>
+                    <div class="signal-strength">Signal: {{ current.signal }}%</div>
+                    <span class="connected-label">Connected</span>
+                </div>
+                <div class="network-actions">
+                    <button class="disconnect-btn" onclick="disconnectFromNetwork('{{ current.ssid }}')">Disconnect</button>
+                </div>
+            </div>
+        {% else %}
+            <p class="no-connection">Not connected</p>
+        {% endif %}
+    </div>
+
+    <div class="available-networks">
+        <h2>Available Networks</h2>
+        <div id="wifi-list">
+            {% for network in networks %}
+                <div class="wifi-item {% if network.saved %}saved-network{% endif %}" onclick="showConnectForm('{{ network.ssid }}')">
+                    <div class="wifi-info">
+                        <h3>{{ network.ssid }}</h3>
+                        <div class="signal-strength">Signal: {{ network.signal }}%</div>
+                        {% if network.saved %}
+                            <span class="saved-label">Saved</span>
+                        {% endif %}
+                    </div>
+                    <div class="network-actions" id="actions-{{ network.ssid | replace(' ', '_') }}">
+                        <!-- Connection form will be inserted here -->
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+.alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.alert-success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.alert-error {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+.alert-info {
+    color: #0c5460;
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+}
+
+.wifi-item {
+    cursor: pointer;
+    padding: 15px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.wifi-item:hover {
+    background-color: #f5f5f5;
+}
+
+.network-form {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.network-form input {
+    margin-right: 10px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+}
+
+.network-form button {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 3px;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+}
+
+.network-form button:hover {
+    background-color: #0056b3;
+}
+
+.connecting-message {
+    color: #0c5460;
+    background-color: #d1ecf1;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+}
+</style>
+
+<script>
+function showMessage(message, type) {
+    const statusDiv = document.getElementById('status-message');
+    statusDiv.className = 'alert alert-' + type;
+    statusDiv.textContent = message;
+    statusDiv.style.display = 'block';
+    
+    // Hide message after 5 seconds
+    setTimeout(() => {
+        statusDiv.style.display = 'none';
+    }, 5000);
+}
+
+function showConnectForm(ssid) {
+    const actionsDivId = 'actions-' + ssid.replace(/ /g, '_');
+    const actionsDiv = document.getElementById(actionsDivId);
+    
+    // If form is already shown, hide it
+    if (actionsDiv.querySelector('.network-form')) {
+        actionsDiv.innerHTML = '';
+        return;
+    }
+    
+    // Hide any other open forms
+    document.querySelectorAll('.network-form').forEach(form => form.remove());
+    
+    const form = document.createElement('div');
+    form.className = 'network-form';
+    form.innerHTML = `
+        <input type="password" placeholder="Password" id="password-${ssid}" onclick="event.stopPropagation()">
+        <button onclick="event.stopPropagation(); connectToNetwork('${ssid}')">Connect</button>
+    `;
+    
+    actionsDiv.appendChild(form);
+}
+
+function connectToNetwork(ssid) {
+    const passwordInput = document.getElementById('password-' + ssid);
+    const password = passwordInput.value;
+    const actionsDivId = 'actions-' + ssid.replace(/ /g, '_');
+    const actionsDiv = document.getElementById(actionsDivId);
+    
+    if (!password) {
+        showMessage('Please enter a password', 'error');
+        return;
+    }
+
+    // Show connecting message
+    actionsDiv.innerHTML = '<div class="connecting-message">Connecting...</div>';
+    showMessage('Attempting to connect to ' + ssid, 'info');
+
+    fetch('/api/wifi/connect', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            ssid: ssid,
+            password: password
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Successfully connected to ' + ssid, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showMessage('Connection failed: ' + (data.error || 'Unknown error'), 'error');
+            showConnectForm(ssid); // Show the form again
+        }
+    })
+    .catch(error => {
+        showMessage('Error connecting to network: ' + error, 'error');
+        showConnectForm(ssid); // Show the form again
+    });
+}
+
+function disconnectFromNetwork(ssid) {
+    if (!confirm('Disconnect from ' + ssid + '?')) return;
+
+    showMessage('Disconnecting from ' + ssid, 'info');
+
+    fetch('/api/wifi/disconnect', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Successfully disconnected from ' + ssid, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showMessage('Disconnection failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        showMessage('Error disconnecting: ' + error, 'error');
+    });
+}
+</script>
+{% endblock %} 

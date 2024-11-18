@@ -116,3 +116,598 @@ h1 {
 .change-station-button:hover {
     background-color: #2d9147;
 }
+
+/* WiFi Styles */
+.wifi-item {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.wifi-info {
+    cursor: pointer;
+}
+
+.wifi-info h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #202124;
+    margin-bottom: 0.5rem;
+}
+
+.signal-strength {
+    color: #5f6368;
+    font-size: 0.9rem;
+    margin: 0.5rem 0;
+}
+
+.network-details {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e8eaed;
+}
+
+.connection-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.password-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.connect-btn, .disconnect-btn {
+    width: 100%;
+    padding: 0.75rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    text-align: center;
+}
+
+.connect-btn {
+    background-color: #1a73e8;
+    color: white;
+}
+
+.connect-btn:disabled {
+    background-color: #dadce0;
+    cursor: not-allowed;
+}
+
+.disconnect-btn {
+    background-color: #d93025;
+    color: white;
+}
+
+.connection-status {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.connection-status.error {
+    background-color: #fce8e6;
+    color: #d93025;
+}
+
+.connection-status.success {
+    background-color: #e6f4ea;
+    color: #34a853;
+}
+
+/* Mobile optimization */
+@media (max-width: 600px) {
+    .container {
+        padding: 1rem;
+    }
+    
+    .wifi-item {
+        padding: 0.75rem;
+    }
+    
+    .wifi-info h3 {
+        font-size: 1rem;
+    }
+    
+    .signal-strength {
+        font-size: 0.8rem;
+    }
+    
+    .connect-btn, .disconnect-btn {
+        padding: 0.6rem;
+        font-size: 0.9rem;
+    }
+}
+
+.saved-label {
+    background-color: #34a853;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.security-type {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #1a73e8;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Add WiFi button to header */
+.header-controls {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+}
+
+.wifi-button {
+    background-color: #1a73e8;
+    color: white;
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: background-color 0.3s;
+}
+
+.wifi-button:hover {
+    background-color: #1557b0;
+}
+
+/* WiFi Connection Dialog */
+.dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.dialog-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.form-group {
+    margin: 15px 0;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.connect-button, .forget-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.connect-button {
+    background-color: #1a73e8;
+    color: white;
+}
+
+.forget-button {
+    background-color: #dc3545;
+    color: white;
+}
+
+.cancel-button {
+    background-color: #6c757d;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.current-connection {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.current-network {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.no-connection {
+    color: #666;
+    text-align: center;
+}
+
+.wifi-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.active-network {
+    border: 2px solid #1a73e8;
+}
+
+.active-label {
+    background-color: #1a73e8;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.connect-btn, .forget-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+.connect-btn {
+    background-color: #1a73e8;
+    color: white;
+}
+
+.connect-btn:hover {
+    background-color: #1557b0;
+}
+
+.forget-btn {
+    background-color: #dc3545;
+    color: white;
+}
+
+.forget-btn:hover {
+    background-color: #c82333;
+}
+
+/* Password Dialog Styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: white;
+    margin: 15% auto;
+    padding: 20px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+/* Loading Spinner Overlay */
+.spinner-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+/* WiFi List Auto-refresh */
+.wifi-list {
+    position: relative;
+    min-height: 100px;
+}
+
+/* Input styles */
+input[type="password"] {
+    width: 100%;
+    padding: 8px;
+    margin: 10px 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+/* Add these styles */
+.wifi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.wifi-item {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.wifi-info {
+    flex: 1;
+}
+
+.wifi-info h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.wifi-info p {
+    margin: 5px 0;
+    color: #666;
+}
+
+.security-type {
+    background-color: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.no-networks {
+    text-align: center;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    color: #666;
+}
+
+.active-network {
+    border: 2px solid #1a73e8;
+}
+
+.active-label, .saved-label {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.active-label {
+    background-color: #1a73e8;
+    color: white;
+}
+
+.saved-label {
+    background-color: #34a853;
+    color: white;
+}
+
+/* Add these new styles */
+.header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.refresh-btn {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.refresh-btn:hover {
+    background-color: #1557b0;
+}
+
+.refresh-icon {
+    font-size: 1.2em;
+}
+
+.spinner-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #1a73e8;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.network-category {
+    margin-bottom: 2rem;
+}
+
+.network-category h2 {
+    color: #1a73e8;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+}
+
+.wifi-item {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.active-network {
+    border-left: 4px solid #34a853;
+}
+
+.saved-network {
+    border-left: 4px solid #1a73e8;
+}
+
+.network-connect-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.password-input {
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-width: 200px;
+}
+
+.connection-status {
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+.connection-status.error {
+    color: #d93025;
+}
+
+.connection-status.success {
+    color: #34a853;
+}
+
+.network-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.connect-btn, .disconnect-btn, .forget-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.connect-btn {
+    background-color: #1a73e8;
+    color: white;
+}
+
+.disconnect-btn {
+    background-color: #d93025;
+    color: white;
+}
+
+.forget-btn {
+    background-color: #5f6368;
+    color: white;
+}
+
+.security-type {
+    font-size: 0.8rem;
+    color: #5f6368;
+    background: #f1f3f4;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.connected-label {
+    background-color: #34a853;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.active-network {
+    border-left: 4px solid #34a853;
+    background-color: #f8fdf9;
+}

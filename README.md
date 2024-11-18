@@ -137,6 +137,60 @@ Testing Strategy
    - Configuration validation
    - Error handling verification
 
+   Mock Dependencies and Patterns:
+   - unittest.mock (patch, MagicMock): Core mocking functionality
+   - pytest-mock: Fixture-based mocking
+   
+   Common Mocking Patterns:
+   a) Hardware Interface Mocks:
+      ```python
+      @pytest.fixture
+      def mock_gpio():
+          with patch('RPi.GPIO') as mock:
+              yield mock
+      ```
+   
+   b) Subprocess Calls:
+      ```python
+      @pytest.fixture
+      def mock_subprocess():
+          with patch('subprocess.run') as mock:
+              yield mock
+      ```
+   
+   c) File Operations:
+      ```python
+      @pytest.fixture
+      def mock_open():
+          with patch('builtins.open') as mock:
+              yield mock
+      ```
+   
+   d) Class-based Test Structure:
+      ```python
+      class TestComponent:
+          @pytest.fixture
+          def setup_component(self):
+              with patch('dependency') as mock:
+                  yield mock
+      ```
+
+   Component-Specific Patterns:
+   - RadioPlayer: Mocks VLC instance and audio device detection
+   - GPIOHandler: Mocks GPIO input/output and interrupt handling
+   - StreamManager: Mocks file operations and URL validation
+   - SoundPlayer: Mocks audio playback and device access
+   - WiFiManager: Mocks nmcli subprocess calls
+
+   Best Practices:
+   - Use fixtures for common mock setups
+   - Mock at the lowest possible level
+   - Verify mock calls and interactions
+   - Test error cases and edge conditions
+   - Maintain isolation between tests
+   - Use descriptive test names
+   - Follow arrange-act-assert pattern
+
 2. Integration Tests:
    - Component interaction
    - Hardware simulation
