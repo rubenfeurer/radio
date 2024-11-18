@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, ClassVar
 import logging
 import time
+import tomli
 
 logger = logging.getLogger(__name__)
 
@@ -14,16 +15,35 @@ class ButtonPress:
 
 class ButtonMapper:
     """Maps GPIO channels to button indices"""
-    PIN_TO_BUTTON = {
-        17: 1,  # Button 1 - GPIO 17
-        16: 2,  # Button 2 - GPIO 16
-        26: 3   # Button 3 - GPIO 26
-    }
+    _config: ClassVar[Dict] = None
+    
+    @classmethod
+    def _load_config(cls) -> Dict:
+        """Load button configuration from config file"""
+        if cls._config is None:
+            try:
+                with open('config/config.toml', 'rb') as f:
+                    config = tomli.load(f)
+                buttons = config['gpio']['buttons']
+                cls._config = {
+                    buttons['button1']: 1,
+                    buttons['button2']: 2,
+                    buttons['button3']: 3
+                }
+            except Exception as e:
+                logger.warning(f"Failed to load button config: {e}. Using defaults.")
+                # Fallback to default values from README
+                cls._config = {
+                    23: 1,  # Button 1 - GPIO 23
+                    24: 2,  # Button 2 - GPIO 24
+                    25: 3   # Button 3 - GPIO 25
+                }
+        return cls._config
 
     @classmethod
     def get_button_index(cls, channel: int) -> Optional[int]:
         """Convert GPIO channel to button index"""
-        return cls.PIN_TO_BUTTON.get(channel)
+        return cls._load_config().get(channel)
 
 class ButtonStateHandler:
     """Handles button press state and debouncing"""

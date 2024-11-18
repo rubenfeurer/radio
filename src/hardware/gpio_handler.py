@@ -61,41 +61,57 @@ class GPIOHandler:
         """Set up GPIO pins and event detection"""
         GPIO.setmode(GPIO.BCM)
         
-        # Setup button pins
-        for pin in ButtonMapper.PIN_TO_BUTTON.keys():
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.add_event_detect(pin, GPIO.FALLING, callback=self.button_callback)
+        try:
+            # Load config
+            with open('config/config.toml', 'rb') as f:
+                config = tomli.load(f)
+                button_config = config['gpio']['buttons']
+                pin_mapping = {
+                    button_config['button1']: 1,
+                    button_config['button2']: 2,
+                    button_config['button3']: 3
+                }
+        except Exception as e:
+            logger.warning(f"Failed to load button config, using fallback: {e}")
+            # Fallback to hardcoded pin mapping matching physical setup
+            pin_mapping = {
+                17: 1,  # Button 1 - GPIO 17
+                16: 2,  # Button 2 - GPIO 16
+                26: 3   # Button 3 - GPIO 26
+            }
         
-        logger.info("GPIO pins configured")
+        # Setup button pins with error handling
+        for pin, button_num in pin_mapping.items():
+            try:
+                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                GPIO.add_event_detect(
+                    pin,
+                    GPIO.FALLING,
+                    callback=self.button_callback,
+                    bouncetime=300
+                )
+                logger.debug(f"Successfully setup GPIO pin {pin} for button {button_num}")
+            except Exception as e:
+                logger.error(f"Failed to setup GPIO pin {pin}: {e}")
+
+        self.pin_mapping = pin_mapping  # Store for button_callback use
 
     def button_callback(self, channel):
         """Handle button press events"""
-        try:
-            logger.debug(f"\n=== Button press on channel {channel} ===")
-            
-            if not self.stream_toggler:
-                logger.error("Stream toggler not initialized")
-                return
-            
-            # Check debounce
-            if not self.button_state.should_process():
-                logger.debug("Debounce check failed")
-                return
+        if not self._debounce():
+            return
 
-            # Get button index
-            button_index = ButtonMapper.get_button_index(channel)
+        try:
+            button_index = self.pin_mapping.get(channel)
             if button_index is None:
                 logger.error(f"Invalid button channel: {channel}")
                 return
 
-            # Create button press event and handle it
             button_press = ButtonPress(channel=channel, button_index=button_index)
             logger.debug(f"Processing button press: {button_press}")
             self.stream_toggler.handle_button_press(button_press)
-
         except Exception as e:
             logger.error(f"Error in button callback: {e}", exc_info=True)
-            raise
     
     def cleanup(self):
         """Clean up GPIO resources"""

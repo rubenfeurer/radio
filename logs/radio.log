@@ -1848,3 +1848,589 @@ AttributeError: 'list' object has no attribute 'get'
 2024-11-18 09:26:26,019 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 09:26:26] "GET /api/status HTTP/1.1" 200 -
 2024-11-18 09:26:28,021 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 69}
 2024-11-18 09:26:28,024 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 09:26:28] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:19:14,760 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:19:14,761 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:19:14,831 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:19:14,835 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:19:14,836 - src.hardware.gpio_handler - INFO - GPIO pins configured
+2024-11-18 11:19:14,837 - src.hardware.gpio_handler - INFO - GPIO handler initialized
+2024-11-18 11:19:14,837 - src.app.radio_service - INFO - RadioService initialization complete
+2024-11-18 11:19:14,837 - src.app.radio_service - INFO - GPIO handler initialized with player: <src.player.radio_player.RadioPlayer object at 0x7f999cbdd0>
+2024-11-18 11:19:14,837 - src.app.radio_service - INFO - GPIO handler initialized with stream manager: <src.utils.stream_manager.StreamManager object at 0x7f999cbcd0>
+2024-11-18 11:19:14,837 - src.app.routes - INFO - RadioService created successfully
+2024-11-18 11:19:14,856 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-18 11:19:14,856 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-18 11:19:19,084 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:19:19,085 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:19:19,086 - src.app.radio_service - INFO - Cleaning up radio service...
+2024-11-18 11:19:19,248 - src.hardware.gpio_handler - INFO - GPIO cleanup completed
+2024-11-18 11:19:19,248 - src.app.radio_service - INFO - Cleanup complete
+2024-11-18 11:19:19,911 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:19:19,912 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:19:19,983 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:19:19,988 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:19:19,992 - src.hardware.gpio_handler - INFO - GPIO pins configured
+2024-11-18 11:19:19,992 - src.hardware.gpio_handler - INFO - GPIO handler initialized
+2024-11-18 11:19:19,993 - src.app.radio_service - INFO - RadioService initialization complete
+2024-11-18 11:19:19,993 - src.app.radio_service - INFO - GPIO handler initialized with player: <src.player.radio_player.RadioPlayer object at 0x7fa81bac90>
+2024-11-18 11:19:19,994 - src.app.radio_service - INFO - GPIO handler initialized with stream manager: <src.utils.stream_manager.StreamManager object at 0x7fa81b9490>
+2024-11-18 11:19:19,994 - src.app.routes - INFO - RadioService created successfully
+2024-11-18 11:19:20,017 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-18 11:19:20,018 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-18 11:20:01,947 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:20:01,951 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:20:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:21:00,429 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:21:00,430 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:21:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:22:00,423 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:22:00,426 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:22:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:23:00,411 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:23:00,413 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:23:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:24:01,563 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:24:01,565 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:24:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:25:00,478 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:25:00,480 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:25:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:26:00,415 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:26:00,417 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:26:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:27:00,401 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:27:00,403 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:27:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:28:00,869 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:28:00,870 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:28:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:29:00,415 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:29:00,417 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:29:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:30:01,298 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:30:01,300 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:30:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:31:00,408 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:31:00,410 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:31:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:31:10,362 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:31:10,363 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:31:10,363 - src.app.radio_service - INFO - Cleaning up radio service...
+2024-11-18 11:31:10,544 - src.hardware.gpio_handler - INFO - GPIO cleanup completed
+2024-11-18 11:31:10,545 - src.app.radio_service - INFO - Cleanup complete
+2024-11-18 11:31:11,241 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:31:11,242 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:31:11,313 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:31:11,318 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:31:11,320 - src.hardware.gpio_handler - INFO - GPIO pins configured
+2024-11-18 11:31:11,320 - src.hardware.gpio_handler - INFO - GPIO handler initialized
+2024-11-18 11:31:11,320 - src.app.radio_service - INFO - RadioService initialization complete
+2024-11-18 11:31:11,320 - src.app.radio_service - INFO - GPIO handler initialized with player: <src.player.radio_player.RadioPlayer object at 0x7fb3e5b090>
+2024-11-18 11:31:11,321 - src.app.radio_service - INFO - GPIO handler initialized with stream manager: <src.utils.stream_manager.StreamManager object at 0x7fb3e598d0>
+2024-11-18 11:31:11,321 - src.app.routes - INFO - RadioService created successfully
+2024-11-18 11:31:11,342 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-18 11:31:11,342 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-18 11:32:01,722 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:32:01,724 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:32:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:33:00,410 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:33:00,413 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:33:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:33:57,682 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:33:57,683 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:33:57,683 - src.app.radio_service - INFO - Cleaning up radio service...
+2024-11-18 11:33:57,833 - src.hardware.gpio_handler - INFO - GPIO cleanup completed
+2024-11-18 11:33:57,833 - src.app.radio_service - INFO - Cleanup complete
+2024-11-18 11:33:58,485 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:33:58,485 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:33:58,557 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:33:58,561 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:33:58,562 - src.app.radio_service - ERROR - Error initializing RadioService: type object 'ButtonMapper' has no attribute 'PIN_TO_BUTTON'
+Traceback (most recent call last):
+  File "/home/radio/internetRadio/src/app/radio_service.py", line 33, in __init__
+    self.gpio_handler.setup(self.player, self.stream_manager)
+  File "/home/radio/internetRadio/src/hardware/gpio_handler.py", line 55, in setup
+    self._setup_gpio()
+  File "/home/radio/internetRadio/src/hardware/gpio_handler.py", line 65, in _setup_gpio
+    for pin in ButtonMapper.PIN_TO_BUTTON.keys():
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'ButtonMapper' has no attribute 'PIN_TO_BUTTON'
+2024-11-18 11:33:58,564 - src.app.routes - ERROR - Failed to create RadioService: type object 'ButtonMapper' has no attribute 'PIN_TO_BUTTON'
+2024-11-18 11:34:29,564 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:34:29,564 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:34:29,635 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:34:29,639 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:34:29,640 - src.app.radio_service - ERROR - Error initializing RadioService: type object 'ButtonMapper' has no attribute 'PIN_TO_BUTTON'
+Traceback (most recent call last):
+  File "/home/radio/internetRadio/src/app/radio_service.py", line 33, in __init__
+    self.gpio_handler.setup(self.player, self.stream_manager)
+  File "/home/radio/internetRadio/src/hardware/gpio_handler.py", line 55, in setup
+    self._setup_gpio()
+  File "/home/radio/internetRadio/src/hardware/gpio_handler.py", line 65, in _setup_gpio
+    for pin in ButtonMapper.PIN_TO_BUTTON.keys():
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'ButtonMapper' has no attribute 'PIN_TO_BUTTON'
+2024-11-18 11:34:29,642 - src.app.routes - ERROR - Failed to create RadioService: type object 'ButtonMapper' has no attribute 'PIN_TO_BUTTON'
+2024-11-18 11:35:00,506 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:35:00,507 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:35:00,580 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:35:00,583 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:35:00,585 - src.hardware.gpio_handler - INFO - GPIO pins configured
+2024-11-18 11:35:00,586 - src.hardware.gpio_handler - INFO - GPIO handler initialized
+2024-11-18 11:35:00,586 - src.app.radio_service - INFO - RadioService initialization complete
+2024-11-18 11:35:00,586 - src.app.radio_service - INFO - GPIO handler initialized with player: <src.player.radio_player.RadioPlayer object at 0x7fb010b090>
+2024-11-18 11:35:00,586 - src.app.radio_service - INFO - GPIO handler initialized with stream manager: <src.utils.stream_manager.StreamManager object at 0x7fb010af90>
+2024-11-18 11:35:00,586 - src.app.routes - INFO - RadioService created successfully
+2024-11-18 11:35:00,606 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-18 11:35:00,607 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-18 11:35:09,574 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:35:10,371 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:35:10,372 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:35:10,444 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:35:10,448 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:35:10,451 - src.hardware.gpio_handler - INFO - GPIO pins configured
+2024-11-18 11:35:10,451 - src.hardware.gpio_handler - INFO - GPIO handler initialized
+2024-11-18 11:35:10,452 - src.app.radio_service - INFO - RadioService initialization complete
+2024-11-18 11:35:10,452 - src.app.radio_service - INFO - GPIO handler initialized with player: <src.player.radio_player.RadioPlayer object at 0x7f8611af90>
+2024-11-18 11:35:10,453 - src.app.radio_service - INFO - GPIO handler initialized with stream manager: <src.utils.stream_manager.StreamManager object at 0x7f8611ae90>
+2024-11-18 11:35:10,453 - src.app.routes - INFO - RadioService created successfully
+2024-11-18 11:35:10,472 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-18 11:35:10,473 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-18 11:36:01,651 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:36:01,654 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:36:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:37:00,408 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:37:00,410 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:37:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:37:27,918 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:37:28,732 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:37:28,732 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:37:28,804 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:37:28,808 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:37:28,810 - src.hardware.gpio_handler - INFO - GPIO pins configured
+2024-11-18 11:37:28,810 - src.hardware.gpio_handler - INFO - GPIO handler initialized
+2024-11-18 11:37:28,811 - src.app.radio_service - INFO - RadioService initialization complete
+2024-11-18 11:37:28,811 - src.app.radio_service - INFO - GPIO handler initialized with player: <src.player.radio_player.RadioPlayer object at 0x7fa054b090>
+2024-11-18 11:37:28,812 - src.app.radio_service - INFO - GPIO handler initialized with stream manager: <src.utils.stream_manager.StreamManager object at 0x7fa0549890>
+2024-11-18 11:37:28,812 - src.app.routes - INFO - RadioService created successfully
+2024-11-18 11:37:28,831 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-18 11:37:28,832 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-18 11:38:00,412 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:38:00,414 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:16,579 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 80}
+2024-11-18 11:38:16,580 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:16] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:17,672 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 80}
+2024-11-18 11:38:17,679 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:17] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:19,703 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 80}
+2024-11-18 11:38:19,706 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:19] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:21,674 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:38:21,676 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:21] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:23,671 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:38:23,672 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:23] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:25,754 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:38:25,755 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:25] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:27,674 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:38:27,675 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:27] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:28,850 - src.player.radio_player - INFO - Volume set to 78%
+2024-11-18 11:38:28,852 - src.hardware.rotary_handler - INFO - Volume up: 75 -> 78
+2024-11-18 11:38:28,884 - src.player.radio_player - INFO - Volume set to 81%
+2024-11-18 11:38:28,885 - src.hardware.rotary_handler - INFO - Volume up: 78 -> 81
+2024-11-18 11:38:28,931 - src.player.radio_player - INFO - Volume set to 84%
+2024-11-18 11:38:28,933 - src.hardware.rotary_handler - INFO - Volume up: 81 -> 84
+2024-11-18 11:38:28,957 - src.player.radio_player - INFO - Volume set to 87%
+2024-11-18 11:38:28,957 - src.hardware.rotary_handler - INFO - Volume up: 84 -> 87
+2024-11-18 11:38:29,029 - src.player.radio_player - INFO - Volume set to 90%
+2024-11-18 11:38:29,030 - src.hardware.rotary_handler - INFO - Volume up: 87 -> 90
+2024-11-18 11:38:29,047 - src.player.radio_player - INFO - Volume set to 93%
+2024-11-18 11:38:29,047 - src.hardware.rotary_handler - INFO - Volume up: 90 -> 93
+2024-11-18 11:38:29,081 - src.player.radio_player - INFO - Volume set to 96%
+2024-11-18 11:38:29,082 - src.hardware.rotary_handler - INFO - Volume up: 93 -> 96
+2024-11-18 11:38:29,099 - src.player.radio_player - INFO - Volume set to 99%
+2024-11-18 11:38:29,099 - src.hardware.rotary_handler - INFO - Volume up: 96 -> 99
+2024-11-18 11:38:29,138 - src.player.radio_player - INFO - Volume set to 100%
+2024-11-18 11:38:29,139 - src.hardware.rotary_handler - INFO - Volume up: 99 -> 100
+2024-11-18 11:38:29,169 - src.player.radio_player - INFO - Volume set to 100%
+2024-11-18 11:38:29,169 - src.hardware.rotary_handler - INFO - Volume up: 100 -> 100
+2024-11-18 11:38:29,324 - src.player.radio_player - INFO - Volume set to 100%
+2024-11-18 11:38:29,324 - src.hardware.rotary_handler - INFO - Volume up: 100 -> 100
+2024-11-18 11:38:29,352 - src.player.radio_player - INFO - Volume set to 100%
+2024-11-18 11:38:29,352 - src.hardware.rotary_handler - INFO - Volume up: 100 -> 100
+2024-11-18 11:38:29,392 - src.player.radio_player - INFO - Volume set to 100%
+2024-11-18 11:38:29,392 - src.hardware.rotary_handler - INFO - Volume up: 100 -> 100
+2024-11-18 11:38:29,414 - src.player.radio_player - INFO - Volume set to 100%
+2024-11-18 11:38:29,415 - src.hardware.rotary_handler - INFO - Volume up: 100 -> 100
+2024-11-18 11:38:29,679 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 100}
+2024-11-18 11:38:29,680 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:29] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:29,725 - src.player.radio_player - INFO - Volume set to 100%
+2024-11-18 11:38:29,726 - src.hardware.rotary_handler - INFO - Volume up: 100 -> 100
+2024-11-18 11:38:31,671 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 100}
+2024-11-18 11:38:31,672 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:31] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:33,164 - src.player.radio_player - INFO - Volume set to 97%
+2024-11-18 11:38:33,166 - src.hardware.rotary_handler - INFO - Volume down: 100 -> 97
+2024-11-18 11:38:33,188 - src.player.radio_player - INFO - Volume set to 94%
+2024-11-18 11:38:33,189 - src.hardware.rotary_handler - INFO - Volume down: 97 -> 94
+2024-11-18 11:38:33,205 - src.player.radio_player - INFO - Volume set to 91%
+2024-11-18 11:38:33,205 - src.hardware.rotary_handler - INFO - Volume down: 94 -> 91
+2024-11-18 11:38:33,222 - src.player.radio_player - INFO - Volume set to 88%
+2024-11-18 11:38:33,223 - src.hardware.rotary_handler - INFO - Volume down: 91 -> 88
+2024-11-18 11:38:33,242 - src.player.radio_player - INFO - Volume set to 85%
+2024-11-18 11:38:33,243 - src.hardware.rotary_handler - INFO - Volume down: 88 -> 85
+2024-11-18 11:38:33,299 - src.player.radio_player - INFO - Volume set to 82%
+2024-11-18 11:38:33,300 - src.hardware.rotary_handler - INFO - Volume down: 85 -> 82
+2024-11-18 11:38:33,381 - src.player.radio_player - INFO - Volume set to 79%
+2024-11-18 11:38:33,381 - src.hardware.rotary_handler - INFO - Volume down: 82 -> 79
+2024-11-18 11:38:33,424 - src.player.radio_player - INFO - Volume set to 76%
+2024-11-18 11:38:33,425 - src.hardware.rotary_handler - INFO - Volume down: 79 -> 76
+2024-11-18 11:38:33,457 - src.player.radio_player - INFO - Volume set to 73%
+2024-11-18 11:38:33,457 - src.hardware.rotary_handler - INFO - Volume down: 76 -> 73
+2024-11-18 11:38:33,498 - src.player.radio_player - INFO - Volume set to 70%
+2024-11-18 11:38:33,499 - src.hardware.rotary_handler - INFO - Volume down: 73 -> 70
+2024-11-18 11:38:33,538 - src.player.radio_player - INFO - Volume set to 67%
+2024-11-18 11:38:33,539 - src.hardware.rotary_handler - INFO - Volume down: 70 -> 67
+2024-11-18 11:38:33,682 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 67}
+2024-11-18 11:38:33,684 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:33] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:33,741 - src.player.radio_player - INFO - Volume set to 70%
+2024-11-18 11:38:33,742 - src.hardware.rotary_handler - INFO - Volume up: 67 -> 70
+2024-11-18 11:38:33,798 - src.player.radio_player - INFO - Volume set to 73%
+2024-11-18 11:38:33,799 - src.hardware.rotary_handler - INFO - Volume up: 70 -> 73
+2024-11-18 11:38:33,901 - src.player.radio_player - INFO - Volume set to 76%
+2024-11-18 11:38:33,902 - src.hardware.rotary_handler - INFO - Volume up: 73 -> 76
+2024-11-18 11:38:33,939 - src.player.radio_player - INFO - Volume set to 79%
+2024-11-18 11:38:33,939 - src.hardware.rotary_handler - INFO - Volume up: 76 -> 79
+2024-11-18 11:38:34,250 - src.player.radio_player - INFO - Volume set to 76%
+2024-11-18 11:38:34,250 - src.hardware.rotary_handler - INFO - Volume down: 79 -> 76
+2024-11-18 11:38:34,320 - src.player.radio_player - INFO - Volume set to 73%
+2024-11-18 11:38:34,320 - src.hardware.rotary_handler - INFO - Volume down: 76 -> 73
+2024-11-18 11:38:35,093 - src.player.radio_player - INFO - Volume set to 70%
+2024-11-18 11:38:35,094 - src.hardware.rotary_handler - INFO - Volume down: 73 -> 70
+2024-11-18 11:38:35,211 - src.player.radio_player - INFO - Volume set to 67%
+2024-11-18 11:38:35,212 - src.hardware.rotary_handler - INFO - Volume down: 70 -> 67
+2024-11-18 11:38:35,708 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 67}
+2024-11-18 11:38:35,710 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:35] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:37,674 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 67}
+2024-11-18 11:38:37,676 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:37] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:39,673 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 67}
+2024-11-18 11:38:39,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:39] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:40,298 - src.player.radio_player - INFO - Volume set to 70%
+2024-11-18 11:38:40,299 - src.hardware.rotary_handler - INFO - Volume up: 67 -> 70
+2024-11-18 11:38:40,324 - src.player.radio_player - INFO - Volume set to 73%
+2024-11-18 11:38:40,324 - src.hardware.rotary_handler - INFO - Volume up: 70 -> 73
+2024-11-18 11:38:40,385 - src.player.radio_player - INFO - Volume set to 76%
+2024-11-18 11:38:40,385 - src.hardware.rotary_handler - INFO - Volume up: 73 -> 76
+2024-11-18 11:38:40,409 - src.player.radio_player - INFO - Volume set to 79%
+2024-11-18 11:38:40,409 - src.hardware.rotary_handler - INFO - Volume up: 76 -> 79
+2024-11-18 11:38:40,526 - src.player.radio_player - INFO - Volume set to 82%
+2024-11-18 11:38:40,526 - src.hardware.rotary_handler - INFO - Volume up: 79 -> 82
+2024-11-18 11:38:40,558 - src.player.radio_player - INFO - Volume set to 85%
+2024-11-18 11:38:40,559 - src.hardware.rotary_handler - INFO - Volume up: 82 -> 85
+2024-11-18 11:38:40,657 - src.player.radio_player - INFO - Volume set to 88%
+2024-11-18 11:38:40,657 - src.hardware.rotary_handler - INFO - Volume up: 85 -> 88
+2024-11-18 11:38:40,729 - src.player.radio_player - INFO - Volume set to 91%
+2024-11-18 11:38:40,730 - src.hardware.rotary_handler - INFO - Volume up: 88 -> 91
+2024-11-18 11:38:40,886 - src.player.radio_player - INFO - Volume set to 88%
+2024-11-18 11:38:40,887 - src.hardware.rotary_handler - INFO - Volume down: 91 -> 88
+2024-11-18 11:38:41,009 - src.player.radio_player - INFO - Volume set to 85%
+2024-11-18 11:38:41,010 - src.hardware.rotary_handler - INFO - Volume down: 88 -> 85
+2024-11-18 11:38:41,668 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 85}
+2024-11-18 11:38:41,669 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:41] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:43,670 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 85}
+2024-11-18 11:38:43,671 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:43] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:45,675 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 85}
+2024-11-18 11:38:45,676 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:45] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:47,766 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 85}
+2024-11-18 11:38:47,767 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:47] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:49,675 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 85}
+2024-11-18 11:38:49,676 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:49] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:51,416 - src.player.radio_player - INFO - Volume set to 88%
+2024-11-18 11:38:51,417 - src.hardware.rotary_handler - INFO - Volume up: 85 -> 88
+2024-11-18 11:38:51,582 - src.player.radio_player - INFO - Volume set to 85%
+2024-11-18 11:38:51,583 - src.hardware.rotary_handler - INFO - Volume down: 88 -> 85
+2024-11-18 11:38:51,670 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 85}
+2024-11-18 11:38:51,671 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:51] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:51,759 - src.player.radio_player - INFO - Volume set to 82%
+2024-11-18 11:38:51,759 - src.hardware.rotary_handler - INFO - Volume down: 85 -> 82
+2024-11-18 11:38:51,810 - src.player.radio_player - INFO - Volume set to 79%
+2024-11-18 11:38:51,810 - src.hardware.rotary_handler - INFO - Volume down: 82 -> 79
+2024-11-18 11:38:51,897 - src.player.radio_player - INFO - Volume set to 76%
+2024-11-18 11:38:51,897 - src.hardware.rotary_handler - INFO - Volume down: 79 -> 76
+2024-11-18 11:38:51,944 - src.player.radio_player - INFO - Volume set to 73%
+2024-11-18 11:38:51,945 - src.hardware.rotary_handler - INFO - Volume down: 76 -> 73
+2024-11-18 11:38:51,993 - src.player.radio_player - INFO - Volume set to 70%
+2024-11-18 11:38:51,993 - src.hardware.rotary_handler - INFO - Volume down: 73 -> 70
+2024-11-18 11:38:52,025 - src.player.radio_player - INFO - Volume set to 67%
+2024-11-18 11:38:52,025 - src.hardware.rotary_handler - INFO - Volume down: 70 -> 67
+2024-11-18 11:38:52,100 - src.player.radio_player - INFO - Volume set to 64%
+2024-11-18 11:38:52,102 - src.hardware.rotary_handler - INFO - Volume down: 67 -> 64
+2024-11-18 11:38:52,151 - src.player.radio_player - INFO - Volume set to 61%
+2024-11-18 11:38:52,151 - src.hardware.rotary_handler - INFO - Volume down: 64 -> 61
+2024-11-18 11:38:52,527 - src.player.radio_player - INFO - Volume set to 64%
+2024-11-18 11:38:52,528 - src.hardware.rotary_handler - INFO - Volume up: 61 -> 64
+2024-11-18 11:38:52,543 - src.player.radio_player - INFO - Volume set to 67%
+2024-11-18 11:38:52,544 - src.hardware.rotary_handler - INFO - Volume up: 64 -> 67
+2024-11-18 11:38:52,559 - src.player.radio_player - INFO - Volume set to 70%
+2024-11-18 11:38:52,560 - src.hardware.rotary_handler - INFO - Volume up: 67 -> 70
+2024-11-18 11:38:52,576 - src.player.radio_player - INFO - Volume set to 73%
+2024-11-18 11:38:52,577 - src.hardware.rotary_handler - INFO - Volume up: 70 -> 73
+2024-11-18 11:38:52,593 - src.player.radio_player - INFO - Volume set to 76%
+2024-11-18 11:38:52,593 - src.hardware.rotary_handler - INFO - Volume up: 73 -> 76
+2024-11-18 11:38:52,619 - src.player.radio_player - INFO - Volume set to 79%
+2024-11-18 11:38:52,619 - src.hardware.rotary_handler - INFO - Volume up: 76 -> 79
+2024-11-18 11:38:52,871 - src.player.radio_player - INFO - Volume set to 82%
+2024-11-18 11:38:52,871 - src.hardware.rotary_handler - INFO - Volume up: 79 -> 82
+2024-11-18 11:38:52,983 - src.player.radio_player - INFO - Volume set to 85%
+2024-11-18 11:38:52,983 - src.hardware.rotary_handler - INFO - Volume up: 82 -> 85
+2024-11-18 11:38:53,396 - src.player.radio_player - INFO - Volume set to 82%
+2024-11-18 11:38:53,396 - src.hardware.rotary_handler - INFO - Volume down: 85 -> 82
+2024-11-18 11:38:53,425 - src.player.radio_player - INFO - Volume set to 79%
+2024-11-18 11:38:53,425 - src.hardware.rotary_handler - INFO - Volume down: 82 -> 79
+2024-11-18 11:38:53,612 - src.player.radio_player - INFO - Volume set to 76%
+2024-11-18 11:38:53,613 - src.hardware.rotary_handler - INFO - Volume down: 79 -> 76
+2024-11-18 11:38:53,651 - src.player.radio_player - INFO - Volume set to 73%
+2024-11-18 11:38:53,652 - src.hardware.rotary_handler - INFO - Volume down: 76 -> 73
+2024-11-18 11:38:53,672 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:38:53,673 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:53] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:55,682 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:38:55,684 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:55] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:57,725 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:38:57,728 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:57] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:38:59,675 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:38:59,676 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:38:59] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:01,670 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:01,671 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:03,701 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:03,703 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:03] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:05,672 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:05,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:05] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:07,696 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:07,698 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:07] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:09,676 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:09,678 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:09] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:11,672 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:11,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:11] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:13,668 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:13,669 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:13] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:15,669 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:15,670 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:15] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:17,670 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 73}
+2024-11-18 11:39:17,671 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:17] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:19,740 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:19,741 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:19] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:21,678 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:21,679 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:21] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:23,672 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:23,673 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:23] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:25,668 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:25,670 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:25] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:27,675 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:27,677 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:27] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:29,706 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:29,707 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:29] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:31,671 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:31,672 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:31] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:33,673 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:33,675 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:33] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:35,673 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:35,675 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:35] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:37,684 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:37,685 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:37] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:39,670 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 73}
+2024-11-18 11:39:39,671 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:39] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:41,763 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:41,765 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:41] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:43,668 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:43,668 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:43] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:45,672 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:45,673 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:45] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:47,664 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:47,665 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:47] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:49,685 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:49,686 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:49] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:51,723 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:51,724 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:51] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:53,667 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:53,668 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:53] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:55,667 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:55,669 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:55] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:57,669 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:57,670 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:57] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:39:59,668 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:39:59,669 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:39:59] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:01,685 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:01,686 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:04,337 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:04,339 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:04] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:05,669 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:05,671 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:05] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:07,679 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:07,680 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:07] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:09,673 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:09,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:09] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:11,736 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:11,737 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:11] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:13,749 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:13,752 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:13] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:15,674 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:15,676 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:15] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:17,669 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:17,670 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:17] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:19,671 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 73}
+2024-11-18 11:40:19,672 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:19] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:21,673 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 73}
+2024-11-18 11:40:21,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:21] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:23,367 - src.player.radio_player - INFO - Volume set to 72%
+2024-11-18 11:40:23,369 - src.hardware.rotary_handler - INFO - Volume down: 75 -> 72
+2024-11-18 11:40:23,386 - src.player.radio_player - INFO - Volume set to 69%
+2024-11-18 11:40:23,387 - src.hardware.rotary_handler - INFO - Volume down: 72 -> 69
+2024-11-18 11:40:23,409 - src.player.radio_player - INFO - Volume set to 66%
+2024-11-18 11:40:23,409 - src.hardware.rotary_handler - INFO - Volume down: 69 -> 66
+2024-11-18 11:40:23,429 - src.player.radio_player - INFO - Volume set to 63%
+2024-11-18 11:40:23,429 - src.hardware.rotary_handler - INFO - Volume down: 66 -> 63
+2024-11-18 11:40:23,701 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 63}
+2024-11-18 11:40:23,702 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:23] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:25,676 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 63}
+2024-11-18 11:40:25,677 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:25] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:26,734 - src.player.radio_player - INFO - Volume set to 60%
+2024-11-18 11:40:26,734 - src.hardware.rotary_handler - INFO - Volume down: 63 -> 60
+2024-11-18 11:40:26,781 - src.player.radio_player - INFO - Volume set to 63%
+2024-11-18 11:40:26,781 - src.hardware.rotary_handler - INFO - Volume up: 60 -> 63
+2024-11-18 11:40:26,856 - src.player.radio_player - INFO - Volume set to 66%
+2024-11-18 11:40:26,856 - src.hardware.rotary_handler - INFO - Volume up: 63 -> 66
+2024-11-18 11:40:26,891 - src.player.radio_player - INFO - Volume set to 69%
+2024-11-18 11:40:26,892 - src.hardware.rotary_handler - INFO - Volume up: 66 -> 69
+2024-11-18 11:40:27,406 - src.player.radio_player - INFO - Volume set to 72%
+2024-11-18 11:40:27,406 - src.hardware.rotary_handler - INFO - Volume up: 69 -> 72
+2024-11-18 11:40:27,423 - src.player.radio_player - INFO - Volume set to 75%
+2024-11-18 11:40:27,424 - src.hardware.rotary_handler - INFO - Volume up: 72 -> 75
+2024-11-18 11:40:27,440 - src.player.radio_player - INFO - Volume set to 78%
+2024-11-18 11:40:27,441 - src.hardware.rotary_handler - INFO - Volume up: 75 -> 78
+2024-11-18 11:40:27,457 - src.player.radio_player - INFO - Volume set to 75%
+2024-11-18 11:40:27,459 - src.hardware.rotary_handler - INFO - Volume down: 78 -> 75
+2024-11-18 11:40:27,476 - src.player.radio_player - INFO - Volume set to 78%
+2024-11-18 11:40:27,476 - src.hardware.rotary_handler - INFO - Volume up: 75 -> 78
+2024-11-18 11:40:27,493 - src.player.radio_player - INFO - Volume set to 81%
+2024-11-18 11:40:27,494 - src.hardware.rotary_handler - INFO - Volume up: 78 -> 81
+2024-11-18 11:40:27,519 - src.player.radio_player - INFO - Volume set to 84%
+2024-11-18 11:40:27,520 - src.hardware.rotary_handler - INFO - Volume up: 81 -> 84
+2024-11-18 11:40:27,538 - src.player.radio_player - INFO - Volume set to 87%
+2024-11-18 11:40:27,538 - src.hardware.rotary_handler - INFO - Volume up: 84 -> 87
+2024-11-18 11:40:27,583 - src.player.radio_player - INFO - Volume set to 90%
+2024-11-18 11:40:27,584 - src.hardware.rotary_handler - INFO - Volume up: 87 -> 90
+2024-11-18 11:40:27,612 - src.player.radio_player - INFO - Volume set to 93%
+2024-11-18 11:40:27,613 - src.hardware.rotary_handler - INFO - Volume up: 90 -> 93
+2024-11-18 11:40:27,651 - src.player.radio_player - INFO - Volume set to 96%
+2024-11-18 11:40:27,651 - src.hardware.rotary_handler - INFO - Volume up: 93 -> 96
+2024-11-18 11:40:27,674 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 96}
+2024-11-18 11:40:27,676 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:27] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:27,682 - src.player.radio_player - INFO - Volume set to 99%
+2024-11-18 11:40:27,683 - src.hardware.rotary_handler - INFO - Volume up: 96 -> 99
+2024-11-18 11:40:27,947 - src.player.radio_player - INFO - Volume set to 96%
+2024-11-18 11:40:27,948 - src.hardware.rotary_handler - INFO - Volume down: 99 -> 96
+2024-11-18 11:40:27,973 - src.player.radio_player - INFO - Volume set to 93%
+2024-11-18 11:40:27,974 - src.hardware.rotary_handler - INFO - Volume down: 96 -> 93
+2024-11-18 11:40:28,004 - src.player.radio_player - INFO - Volume set to 90%
+2024-11-18 11:40:28,004 - src.hardware.rotary_handler - INFO - Volume down: 93 -> 90
+2024-11-18 11:40:28,063 - src.player.radio_player - INFO - Volume set to 87%
+2024-11-18 11:40:28,066 - src.hardware.rotary_handler - INFO - Volume down: 90 -> 87
+2024-11-18 11:40:28,126 - src.player.radio_player - INFO - Volume set to 84%
+2024-11-18 11:40:28,127 - src.hardware.rotary_handler - INFO - Volume down: 87 -> 84
+2024-11-18 11:40:28,193 - src.player.radio_player - INFO - Volume set to 81%
+2024-11-18 11:40:28,193 - src.hardware.rotary_handler - INFO - Volume down: 84 -> 81
+2024-11-18 11:40:29,672 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:29,673 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:29] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:31,673 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:31,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:31] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:33,668 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 81}
+2024-11-18 11:40:33,669 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:33] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:35,761 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:35,762 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:35] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:37,670 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 81}
+2024-11-18 11:40:37,671 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:37] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:39,679 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:39,681 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:39] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:41,677 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 81}
+2024-11-18 11:40:41,678 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:41] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:43,681 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 81}
+2024-11-18 11:40:43,682 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:43] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:45,726 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:45,727 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:45] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:47,673 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:47,675 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:47] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:49,673 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:49,675 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:49] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:51,678 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:51,680 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:51] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:53,672 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:53,673 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:53] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:55,694 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:55,701 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:55] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:57,672 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:57,673 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:57] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:40:59,669 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:40:59,671 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:40:59] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:01,672 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:41:01,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:01] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:03,677 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:41:03,680 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:03] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:05,675 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:41:05,676 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:05] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:07,746 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:41:07,748 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:07] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:09,669 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:41:09,670 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:09] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:11,681 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 81}
+2024-11-18 11:41:11,682 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:11] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:12,806 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:41:13,626 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:41:13,627 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:41:13,700 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:41:13,705 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:41:13,708 - src.hardware.gpio_handler - INFO - GPIO handler initialized
+2024-11-18 11:41:13,708 - src.app.radio_service - INFO - RadioService initialization complete
+2024-11-18 11:41:13,708 - src.app.radio_service - INFO - GPIO handler initialized with player: <src.player.radio_player.RadioPlayer object at 0x7fac9eb090>
+2024-11-18 11:41:13,709 - src.app.radio_service - INFO - GPIO handler initialized with stream manager: <src.utils.stream_manager.StreamManager object at 0x7fac9e9890>
+2024-11-18 11:41:13,709 - src.app.routes - INFO - RadioService created successfully
+2024-11-18 11:41:13,728 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-18 11:41:13,728 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-18 11:41:15,675 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:15,676 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:15] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:17,706 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:17,708 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:17] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:19,673 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:19,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:19] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:21,672 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-18 11:41:21,673 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:21] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:23,673 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-18 11:41:23,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:23] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:25,671 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 80}
+2024-11-18 11:41:25,672 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:25] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:27,668 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:41:27,670 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:27] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:29,755 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:29,756 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:29] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:31,672 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://stream.srg-ssr.ch/m/drs3/mp3_128', 'volume': 80}
+2024-11-18 11:41:31,673 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:31] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:33,674 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://gdsfm.out.airtime.pro/gdsfm_a', 'volume': 80}
+2024-11-18 11:41:33,675 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:33] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:35,670 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:35,672 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:35] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:37,676 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:37,677 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:37] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:39,728 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:39,729 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:39] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:41,673 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:41,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:41] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:43,670 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:43,671 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:43] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:45,680 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:45,681 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:45] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:47,672 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:47,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:47] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:49,824 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:49,825 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:49] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:41:51,672 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
+2024-11-18 11:41:51,674 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:41:51] "GET /api/status HTTP/1.1" 200 -

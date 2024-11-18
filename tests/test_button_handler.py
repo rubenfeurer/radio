@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch, mock_open
 import time
 from src.hardware.button_handler import ButtonMapper, ButtonStateHandler, StreamToggler, ButtonPress
 
@@ -11,16 +11,36 @@ def test_button_press_dataclass():
     assert press.stream_url is None
 
 class TestButtonMapper:
-    def test_valid_button_mapping(self):
-        """Test mapping of valid GPIO channels to button indices"""
-        assert ButtonMapper.get_button_index(17) == 1
-        assert ButtonMapper.get_button_index(16) == 2
-        assert ButtonMapper.get_button_index(26) == 3
+    @pytest.fixture
+    def mock_config(self):
+        return """
+        [gpio]
+        buttons = { button1 = 23, button2 = 24, button3 = 25 }
+        
+        [gpio.settings]
+        debounce_time = 300
+        pull_up = true
+        """
 
-    def test_invalid_button_mapping(self):
+    def test_valid_button_mapping(self, mock_config):
+        """Test mapping of valid GPIO channels to button indices"""
+        with patch("builtins.open", mock_open(read_data=mock_config)):
+            assert ButtonMapper.get_button_index(23) == 1
+            assert ButtonMapper.get_button_index(24) == 2
+            assert ButtonMapper.get_button_index(25) == 3
+
+    def test_invalid_button_mapping(self, mock_config):
         """Test mapping of invalid GPIO channels"""
-        assert ButtonMapper.get_button_index(99) is None
-        assert ButtonMapper.get_button_index(0) is None
+        with patch("builtins.open", mock_open(read_data=mock_config)):
+            assert ButtonMapper.get_button_index(99) is None
+            assert ButtonMapper.get_button_index(0) is None
+
+    def test_fallback_mapping_on_config_error(self):
+        """Test fallback to default mappings when config fails"""
+        with patch("builtins.open", side_effect=FileNotFoundError):
+            assert ButtonMapper.get_button_index(23) == 1
+            assert ButtonMapper.get_button_index(24) == 2
+            assert ButtonMapper.get_button_index(25) == 3
 
 class TestButtonStateHandler:
     def test_initial_press_allowed(self):

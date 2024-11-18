@@ -10,7 +10,7 @@ default_volume = 80
 # GPIO Pin Configuration
 [gpio]
 rotary = { clk = 11, dt = 9, sw = 10 }
-buttons = { button1 = 23, button2 = 24, button3 = 25 }
+buttons = { button1 = 17, button2 = 16, button3 = 26 }
 
 # GPIO Settings
 [gpio.settings]
@@ -27,7 +27,3 @@ clockwise_increases = false   # When true, clockwise rotation increases volume. 
 [audio]
 initial_volume = 80
 volume_step = 5
-
-# Stations Configuration
-[stations]
-default = "https://stream.srg-ssr.ch/m/drs3/mp3_128"
