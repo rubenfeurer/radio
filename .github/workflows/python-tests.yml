@@ -46,7 +46,13 @@ jobs:
 
         [gpio.settings]
         debounce_time = 300
-        pull_up = true' > config/config.toml
+        pull_up = true
+
+        [rotary.settings]
+        volume_step = 5
+        double_click_timeout = 500
+        debounce_time = 50
+        clockwise_increases = true' > config/config.toml
         
         echo '[[streams]]
         name = "Test Station"
@@ -85,8 +91,22 @@ jobs:
         ctl.dummy {
             type hw
             card 0
+        }
+        
+        # Add PCM control for volume testing
+        pcm.!default {
+            type softvol
+            slave.pcm "dummy"
+            control {
+                name "PCM"
+                card 0
+            }
         }' | sudo tee /etc/asound.conf
     
     - name: Run tests with detailed output
       run: |
         python -m pytest -v --tb=long tests/
+        
+    - name: Test rotary encoder functionality
+      run: |
+        python -m pytest -v tests/test_rotary_handler.py
