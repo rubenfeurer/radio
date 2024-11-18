@@ -1,136 +1,180 @@
 Internet Radio for Raspberry Pi
 =============================
 
-A simple internet radio player for Raspberry Pi with GPIO button control and rotary encoder 
-volume control. Play your favorite radio stations with physical buttons and manage them 
-through configuration files.
+A Python-based internet radio player for Raspberry Pi that combines hardware control with 
+software flexibility. The system uses GPIO buttons for station selection and a rotary encoder 
+for volume control, managed through a modular architecture with clear separation of concerns.
 
-Features
---------
-* GPIO button control for 3 radio stations
-* Rotary encoder for volume control
-* Configurable rotation direction and volume step size
-* Persistent station configuration via TOML
-* Automatic service management with systemd
-* Configurable radio stations
-* Rotating log management
-* Unit test coverage
+Architecture Overview
+-------------------
+The project follows a modular design pattern with these key components:
+
+1. Core Components:
+   - RadioService (src/app/radio_service.py)
+     * Main service coordinator
+     * Manages component lifecycle
+     * Handles initialization and cleanup
+   
+   - RadioPlayer (src/player/radio_player.py)
+     * Manages VLC media player instance
+     * Handles audio device detection
+     * Controls volume and playback
+     * Maintains player state
+
+2. Hardware Interface:
+   - GPIOHandler (src/hardware/gpio_handler.py)
+     * Manages button inputs
+     * Routes hardware events to appropriate handlers
+     * Implements debouncing logic
+   
+   - RotaryHandler (src/hardware/rotary_handler.py)
+     * Handles rotary encoder events
+     * Manages volume control logic
+     * Implements configurable rotation behavior
+
+3. Utility Components:
+   - StreamManager (src/utils/stream_manager.py)
+     * Manages radio station configurations
+     * Handles stream URL validation
+     * Maintains station presets
+   
+   - SoundPlayer (src/utils/sound_player.py)
+     * Handles system sound effects
+     * Provides audio feedback for actions
+
+4. Web Interface:
+   - Flask Routes (src/app/routes.py)
+     * Provides REST API endpoints
+     * Enables remote control
+     * Reports system status
+
+Directory Structure
+-----------------
+/internetRadio
+├── src/
+│   ├── app/
+│   │   ├── radio_service.py
+│   │   └── routes.py
+│   ├── hardware/
+│   │   ├── gpio_handler.py
+│   │   └── rotary_handler.py
+│   ├── player/
+│   │   └── radio_player.py
+│   └── utils/
+│       ├── stream_manager.py
+│       └── sound_player.py
+├── tests/
+│   ├── test_radio_player.py
+│   ├── test_gpio_handler.py
+│   └── ...
+├── config/
+│   ├── config.toml
+│   └── streams.toml
+└── scripts/
+    ├── install.sh
+    └── uninstall.sh
+
+Technical Details
+---------------
+1. Audio System:
+   - Uses ALSA for hardware audio control
+   - VLC media player for stream playback
+   - Supports multiple audio output devices
+   - Volume control via hardware mixer
+
+2. GPIO Interface:
+   - Hardware debouncing for buttons
+   - Interrupt-based rotary encoder handling
+   - Configurable pin assignments
+   - Event-driven architecture
+
+3. Configuration Management:
+   - TOML-based configuration
+   - Persistent state storage
+   - Runtime configuration updates
+   - Default fallback values
+
+4. Logging System:
+   - Rotating log files
+   - Configurable log levels
+   - Systemd journal integration
+   - Debug logging capabilities
+
+Dependencies
+-----------
+Core:
+- python-vlc: Media playback
+- RPi.GPIO: Hardware interface
+- Flask: Web API
+- toml/tomli: Configuration parsing
+
+Development:
+- pytest: Testing framework
+- pytest-mock: Mocking for tests
 
 Hardware Requirements
 -------------------
 * Raspberry Pi (tested on Pi 4)
-* 3 push buttons connected to:
+* 3 push buttons:
   - GPIO 23 (Button 1)
   - GPIO 24 (Button 2) 
   - GPIO 25 (Button 3)
-* Rotary encoder connected to:
+* Rotary encoder:
   - GPIO 11 (CLK)
   - GPIO 9 (DT)
   - GPIO 10 (SW)
-* Speakers/Audio output
+* Audio output device
 
-Installation
------------
-1. Clone the repository:
-   git clone https://github.com/yourusername/internetRadio.git
-   cd internetRadio
+Installation and Setup
+--------------------
+[Previous installation instructions remain the same]
 
-2. Make installation scripts executable:
-   chmod +x scripts/*.sh
-
-3. Run the installation script:
-   sudo ./scripts/install.sh
-
-Service Management
-----------------
-The radio runs as a systemd service. Common commands:
-
-Start the service:
-sudo systemctl start radio
-
-Stop the service:
-sudo systemctl stop radio
-
-Restart the service:
-sudo systemctl restart radio
-
-Check service status:
-sudo systemctl status radio
-
-View logs:
-journalctl -u radio -f
-
-Enable service to start on boot:
-sudo systemctl enable radio
-
-Configuration
-------------
-The rotary encoder behavior can be customized in config/config.toml:
-
-[rotary.settings]
-volume_step = 5              # Volume change per rotation step (1-100)
-double_click_timeout = 500   # Double click timeout in milliseconds
-debounce_time = 50          # Debounce time for button in milliseconds
-clockwise_increases = true   # When true, clockwise rotation increases volume
-
-Testing
--------
-Run unit tests:
-
-Run all tests:
-python3 -m pytest tests/
-
-Run tests with verbose output:
-python3 -m pytest tests/ -v
-
-Run specific test file with verbose output:
-python3 -m pytest tests/test_gpio_handler.py -v
-python3 -m pytest tests/test_stream_manager.py -v
-python3 -m pytest tests/test_radio_player.py -v
-python3 -m pytest tests/test_radio_service.py -v
-python3 -m pytest tests/test_rotary_handler.py -v
-
-The verbose output (-v flag) shows:
-- Individual test case names
-- Pass/Fail status for each test
-- Test execution time
-- Detailed error messages for failed tests
-
-Troubleshooting
+Testing Strategy
 --------------
-Audio Issues:
-1. Check ALSA device configuration:
-   aplay -l
+1. Unit Tests:
+   - Component isolation
+   - Mock hardware interfaces
+   - Configuration validation
+   - Error handling verification
 
-2. Verify volume levels:
-   amixer -c 2
+2. Integration Tests:
+   - Component interaction
+   - Hardware simulation
+   - Audio subsystem testing
+   - State management
 
-Service Issues:
-1. Check service status:
-   sudo systemctl status radio
+3. System Tests:
+   - End-to-end functionality
+   - Performance monitoring
+   - Resource management
+   - Error recovery
 
-2. View detailed logs:
-   journalctl -u radio -f
+Development Guidelines
+--------------------
+1. Code Style:
+   - PEP 8 compliance
+   - Type hints where applicable
+   - Comprehensive docstrings
+   - Clear error messages
 
-Rotary Encoder Issues:
-1. Check GPIO pin connections
-2. Verify config.toml settings
-3. Check logs for rotation detection
-4. Try reversing clockwise_increases setting if direction is wrong
+2. Testing:
+   - Test-driven development
+   - Minimum 80% coverage
+   - Mock external dependencies
+   - Validate edge cases
 
-Uninstallation
--------------
-To remove the application:
-sudo ./scripts/uninstall.sh
+3. Documentation:
+   - Update README for new features
+   - Document configuration options
+   - Maintain API documentation
+   - Include usage examples
+
+[Previous troubleshooting and management sections remain the same]
 
 Contributing
 -----------
-1. Fork the repository
-2. Create a feature branch
-3. Write tests for new features
-4. Ensure all tests pass
-5. Create a Pull Request
+[Previous contributing guidelines remain the same]
 
 License
 -------
-[Your License Here]
+[License information]

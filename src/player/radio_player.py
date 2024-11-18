@@ -87,44 +87,32 @@ class RadioPlayer:
                 raise
     
     def set_volume(self, volume):
-        """Set volume using ALSA"""
+        """Set volume percentage (0-100)"""
         try:
             volume = max(0, min(100, volume))
+            self.volume = volume
             
-            # Try multiple amixer commands to ensure compatibility
             commands = [
-                ['amixer', '-c', str(self.audio_card), 'sset', 'PCM', f'{volume}%'],
-                ['amixer', 'sset', '-c', str(self.audio_card), 'PCM', f'{volume}%'],
-                ['amixer', '-c', str(self.audio_card), 'set', 'PCM', f'{volume}%'],
-                ['amixer', '-M', '-c', str(self.audio_card), 'set', 'PCM', f'{volume}%']
+                ['amixer', 'sset', '-c', str(self.audio_card), 'PCM', f'{volume}%'],  # Changed order
+                ['amixer', '-c', str(self.audio_card), 'sset', 'PCM', f'{volume}%'],  # Original order as fallback
+                ['amixer', 'sset', 'PCM', f'{volume}%']  # Simple fallback
             ]
             
             for cmd in commands:
+                logger.debug(f"Trying volume set command: {' '.join(cmd)}")
                 result = subprocess.run(cmd, 
                                      stdout=subprocess.PIPE, 
                                      stderr=subprocess.PIPE,
                                      text=True)
-                
                 if result.returncode == 0:
-                    if not result.stderr or 'Invalid' not in result.stderr:
-                        # Also set VLC volume as backup
-                        if hasattr(self, 'player') and self.player:
-                            self.player.audio_set_volume(volume)
-                        
-                        self.volume = volume
-                        self.current_status['volume'] = volume
-                        return True
-                        
-            # If all commands failed, try setting only VLC volume
-            if hasattr(self, 'player') and self.player:
-                self.player.audio_set_volume(volume)
-                self.volume = volume
-                self.current_status['volume'] = volume
-                return True
-                
-            logger.error("Volume control attempt failed")
-            return False
+                    logger.debug(f"Volume set to {volume}%")
+                    return True
+                    
+                logger.debug(f"Command failed: {result.stderr}")
             
+            logger.error("All volume control commands failed")
+            return False
+                
         except Exception as e:
             logger.error(f"Error setting volume: {e}", exc_info=True)
             return False

@@ -103,7 +103,20 @@ jobs:
             }
         }' | sudo tee /etc/asound.conf
     
+    - name: Setup test environment
+      run: |
+        # Create test directories with correct permissions
+        sudo mkdir -p /tmp/test_sounds
+        sudo chmod 777 /tmp/test_sounds
+        
+        # Create dummy sound files for testing
+        touch /tmp/test_sounds/success.wav
+        touch /tmp/test_sounds/error.wav
+        touch /tmp/test_sounds/startup.wav
+    
     - name: Run tests with detailed output
+      env:
+        SOUND_DIR: /tmp/test_sounds
       run: |
         python -m pytest -v --tb=long tests/
         
