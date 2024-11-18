@@ -2649,3 +2649,28 @@ AttributeError: type object 'ButtonMapper' has no attribute 'PIN_TO_BUTTON'
 2024-11-18 11:50:00,643 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:50:00] "GET /api/status HTTP/1.1" 200 -
 2024-11-18 11:51:00,832 - src.app.routes - INFO - Status request - returning: {'state': 'stopped', 'current_station': None, 'volume': 80}
 2024-11-18 11:51:00,835 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:51:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:51:37,518 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:51:37,519 - src.app.routes - INFO - Received shutdown signal
+2024-11-18 11:51:37,521 - src.app.radio_service - INFO - Cleaning up radio service...
+2024-11-18 11:51:37,677 - src.hardware.gpio_handler - INFO - GPIO cleanup completed
+2024-11-18 11:51:37,678 - src.app.radio_service - INFO - Cleanup complete
+2024-11-18 11:51:38,322 - src.app.routes - INFO - Creating global RadioService instance
+2024-11-18 11:51:38,323 - src.app.radio_service - INFO - Initializing RadioService...
+2024-11-18 11:51:38,394 - src.player.radio_player - INFO - Radio player initialized successfully
+2024-11-18 11:51:38,399 - src.app.radio_service - INFO - Setting up GPIO handler dependencies...
+2024-11-18 11:51:38,401 - src.hardware.gpio_handler - INFO - GPIO handler initialized
+2024-11-18 11:51:38,401 - src.app.radio_service - INFO - RadioService initialization complete
+2024-11-18 11:51:38,401 - src.app.radio_service - INFO - GPIO handler initialized with player: <src.player.radio_player.RadioPlayer object at 0x7facb1afd0>
+2024-11-18 11:51:38,401 - src.app.radio_service - INFO - GPIO handler initialized with stream manager: <src.utils.stream_manager.StreamManager object at 0x7facb1aed0>
+2024-11-18 11:51:38,402 - src.app.routes - INFO - RadioService created successfully
+2024-11-18 11:51:38,420 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.16:5000
+2024-11-18 11:51:38,420 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-11-18 11:52:00,464 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 80}
+2024-11-18 11:52:00,468 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:52:00] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:53:02,488 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 80}
+2024-11-18 11:53:02,490 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:53:02] "GET /api/status HTTP/1.1" 200 -
+2024-11-18 11:54:00,420 - src.app.routes - INFO - Status request - returning: {'state': 'playing', 'current_station': 'https://nature-rex.radioca.st/stream', 'volume': 80}
+2024-11-18 11:54:00,422 - werkzeug - INFO - 192.168.1.5 - - [18/Nov/2024 11:54:00] "GET /api/status HTTP/1.1" 200 -

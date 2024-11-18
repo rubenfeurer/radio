@@ -213,3 +213,14 @@ class RadioPlayer:
         except Exception as e:
             logger.error(f"Error getting volume: {e}")
             return self.volume
+    
+    def _setup_audio(self):
+        """Configure audio output"""
+        try:
+            instance = vlc.Instance('--aout=alsa')
+            if not instance:
+                instance = vlc.Instance()  # Fallback to default
+            return instance
+        except Exception as e:
+            logger.warning(f"Failed to setup ALSA audio: {e}, falling back to default")
+            return vlc.Instance()
