@@ -28,10 +28,9 @@ class RadioService:
             self.gpio_handler = GPIOHandler()
             self.rotary_handler = RotaryHandler(self.player)
             
-            # Set up dependencies
+            # Set up GPIO handler with dependencies
             logger.info("Setting up GPIO handler dependencies...")
-            self.gpio_handler.player = self.player
-            self.gpio_handler.stream_manager = self.stream_manager
+            self.gpio_handler.setup(self.player, self.stream_manager)
             
             logger.info("RadioService initialization complete")
             logger.info(f"GPIO handler initialized with player: {self.gpio_handler.player}")

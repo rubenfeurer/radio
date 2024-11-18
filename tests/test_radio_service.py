@@ -35,9 +35,17 @@ def mock_radio_player():
 
 @pytest.fixture
 def mock_gpio_handler():
-    with patch('src.app.radio_service.GPIOHandler') as mock:
+    with patch('src.app.radio_service.GPIOHandler') as mock_class:
         handler = Mock()
-        mock.return_value = handler
+        # Create a setup method as a Mock object, not a function
+        handler.setup = Mock()
+        
+        def side_effect(player, stream_manager):
+            handler.player = player
+            handler.stream_manager = stream_manager
+        
+        handler.setup.side_effect = side_effect
+        mock_class.return_value = handler
         yield handler
 
 @pytest.fixture(autouse=True)
@@ -106,8 +114,11 @@ def test_radio_service_initialization(mock_stream_manager, mock_radio_player, mo
     assert service.gpio_handler is not None
     
     # Check GPIO handler dependencies are set
-    assert service.gpio_handler.player == service.player
-    assert service.gpio_handler.stream_manager == service.stream_manager
+    mock_gpio_handler.setup.assert_called_once_with(service.player, service.stream_manager)
+    
+    # Verify dependencies were properly set
+    assert mock_gpio_handler.player is service.player
+    assert mock_gpio_handler.stream_manager is service.stream_manager
 
 def test_radio_service_cleanup(mock_stream_manager, mock_radio_player, mock_gpio_handler):
     service = RadioService()

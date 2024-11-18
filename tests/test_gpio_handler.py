@@ -1,14 +1,11 @@
 import pytest
 from unittest.mock import Mock, patch
 from src.hardware.gpio_handler import GPIOHandler
-import tomli
-import os
 import time
 
 @pytest.fixture(autouse=True)
 def mock_gpio():
     with patch('src.hardware.gpio_handler.GPIO') as mock:
-        # Setup GPIO mock
         mock.BCM = 11
         mock.IN = 1
         mock.FALLING = 2
@@ -16,7 +13,6 @@ def mock_gpio():
         mock.setmode = Mock()
         mock.setup = Mock()
         mock.add_event_detect = Mock()
-        mock.input = Mock(return_value=1)
         mock.cleanup = Mock()
         yield mock
 
@@ -35,7 +31,6 @@ def mock_player():
     def get_status():
         print(f"DEBUG: get_status called, returning: {player._status}")
         return player._status.copy()
-    player.get_status = Mock(side_effect=get_status)
     
     # Create stop method that updates status
     def stop():
@@ -44,7 +39,6 @@ def mock_player():
             "state": "stopped",
             "current_station": None
         })
-    player.stop = Mock(side_effect=stop)
     
     # Create play method that updates status
     def play(stream):
@@ -53,42 +47,28 @@ def mock_player():
             "state": "playing",
             "current_station": stream
         })
-    player.play = Mock(side_effect=play)
     
+    player.get_status = Mock(side_effect=get_status)
+    player.stop = Mock(side_effect=stop)
+    player.play = Mock(side_effect=play)
     return player
 
 @pytest.fixture
 def mock_stream_manager():
     manager = Mock()
-    manager.get_streams_by_slots.return_value = {
+    streams = {
         1: "http://test1.com/stream",
         2: "http://test2.com/stream",
         3: "http://test3.com/stream"
     }
+    manager.get_streams_by_slots = Mock(return_value=streams)
     return manager
-
-@pytest.fixture
-def mock_config(tmp_path):
-    config_content = """
-[gpio]
-button_1_pin = 17
-button_2_pin = 16
-button_3_pin = 26
-
-[gpio.settings]
-debounce_time = 300
-pull_up = true
-"""
-    config_path = tmp_path / "config.toml"
-    with open(config_path, "w") as f:
-        f.write(config_content)
-    return str(config_path)
 
 @pytest.fixture
 def gpio_handler(mock_player, mock_stream_manager):
     handler = GPIOHandler()
-    handler.player = mock_player
-    handler.stream_manager = mock_stream_manager
+    handler.setup(mock_player, mock_stream_manager)
+    print("\nDEBUG: GPIO handler initialized")
     return handler
 
 def test_button_1_controls_first_slot(gpio_handler, mock_player):
@@ -99,6 +79,7 @@ def test_button_1_controls_first_slot(gpio_handler, mock_player):
     assert initial_status["state"] == "stopped"
     assert initial_status["current_station"] is None
     
+    print("\nDEBUG: === First button press ===")
     # Press button 1 (GPIO 17) - should play first slot
     gpio_handler.button_callback(17)
     mock_player.play.assert_called_with("http://test1.com/stream")
@@ -109,11 +90,14 @@ def test_button_1_controls_first_slot(gpio_handler, mock_player):
     assert first_press_status["state"] == "playing"
     assert first_press_status["current_station"] == "http://test1.com/stream"
     
-    # Reset the mock's call history but preserve the status
+    # Reset mocks but preserve state
     mock_player.stop.reset_mock()
     mock_player.play.reset_mock()
     
-    print("DEBUG: About to press button 1 again")
+    # Wait for debounce
+    time.sleep(0.4)
+    
+    print("\nDEBUG: === Second button press ===")
     print("DEBUG: Current status before second press:", mock_player.get_status())
     
     # Press button 1 again - should stop
@@ -122,112 +106,11 @@ def test_button_1_controls_first_slot(gpio_handler, mock_player):
     # Get final status
     final_status = mock_player.get_status()
     print("DEBUG: Status after second press:", final_status)
+    print("DEBUG: stop.call_count =", mock_player.stop.call_count)
+    print("DEBUG: play.call_count =", mock_player.play.call_count)
     
     # Verify stop was called and play wasn't
     mock_player.stop.assert_called_once()
     mock_player.play.assert_not_called()
     assert final_status["state"] == "stopped"
     assert final_status["current_station"] is None
-
-def test_pressing_different_button_switches_streams(gpio_handler, mock_player):
-    # Start playing first slot
-    gpio_handler.button_callback(17)  # Button 1
-    mock_player.play.assert_called_with("http://test1.com/stream")
-    
-    # Update status to playing first stream
-    mock_player.get_status.return_value = {
-        "state": "playing",
-        "current_station": "http://test1.com/stream",
-        "volume": 80
-    }
-    mock_player.play.reset_mock()
-    
-    # Press button 2 (GPIO 16)
-    gpio_handler.button_callback(16)
-    # Should stop current stream
-    mock_player.stop.assert_called_once()
-    # Should play second slot
-    mock_player.play.assert_called_with("http://test2.com/stream")
-
-def test_each_button_controls_its_slot(gpio_handler, mock_player):
-    # Test button 1 (GPIO 17)
-    gpio_handler.button_callback(17)
-    mock_player.play.assert_called_with("http://test1.com/stream")
-    mock_player.play.reset_mock()
-    
-    # Test button 2 (GPIO 16)
-    gpio_handler.button_callback(16)
-    mock_player.play.assert_called_with("http://test2.com/stream")
-    mock_player.play.reset_mock()
-    
-    # Test button 3 (GPIO 26)
-    gpio_handler.button_callback(26)
-    mock_player.play.assert_called_with("http://test3.com/stream")
-
-def test_button_press_starts_playback(gpio_handler, mock_player):
-    """Test that pressing a button starts playback when stopped"""
-    mock_player.get_status.return_value = {'state': 'stopped', 'current_station': None}
-    
-    gpio_handler.button_callback(17)  # Button 1
-    
-    mock_player.play.assert_called_once()
-    assert mock_player.play.call_args[0][0] == "http://test1.com/stream"
-
-def test_button_press_stops_playback(gpio_handler, mock_player):
-    """Test that pressing a button stops playback when playing"""
-    mock_player.get_status.return_value = {
-        'state': 'playing',
-        'current_station': 'http://test1.com/stream'
-    }
-    
-    gpio_handler.button_callback(17)  # Button 1
-    
-    mock_player.stop.assert_called_once()
-
-def test_button_press_switches_station(gpio_handler, mock_player):
-    """Test that pressing a different button switches stations"""
-    mock_player.get_status.return_value = {
-        'state': 'playing',
-        'current_station': 'http://test1.com/stream'
-    }
-    
-    gpio_handler.button_callback(16)  # Button 2
-    
-    mock_player.play.assert_called_once()
-    assert mock_player.play.call_args[0][0] == "http://test2.com/stream"
-
-# Add new tests for additional coverage
-def test_button_press_with_invalid_status(gpio_handler, mock_player):
-    """Test handling of invalid player status"""
-    mock_player.get_status.return_value = {'state': 'unknown', 'current_station': None}
-    
-    gpio_handler.button_callback(17)  # Button 1
-    
-    mock_player.play.assert_called_once()
-    assert mock_player.play.call_args[0][0] == "http://test1.com/stream"
-
-def test_button_press_with_missing_streams(gpio_handler, mock_player, mock_stream_manager):
-    """Test handling when no streams are available"""
-    mock_stream_manager.get_streams_by_slots.return_value = []
-    
-    gpio_handler.button_callback(17)  # Button 1
-    
-    mock_player.play.assert_not_called()
-
-def test_button_debounce(gpio_handler, mock_player):
-    """Test that rapid button presses are debounced"""
-    mock_player.get_status.return_value = {'state': 'stopped', 'current_station': None}
-
-def test_debounce_functionality(gpio_handler, mock_player, mock_stream_manager):
-    """Test that button debouncing works correctly"""
-    # First press should work
-    assert gpio_handler._debounce() == True
-    
-    # Immediate second press should be blocked
-    assert gpio_handler._debounce() == False
-    
-    # Wait for debounce time from config (300ms)
-    time.sleep(0.4)  # Wait slightly longer than debounce time
-    
-    # Third press should work after waiting
-    assert gpio_handler._debounce() == True

@@ -18,10 +18,10 @@ debounce_time = 300  # Debounce time in milliseconds
 pull_up = true       # Use pull-up resistors
 
 [rotary.settings]
-volume_step = 5              # Volume change per rotation step
+volume_step = 3              # Volume change per rotation step
 double_click_timeout = 500   # Double click timeout in milliseconds
 debounce_time = 50          # Debounce time for button in milliseconds
-clockwise_increases = true   # When true, clockwise rotation increases volume
+clockwise_increases = false   # When true, clockwise rotation increases volume. When false, it decreases.
 
 # Audio Configuration
 [audio]
