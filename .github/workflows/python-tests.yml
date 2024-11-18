@@ -40,25 +40,13 @@ jobs:
         ] 
         default_volume = 80
 
-        # GPIO Pin Configuration
         [gpio]
         rotary = { clk = 11, dt = 9, sw = 10 }
         buttons = { button1 = 17, button2 = 16, button3 = 26 }
 
-        # GPIO Settings
         [gpio.settings]
         debounce_time = 300
-        pull_up = true
-
-        [rotary.settings]
-        volume_step = 3
-        double_click_timeout = 500
-        debounce_time = 50
-        clockwise_increases = false
-
-        [audio]
-        initial_volume = 80
-        volume_step = 5' > config/config.toml
+        pull_up = true' > config/config.toml
         
         echo '[[streams]]
         name = "Test Station"
@@ -68,37 +56,16 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    
+        
     - name: Setup mock RPi.GPIO
       run: |
-        SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-        sudo mkdir -p ${SITE_PACKAGES}/RPi
+        # Create mock GPIO module
+        mkdir -p tests/RPi
+        cp tests/mock_gpio.py tests/RPi/GPIO.py
+        touch tests/RPi/__init__.py
         
-        echo '
-        class GPIO:
-            BCM = 11
-            IN = 1
-            OUT = 0
-            FALLING = 2
-            PUD_UP = 22
-            
-            @staticmethod
-            def setmode(*args): pass
-            
-            @staticmethod
-            def setup(*args, **kwargs): pass
-            
-            @staticmethod
-            def add_event_detect(*args, **kwargs): pass
-            
-            @staticmethod
-            def cleanup(): pass
-            
-            @staticmethod
-            def output(*args): pass
-        ' | sudo tee ${SITE_PACKAGES}/RPi/GPIO.py
-        
-        echo "from .GPIO import GPIO" | sudo tee ${SITE_PACKAGES}/RPi/__init__.py
+        # Add to PYTHONPATH
+        echo "PYTHONPATH=$PYTHONPATH:$(pwd)/tests" >> $GITHUB_ENV
     
     - name: Install system dependencies
       run: |
@@ -107,4 +74,4 @@ jobs:
     
     - name: Run tests with detailed output
       run: |
-        PYTHONPATH=$PYTHONPATH:$(pwd) python -m pytest -v --tb=long tests/
+        python -m pytest -v --tb=long tests/

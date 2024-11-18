@@ -1,5 +1,13 @@
 import pytest
 from unittest.mock import Mock, patch
+import sys
+
+# Use mock GPIO if not on Raspberry Pi
+try:
+    import RPi.GPIO as GPIO
+except (RuntimeError, ModuleNotFoundError):
+    from tests.mock_gpio import GPIO
+
 from src.hardware.gpio_handler import GPIOHandler
 import time
 

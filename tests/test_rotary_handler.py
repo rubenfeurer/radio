@@ -1,6 +1,11 @@
 from unittest.mock import Mock, patch, mock_open
 import pytest
-from RPi import GPIO
+
+try:
+    import RPi.GPIO as GPIO
+except (RuntimeError, ModuleNotFoundError):
+    from tests.mock_gpio import GPIO
+
 from src.hardware.rotary_handler import RotaryHandler
 from src.player.radio_player import RadioPlayer
 import toml

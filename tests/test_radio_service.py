@@ -1,5 +1,11 @@
 import pytest
 from unittest.mock import Mock, patch, mock_open
+
+try:
+    import RPi.GPIO as GPIO
+except (RuntimeError, ModuleNotFoundError):
+    from tests.mock_gpio import GPIO
+
 from src.app.radio_service import RadioService
 
 @pytest.fixture(autouse=True)
