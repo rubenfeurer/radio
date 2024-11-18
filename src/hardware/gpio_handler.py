@@ -96,12 +96,17 @@ class GPIOHandler:
     def button_callback(self, channel):
         """Handle button press events"""
         if not self._debounce():
+            logger.debug("Debounce prevented button press")
             return
 
         try:
             button_index = self.pin_mapping.get(channel)
             if button_index is None:
                 logger.error(f"Invalid button channel: {channel}")
+                return
+
+            if self.stream_toggler is None:
+                logger.error("Stream toggler not initialized")
                 return
 
             button_press = ButtonPress(channel=channel, button_index=button_index)
