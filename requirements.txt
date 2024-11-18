@@ -1,5 +1,17 @@
-pytest
-python-vlc
-toml
-requests
-flask 
+# Testing
+pytest>=7.2.1
+pytest-mock>=3.10.0
+
+# Media Player
+python-vlc>=3.0.18
+
+# Configuration and Data Handling
+tomli>=2.0.1
+toml>=0.10.2
+
+# Web and Network
+requests>=2.28.0
+flask>=2.0.0
+
+# Raspberry Pi Specific
+RPi.GPIO>=0.7.0  # Only needed on Raspberry Pi 
