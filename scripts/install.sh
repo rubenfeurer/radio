@@ -19,7 +19,10 @@ apt-get install -y \
     vlc \
     alsa-utils \
     git \
-    libasound2-dev
+    libasound2-dev \
+    python3-vlc \
+    python3-tomli \
+    python3-tomli-w
 
 # Install Python dependencies from requirements.txt
 echo "Installing Python packages..."
@@ -84,6 +87,48 @@ systemctl daemon-reload
 # Enable and start the service
 systemctl enable radio
 systemctl start radio
+
+# Create and configure radio.service
+echo "Setting up systemd service..."
+cat << EOF > /etc/systemd/system/radio.service
+[Unit]
+Description=Internet Radio Web Application
+After=network-online.target sound.target
+Wants=network-online.target sound.target
+
+[Service]
+Type=simple
+User=radio
+Group=audio
+WorkingDirectory=/home/radio/internetRadio
+Environment=PYTHONUNBUFFERED=1
+Environment=FLASK_APP=app.py
+Environment=FLASK_DEBUG=0
+Environment=ALSA_CARD=0
+Environment=ALSA_PCM_CARD=2
+Environment=ALSA_DEVICE=hw:2,0
+Environment=PULSE_SERVER=/run/pulse/native
+Environment=PULSE_COOKIE=/run/pulse/cookie
+Environment=PYTHONPATH=/home/radio/internetRadio
+Environment=LD_LIBRARY_PATH=/usr/lib
+ExecStart=/usr/bin/python3 /home/radio/internetRadio/main.py
+ExecStop=/bin/kill -SIGTERM \$MAINPID
+KillMode=control-group
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Set correct permissions for service file
+chmod 644 /etc/systemd/system/radio.service
+
+# Set correct permissions for main.py
+chmod +x /home/radio/internetRadio/main.py
 
 echo "Installation complete! Service is running."
 echo "Check status with: systemctl status radio"
