@@ -2,22 +2,53 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
 
-# pytest
+# Testing
 .pytest_cache/
 .coverage
 htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+.*.sw[po]
 
 # Logs
 logs/
 *.log
 *.cyphon
+log.txt
 
-# Local config
-config/local_* 
+# Local config and state files
+config/local_*
+*.state
+*.toml.bak
+*.conf.bak
+
+# System files
+.DS_Store
+Thumbs.db
+*.pid
+*.lock
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+
+# Build and distribution
+build/
+dist/
+*.egg-info/ 

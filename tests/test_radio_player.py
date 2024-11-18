@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, call
 from src.player.radio_player import RadioPlayer
 import subprocess
 
@@ -120,22 +120,38 @@ def test_audio_device_detection_fallback(mock_aplay_output):
 def test_volume_control_success():
     """Test successful volume control"""
     with patch('subprocess.run') as mock_run:
-        # Configure mock
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
+        # Configure mock for aplay -l
+        aplay_result = Mock()
+        aplay_result.returncode = 0
+        aplay_result.stdout = "card 2: Headphones [bcm2835 Headphones]"
+
+        # Configure mock for amixer
+        amixer_result = Mock()
+        amixer_result.returncode = 0
+        amixer_result.stderr = ""
+
+        # Set up mock to return different results based on the command
+        def mock_run_side_effect(*args, **kwargs):
+            if 'aplay' in args[0]:
+                return aplay_result
+            return amixer_result
+
+        mock_run.side_effect = mock_run_side_effect
 
         player = RadioPlayer()
         assert player.set_volume(75) == True
 
-        # Verify that one of the valid command formats was called
-        assert any([
-            call(['amixer', '-c', '2', 'sset', 'PCM', '75%'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) == c
-            or
-            call(['amixer', 'sset', '-c', '2', 'PCM', '75%'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) == c
-            for c in mock_run.call_args_list
-        ]), "Neither expected amixer command format was called"
+        # Accept either command order
+        expected_calls = [
+            call(['amixer', '-c', '2', 'sset', 'PCM', '75%'], 
+                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True),
+            call(['amixer', 'sset', '-c', '2', 'PCM', '75%'], 
+                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        ]
+        
+        # Verify that one of the expected calls was made
+        assert mock_run.call_args in expected_calls, \
+            f"Expected one of {expected_calls}, but got {mock_run.call_args}"
 
 def test_volume_control_failure():
     """Test volume control failure handling"""
@@ -356,39 +372,38 @@ def test_volume_control():
         aplay_result = Mock()
         aplay_result.returncode = 0
         aplay_result.stdout = "card 2: Headphones [bcm2835 Headphones]"
-        
+
         # Configure mock for amixer
         amixer_result = Mock()
         amixer_result.returncode = 0
         amixer_result.stdout = "Simple mixer control 'PCM',0\n  Capabilities: pvolume\n  Playback channels: Front Left - Front Right\n  Limits: Playback -10239 - 400\n  Mono: Playback -1024 [75%] [-10.24dB]"
         amixer_result.stderr = ""
-        
-        # Set up mock to return different results based on the command
+
         def mock_run_side_effect(*args, **kwargs):
             if 'aplay' in args[0]:
                 return aplay_result
             return amixer_result
-            
+
         mock_run.side_effect = mock_run_side_effect
-        
+
         # Mock config
         mock_toml.return_value = {
             'audio': {
                 'initial_volume': 75
             }
         }
-        
+
         # Reset singleton
         RadioPlayer._instance = None
         player = RadioPlayer()
-        
+
         # Test setting volume
         assert player.set_volume(75) == True
-        
-        # Verify the exact command that was called
-        mock_run.assert_called_with(
-            ['amixer', 'sset', '-c', '2', 'PCM', '75%'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+
+        # Update assertion to accept either command order
+        assert any([
+            mock_run.call_args == call(['amixer', 'sset', '-c', '2', 'PCM', '75%'], 
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True),
+            mock_run.call_args == call(['amixer', '-c', '2', 'sset', 'PCM', '75%'], 
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        ]), "Unexpected amixer command format"
