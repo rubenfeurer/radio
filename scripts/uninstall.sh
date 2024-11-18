@@ -29,10 +29,16 @@ if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
 fi
 
 # Clean up system packages (optional)
-echo "Do you want to remove system packages (vlc, alsa-utils)? (y/N)"
+echo "Do you want to remove system packages? (y/N)"
 read -r response
 if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
-    apt-get remove -y vlc alsa-utils libasound2-dev
+    apt-get remove -y \
+        vlc \
+        alsa-utils \
+        libasound2-dev \
+        python3-vlc \
+        python3-tomli \
+        python3-tomli-w
     apt-get autoremove -y
 fi
 
