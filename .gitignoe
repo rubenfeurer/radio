@@ -15,4 +15,9 @@ htmlcov/
 *.swo
 
 # Logs
+logs/
 *.log
+*.cyphon
+
+# Local config
+config/local_*
