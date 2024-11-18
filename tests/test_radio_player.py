@@ -237,7 +237,9 @@ def test_actual_volume_control():
             ['amixer', '-c', '1', 'sset', 'PCM', '50%'],
             ['amixer', 'sset', '-c', '1', 'PCM', '50%'],
             ['amixer', '-c', '2', 'sset', 'PCM', '50%'],
-            ['amixer', 'sset', '-c', '2', 'PCM', '50%']
+            ['amixer', 'sset', '-c', '2', 'PCM', '50%'],
+            ['amixer', '-c', 'default', 'sset', 'PCM', '50%'],  # Add default card
+            ['amixer', 'sset', '-c', 'default', 'PCM', '50%']   # Add alternative default format
         ]
         
         actual_cmd = mock_run.call_args[0][0]
