@@ -1,5 +1,11 @@
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, patch, mock_open, call
 import pytest
+import logging
+import sys
+
+# Configure logger at the top of the file
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 try:
     import RPi.GPIO as GPIO
@@ -473,4 +479,50 @@ def test_config_file_path(mock_gpio_setup):
         # Verify the correct path was used
         expected_path = '/home/radio/internetRadio/config/config.toml'
         mock_file.assert_called_once_with(expected_path, 'rb')
+    
+def test_clockwise_increases_setting(rotary_handler, mock_gpio_setup, mock_config, caplog):
+    """Test that clockwise_increases setting correctly affects rotation direction"""
+    
+    # Test with clockwise_increases = True
+    initial_volume = 50
+    rotary_handler.radio_player.get_volume.return_value = initial_volume
+    rotary_handler.CLOCKWISE_INCREASES = True
+    
+    # Setup initial states
+    rotary_handler.last_clk = 1
+    rotary_handler.last_dt = 1
+    
+    with patch('src.hardware.rotary_handler.GPIO') as patched_gpio:
+        # Test clockwise rotation
+        def mock_clockwise(pin):
+            if pin == rotary_handler.clk_pin:
+                return 0  # CLK goes low
+            elif pin == rotary_handler.dt_pin:
+                return 1  # DT stays high
+            return 1
+            
+        patched_gpio.input = Mock(side_effect=mock_clockwise)
+        rotary_handler._clk_callback(None)
+        
+        # Volume should increase
+        rotary_handler.radio_player.set_volume.assert_called_with(initial_volume + rotary_handler.VOLUME_STEP)
+        
+        # Reset for counter-clockwise test
+        rotary_handler.radio_player.set_volume.reset_mock()
+        rotary_handler.last_clk = 1
+        rotary_handler.last_dt = 1
+        
+        # Test counter-clockwise rotation
+        def mock_counterclockwise(pin):
+            if pin == rotary_handler.clk_pin:
+                return 0  # CLK goes low
+            elif pin == rotary_handler.dt_pin:
+                return 0  # DT goes low
+            return 1
+            
+        patched_gpio.input = Mock(side_effect=mock_counterclockwise)
+        rotary_handler._clk_callback(None)
+        
+        # Volume should decrease
+        rotary_handler.radio_player.set_volume.assert_called_with(initial_volume - rotary_handler.VOLUME_STEP)
     
