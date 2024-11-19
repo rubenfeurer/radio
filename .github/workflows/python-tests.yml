@@ -126,6 +126,25 @@ jobs:
           "device wifi rescan")
             exit 0
             ;;
+          "-t -f 802-11-wireless.ssid connection show preconfigured")
+            # Mock preconfigured network check
+            if [ "$MOCK_PRECONFIGURED" = "true" ]; then
+              echo "802-11-wireless.ssid:TestNetwork"
+            else
+              exit 1
+            fi
+            ;;
+          "connection delete preconfigured")
+            exit 0
+            ;;
+          "connection reload")
+            exit 0
+            ;;
+          "-t -f NAME,TYPE connection show")
+            echo "TestNetwork:802-11-wireless"
+            echo "preconfigured:802-11-wireless"
+            echo "Ethernet connection 1:802-3-ethernet"
+            ;;
           *)
             exit 0
             ;;
