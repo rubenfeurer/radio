@@ -64,12 +64,20 @@ class TestWiFiIntegration:
             assert 'error' in data
 
     def test_wifi_disconnect_endpoint(self, client):
-        with patch('src.utils.wifi_manager.WiFiManager.disconnect') as mock_disconnect:
-            mock_disconnect.return_value = {'success': True}
+        """Test the WiFi disconnect endpoint"""
+        with patch('src.utils.wifi_manager.WiFiManager.disconnect_current_network') as mock_disconnect:
+            mock_disconnect.return_value = {
+                'success': True,
+                'message': 'Disconnected from CurrentNetwork'
+            }
+            
             response = client.post('/api/wifi/disconnect')
+            
             assert response.status_code == 200
             data = response.get_json()
             assert data['success'] is True
+            assert 'Disconnected' in data['message']
+            mock_disconnect.assert_called_once()
 
     def test_wifi_status_endpoint(self, client):
         with patch('src.utils.wifi_manager.WiFiManager.get_current_connection') as mock_status:

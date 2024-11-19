@@ -74,16 +74,23 @@ class TestWiFiManager:
             assert result['success'] is True
             assert 'Successfully' in result['message']
 
-    def test_disconnect_success(self):
+    def test_disconnect_current_network_success(self):
+        """Test successful network disconnection"""
         with patch('subprocess.run') as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout='Device "wlan0" successfully disconnected.'
-            )
+            mock_run.side_effect = [
+                MagicMock(  # get_current_connection
+                    returncode=0,
+                    stdout='yes:90:CurrentNetwork\n'
+                ),
+                MagicMock(  # disconnect command
+                    returncode=0,
+                    stdout='Device "wlan0" successfully disconnected'
+                )
+            ]
             
-            result = WiFiManager.disconnect()
+            result = WiFiManager.disconnect_current_network()
             assert result['success'] is True
-            assert 'successfully' in result['message']
+            assert 'Disconnected from CurrentNetwork' in result['message']
 
     def test_connect_network_timeout(self):
         with patch('subprocess.run') as mock_run:
@@ -199,4 +206,40 @@ class TestWiFiManager:
             assert salt_2g['active'] is False
             assert uetliberg['saved'] is False
             assert uetliberg['active'] is False
+
+    def test_connect_to_saved_network(self):
+        """Test connecting to a saved network without password"""
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = [
+                MagicMock(  # get_current_connection check
+                    returncode=0,
+                    stdout='no:0:OtherNetwork\n'
+                ),
+                MagicMock(  # connect command
+                    returncode=0,
+                    stdout='Connection successfully activated'
+                )
+            ]
+            
+            result = WiFiManager.connect_to_network('SavedNetwork', saved=True)
+            assert result['success'] is True
+            assert 'Successfully' in result['message']
+            
+            # Verify correct nmcli command was used
+            last_call = mock_run.call_args_list[-1]
+            assert last_call[0][0] == ['sudo', 'nmcli', 'connection', 'up', 'SavedNetwork']
+
+    def test_disconnect_current_network_not_connected(self):
+        """Test disconnection when no network is connected"""
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = [
+                MagicMock(  # get_current_connection
+                    returncode=0,
+                    stdout='\n'
+                )
+            ]
+            
+            result = WiFiManager.disconnect_current_network()
+            assert result['success'] is True
+            assert 'Not connected' in result['message']
   

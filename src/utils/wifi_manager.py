@@ -125,7 +125,7 @@ class WiFiManager:
             return []
 
     @classmethod
-    def connect_to_network(cls, ssid: str, password: str) -> Dict[str, Any]:
+    def connect_to_network(cls, ssid: str, password: str = None, saved: bool = False) -> Dict[str, Any]:
         """Connect to a WiFi network using nmcli."""
         try:
             logger.info(f"Attempting to connect to network: {ssid}")
@@ -136,27 +136,21 @@ class WiFiManager:
                 logger.info(f"Already connected to {ssid}")
                 return {'success': True, 'message': f'Already connected to {ssid}'}
 
-            # Escape special characters in SSID and password
-            escaped_ssid = ssid.replace('"', '\\"')
-            escaped_password = password.replace('"', '\\"')
-
-            # Construct the nmcli command
-            command = [
-                'sudo', 'nmcli', 'device', 'wifi', 'connect', escaped_ssid,
-                'password', escaped_password
-            ]
+            # For saved networks, we don't need the password
+            if saved:
+                command = ['sudo', 'nmcli', 'connection', 'up', ssid]
+            else:
+                # Escape special characters in SSID and password
+                escaped_ssid = ssid.replace('"', '\\"')
+                escaped_password = password.replace('"', '\\"')
+                command = [
+                    'sudo', 'nmcli', 'device', 'wifi', 'connect', escaped_ssid,
+                    'password', escaped_password
+                ]
             
             logger.info(f"Executing connection command for {ssid}")
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(command, capture_output=True, text=True)
             
-            logger.info(f"Connection command output: {result.stdout}")
-            if result.stderr:
-                logger.error(f"Connection error: {result.stderr}")
-
             if result.returncode == 0:
                 logger.info(f"Successfully connected to {ssid}")
                 return {'success': True, 'message': f'Successfully connected to {ssid}'}
@@ -165,9 +159,9 @@ class WiFiManager:
                 logger.error(f"Failed to connect to {ssid}: {error_msg}")
                 return {'success': False, 'message': error_msg}
 
-        except subprocess.TimeoutExpired as e:
+        except subprocess.TimeoutExpired:
             error_msg = f"Connection timed out while connecting to {ssid}"
-            logger.error(f"{error_msg}: {str(e)}")
+            logger.error(error_msg)
             return {'success': False, 'message': error_msg}
         except Exception as e:
             error_msg = f"Error connecting to {ssid}: {str(e)}"
@@ -175,19 +169,32 @@ class WiFiManager:
             return {'success': False, 'message': error_msg}
 
     @classmethod
-    def disconnect(cls):
-        """Disconnect from current WiFi network using nmcli"""
-        logger.info("Disconnecting from WiFi")
+    def disconnect_current_network(cls) -> Dict[str, Any]:
+        """Disconnect from the current WiFi network."""
         try:
-            result = subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'], 
-                                 capture_output=True, text=True)
-            return {
-                'success': result.returncode == 0,
-                'message': result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
-            }
+            current = cls.get_current_connection()
+            if not current:
+                return {'success': True, 'message': 'Not connected to any network'}
+
+            ssid = current['ssid']
+            result = subprocess.run(
+                ['sudo', 'nmcli', 'device', 'disconnect', 'wlan0'],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0:
+                logger.info(f"Successfully disconnected from {ssid}")
+                return {'success': True, 'message': f'Disconnected from {ssid}'}
+            else:
+                error_msg = result.stderr or result.stdout or 'Unknown error'
+                logger.error(f"Failed to disconnect: {error_msg}")
+                return {'success': False, 'message': error_msg}
+
         except Exception as e:
-            logger.error(f"Error disconnecting: {str(e)}", exc_info=True)
-            return {'success': False, 'message': str(e)}
+            error_msg = f"Error disconnecting: {str(e)}"
+            logger.error(error_msg)
+            return {'success': False, 'message': error_msg}
 
     @classmethod
     def get_current_connection(cls):

@@ -39,3 +39,28 @@ class TestRoutes:
             assert b'CurrentNetwork' in response.data
             assert b'Network1' in response.data
             assert b'Network2' in response.data
+
+    def test_connect_saved_network(self):
+        """Test connecting to a saved network without password"""
+        with patch.object(WiFiManager, 'connect_to_network') as mock_connect:
+            mock_connect.return_value = {'success': True, 'message': 'Connected to SavedNetwork'}
+            
+            response = self.client.post('/api/wifi/connect', 
+                json={'ssid': 'SavedNetwork', 'saved': True})
+            
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['success'] is True
+            mock_connect.assert_called_once_with('SavedNetwork', None, True)
+
+    def test_disconnect_network(self):
+        """Test disconnecting from current network"""
+        with patch.object(WiFiManager, 'disconnect_current_network') as mock_disconnect:
+            mock_disconnect.return_value = {'success': True, 'message': 'Disconnected'}
+            
+            response = self.client.post('/api/wifi/disconnect')
+            
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['success'] is True
+            mock_disconnect.assert_called_once()

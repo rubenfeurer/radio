@@ -266,22 +266,24 @@ def wifi_scan():
     return jsonify({'networks': networks})
 
 @app.route('/api/wifi/connect', methods=['POST'])
-def wifi_connect():
-    """API endpoint to connect to a WiFi network"""
+def connect_wifi():
     data = request.get_json()
     ssid = data.get('ssid')
     password = data.get('password')
+    saved = data.get('saved', False)
     
     if not ssid:
-        return jsonify({'success': False, 'error': 'Missing SSID'})
-        
-    result = WiFiManager.connect_to_network(ssid, password)
+        return jsonify({'success': False, 'message': 'SSID is required'})
+    
+    if not saved and not password:
+        return jsonify({'success': False, 'message': 'Password is required for unsaved networks'})
+    
+    result = WiFiManager.connect_to_network(ssid, password, saved)
     return jsonify(result)
 
 @app.route('/api/wifi/disconnect', methods=['POST'])
-def wifi_disconnect():
-    """API endpoint to disconnect from current WiFi network"""
-    result = WiFiManager.disconnect()
+def disconnect_wifi():
+    result = WiFiManager.disconnect_current_network()
     return jsonify(result)
 
 @app.route('/api/wifi/status')
