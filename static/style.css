@@ -118,35 +118,76 @@ h1 {
 }
 
 /* WiFi Styles */
-.wifi-item {
+.network {
     background: white;
+    border: 1px solid #ddd;
     border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 0.5rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 15px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-.wifi-info {
+.network-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ssid {
+    font-weight: bold;
+    font-size: 1.1em;
+    flex: 1;
+}
+
+.signal {
+    color: #666;
+    font-size: 0.9em;
+}
+
+/* Hide security label */
+.security {
+    display: none;
+}
+
+/* Update network form styles for full width */
+.network-form {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+}
+
+.network-form input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.network-form button {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 4px;
+    background-color: #1a73e8;
+    color: white;
     cursor: pointer;
 }
 
-.wifi-info h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    color: #202124;
-    margin-bottom: 0.5rem;
+/* Add accordion styles */
+.network {
+    border-left: 4px solid transparent;
 }
 
-.signal-strength {
-    color: #5f6368;
-    font-size: 0.9rem;
-    margin: 0.5rem 0;
-}
-
-.network-details {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid #e8eaed;
+.network.active {
+    border-left-color: #1a73e8;
+    background-color: #f8f9fa;
 }
 
 .connection-form {
@@ -629,6 +670,7 @@ input[type="password"] {
 
 .active-network {
     border-left: 4px solid #34a853;
+    background-color: #f8fdf9;
 }
 
 .saved-network {

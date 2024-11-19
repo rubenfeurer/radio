@@ -7,7 +7,8 @@
     <!-- Status Messages -->
     <div id="status-message" class="alert" style="display: none;"></div>
     
-    <div class="current-connection">
+    <!-- Current Connection -->
+    <div class="network-category">
         <h2>Current Connection</h2>
         {% if current and current.ssid %}
             <div class="wifi-item active-network">
@@ -25,16 +26,36 @@
         {% endif %}
     </div>
 
-    <div class="networks">
+    <!-- Saved Networks -->
+    <div class="network-category">
+        <h2>Saved Networks</h2>
+        {% if networks %}
+            {% for network in networks %}
+                {% if network.saved and not network.active %}
+                <div class="network saved-network" onclick="showConnectForm('{{ network.ssid }}')" id="network-{{ network.ssid|replace(' ', '_') }}">
+                    <div class="network-info">
+                        <span class="ssid">{{ network.ssid }}</span>
+                        <span class="signal">Signal: {{ network.signal }}%</span>
+                    </div>
+                    <div class="network-actions" id="actions-{{ network.ssid|replace(' ', '_') }}">
+                        <!-- Connect form will be inserted here by JavaScript -->
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Available Networks -->
+    <div class="network-category">
         <h2>Available Networks</h2>
         {% if networks %}
             {% for network in networks %}
-                {% if not network.active %}
+                {% if not network.active and not network.saved %}
                 <div class="network" onclick="showConnectForm('{{ network.ssid }}')" id="network-{{ network.ssid|replace(' ', '_') }}">
                     <div class="network-info">
                         <span class="ssid">{{ network.ssid }}</span>
                         <span class="signal">Signal: {{ network.signal }}%</span>
-                        <span class="security">{{ network.security }}</span>
                     </div>
                     <div class="network-actions" id="actions-{{ network.ssid|replace(' ', '_') }}">
                         <!-- Connect form will be inserted here by JavaScript -->
@@ -112,11 +133,13 @@
     background-color: #f8f9fa;
     border-radius: 4px;
     display: flex;
+    flex-direction: column;
+    width: 100%;
     gap: 10px;
 }
 
 .network-form input {
-    flex: 1;
+    width: 100%;
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -124,10 +147,11 @@
 }
 
 .network-form button {
-    padding: 5px 10px;
+    width: 100%;
+    padding: 8px;
     border: none;
-    border-radius: 3px;
-    background-color: #007bff;
+    border-radius: 4px;
+    background-color: #1a73e8;
     color: white;
     cursor: pointer;
 }
@@ -158,6 +182,7 @@
     margin-bottom: 10px;
     cursor: pointer;
     transition: all 0.2s ease;
+    border-left: 4px solid transparent;
 }
 
 .network:hover {
@@ -165,27 +190,26 @@
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
+.network.active {
+    border-left-color: #1a73e8;
+    background-color: #f8f9fa;
+}
+
 .network-info {
     display: flex;
-    gap: 20px;
     align-items: center;
+    gap: 10px;
 }
 
 .ssid {
     font-weight: bold;
     font-size: 1.1em;
+    flex: 1;
 }
 
 .signal {
     color: #666;
-}
-
-.security {
-    background: #f8f9fa;
-    padding: 3px 8px;
-    border-radius: 4px;
     font-size: 0.9em;
-    color: #666;
 }
 
 button {
@@ -229,17 +253,29 @@ function showConnectForm(ssid) {
     const networkDiv = document.getElementById('network-' + ssid.replace(/ /g, '_'));
     const actionsDiv = document.getElementById('actions-' + ssid.replace(/ /g, '_'));
     
-    // If form is already shown, do nothing
-    if (actionsDiv.querySelector('.network-form')) {
+    if (!networkDiv || !actionsDiv) {
+        console.warn('Network elements not found for:', ssid);
+        return;
+    }
+
+    // If clicking the same network that's already open, close it
+    if (networkDiv.classList.contains('active')) {
+        networkDiv.classList.remove('active');
+        actionsDiv.innerHTML = '';
         return;
     }
     
-    // Hide any other open forms
-    document.querySelectorAll('.network-form').forEach(form => {
-        form.remove();
-        form.parentElement.parentElement.classList.remove('active');
+    // Close any other open networks first
+    const activeNetworks = document.querySelectorAll('.network.active');
+    activeNetworks.forEach(network => {
+        network.classList.remove('active');
+        const actions = network.querySelector('.network-actions');
+        if (actions) {
+            actions.innerHTML = '';
+        }
     });
     
+    // Open the clicked network
     networkDiv.classList.add('active');
     
     const form = document.createElement('div');
@@ -254,8 +290,7 @@ function showConnectForm(ssid) {
     `;
     
     actionsDiv.appendChild(form);
-    // Focus the password input
-    document.getElementById('password-' + ssid.replace(/ /g, '_')).focus();
+    document.getElementById('password-' + ssid.replace(/ /g, '_'))?.focus();
 }
 
 function connectToNetwork(ssid) {
@@ -288,6 +323,7 @@ function connectToNetwork(ssid) {
             showMessage('Successfully connected to ' + ssid + '! Refreshing page...', 'success');
             setTimeout(() => location.reload(), 2000);
         } else {
+            console.error('Connection error:', data);
             const errorMsg = data.error === 'auth-failed' ? 
                            'Incorrect password. Please try again.' : 
                            'Connection failed: ' + (data.error || 'Please try again.');
@@ -296,6 +332,7 @@ function connectToNetwork(ssid) {
         }
     })
     .catch(error => {
+        console.error('Fetch error:', error);
         showMessage('Unable to connect: Please check your device and try again.', 'error');
         showConnectForm(ssid);
     });

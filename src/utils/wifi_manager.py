@@ -15,6 +15,10 @@ class WiFiManager:
         """Scan for available WiFi networks"""
         logger.info("Scanning for WiFi networks...")
         try:
+            # Get saved networks first
+            saved_networks = cls.get_saved_connections()
+            logger.info(f"Found saved networks: {saved_networks}")
+            
             # Force a rescan
             subprocess.run(['sudo', 'nmcli', 'device', 'wifi', 'rescan'], 
                          capture_output=True, text=True)
@@ -46,18 +50,20 @@ class WiFiManager:
                         
                         if ssid and ssid not in seen_ssids:
                             seen_ssids.add(ssid)
+                            is_saved = ssid in saved_networks
+                            logger.info(f"Network {ssid}: active={in_use}, saved={is_saved}")
                             networks.append({
                                 'ssid': ssid,
                                 'signal': signal,
                                 'security': security,
-                                'active': in_use
+                                'active': in_use,
+                                'saved': is_saved
                             })
                 except (ValueError, IndexError) as e:
                     logger.warning(f"Error parsing line '{line}': {str(e)}")
                     continue
             
             networks.sort(key=lambda x: x['signal'], reverse=True)
-            logger.info(f"Found {len(networks)} unique networks: {networks}")
             return networks
             
         except Exception as e:
@@ -84,45 +90,89 @@ class WiFiManager:
         networks.sort(key=lambda x: x['signal'], reverse=True)
         return networks
 
-    @staticmethod
-    def get_saved_connections() -> List[str]:
+    @classmethod
+    def get_saved_connections(cls) -> List[str]:
+        """Get list of saved WiFi connections"""
         try:
+            # Get all connections
             result = subprocess.run(
-                ['nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'],
+                ['sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'],
                 capture_output=True,
                 text=True,
                 check=True
             )
+            
             saved = []
             for line in result.stdout.strip().split('\n'):
                 if ':802-11-wireless' in line:  # Only get WiFi connections
-                    saved.append(line.split(':')[0])
+                    name = line.split(':')[0]
+                    if name != 'preconfigured':  # Skip the preconfigured connection
+                        saved.append(name)
+                    else:
+                        # If it's preconfigured, get its SSID
+                        ssid_result = subprocess.run(
+                            ['sudo', 'nmcli', '-g', '802-11-wireless.ssid', 'connection', 'show', 'preconfigured'],
+                            capture_output=True,
+                            text=True
+                        )
+                        if ssid_result.returncode == 0 and ssid_result.stdout.strip():
+                            saved.append(ssid_result.stdout.strip())
+            
+            logger.info(f"Found saved connections: {saved}")
             return saved
         except Exception as e:
-            print(f"Error getting saved connections: {str(e)}")
+            logger.error(f"Error getting saved connections: {str(e)}")
             return []
 
     @classmethod
-    def connect_to_network(cls, ssid, password=None):
-        """Connect to a WiFi network using nmcli"""
-        logger.info(f"Connecting to network: {ssid}")
+    def connect_to_network(cls, ssid: str, password: str) -> Dict[str, Any]:
+        """Connect to a WiFi network using nmcli."""
         try:
-            if password:
-                cmd = ['nmcli', 'device', 'wifi', 'connect', ssid, 'password', password]
-            else:
-                cmd = ['nmcli', 'device', 'wifi', 'connect', ssid]
+            logger.info(f"Attempting to connect to network: {ssid}")
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            return {
-                'success': result.returncode == 0,
-                'message': result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
-            }
+            # Check if already connected to this network
+            current = cls.get_current_connection()
+            if current and current.get('ssid') == ssid:
+                logger.info(f"Already connected to {ssid}")
+                return {'success': True, 'message': f'Already connected to {ssid}'}
+
+            # Escape special characters in SSID and password
+            escaped_ssid = ssid.replace('"', '\\"')
+            escaped_password = password.replace('"', '\\"')
+
+            # Construct the nmcli command
+            command = [
+                'sudo', 'nmcli', 'device', 'wifi', 'connect', escaped_ssid,
+                'password', escaped_password
+            ]
+            
+            logger.info(f"Executing connection command for {ssid}")
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True
+            )
+            
+            logger.info(f"Connection command output: {result.stdout}")
+            if result.stderr:
+                logger.error(f"Connection error: {result.stderr}")
+
+            if result.returncode == 0:
+                logger.info(f"Successfully connected to {ssid}")
+                return {'success': True, 'message': f'Successfully connected to {ssid}'}
+            else:
+                error_msg = result.stderr or result.stdout or 'Unknown error'
+                logger.error(f"Failed to connect to {ssid}: {error_msg}")
+                return {'success': False, 'message': error_msg}
+
         except subprocess.TimeoutExpired as e:
-            logger.error(f"Connection timeout: {str(e)}")
-            return {'success': False, 'message': 'Connection timeout'}
+            error_msg = f"Connection timed out while connecting to {ssid}"
+            logger.error(f"{error_msg}: {str(e)}")
+            return {'success': False, 'message': error_msg}
         except Exception as e:
-            logger.error(f"Error connecting to network: {str(e)}", exc_info=True)
-            return {'success': False, 'message': str(e)}
+            error_msg = f"Error connecting to {ssid}: {str(e)}"
+            logger.error(error_msg)
+            return {'success': False, 'message': error_msg}
 
     @classmethod
     def disconnect(cls):
