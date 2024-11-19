@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>WiFi Settings</h1>
+    
+    <!-- Status Messages -->
+    <div id="status-message" class="alert" style="display: none;"></div>
+    
+    <!-- Current Connection -->
+    <div class="network-category">
+        <h2>Current Connection</h2>
+        {% if current and current.ssid %}
+            <div class="wifi-item active-network">
+                <div class="wifi-info">
+                    <h3>{{ current.ssid }}</h3>
+                    <div class="signal-strength">Signal: {{ current.signal }}%</div>
+                    <span class="connected-label">Connected</span>
+                </div>
+                <div class="network-actions">
+                    <button class="disconnect-btn" onclick="disconnectFromNetwork('{{ current.ssid }}')">Disconnect</button>
+                </div>
+            </div>
+        {% else %}
+            <p class="no-connection">Not connected</p>
+        {% endif %}
+    </div>
+
+    <!-- Saved Networks -->
+    <div class="network-category">
+        <h2>Saved Networks</h2>
+        {% if networks %}
+            {% for network in networks %}
+                {% if network.saved and not network.active %}
+                <div class="network saved-network" id="network-{{ network.ssid|replace(' ', '_') }}">
+                    <div class="network-info">
+                        <span class="ssid">{{ network.ssid }}</span>
+                        <span class="signal">Signal: {{ network.signal }}%</span>
+                    </div>
+                    <div class="network-actions">
+                        <button class="connect-btn" onclick="connectToSavedNetwork('{{ network.ssid }}')">Connect</button>
+                        <button class="forget-btn" onclick="forgetNetwork('{{ network.ssid }}')">Forget</button>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Available Networks -->
+    <div class="network-category">
+        <h2>Available Networks</h2>
+        {% if networks %}
+            {% for network in networks %}
+                {% if not network.active and not network.saved %}
+                <div class="network" onclick="showConnectForm('{{ network.ssid }}')" id="network-{{ network.ssid|replace(' ', '_') }}">
+                    <div class="network-info">
+                        <span class="ssid">{{ network.ssid }}</span>
+                        <span class="signal">Signal: {{ network.signal }}%</span>
+                    </div>
+                    <div class="network-actions" id="actions-{{ network.ssid|replace(' ', '_') }}">
+                        <!-- Connect form will be inserted here by JavaScript -->
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            <p>No networks found</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.alert {
+    padding: 15px;
+    margin: 20px 0;
+    border-radius: 8px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.alert::before {
+    font-size: 20px;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+}
+
+.alert-success::before {
+    content: '✓';
+    color: #28a745;
+}
+
+.alert-error {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+}
+
+.alert-error::before {
+    content: '✕';
+    color: #dc3545;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    border-left: 4px solid #0c5460;
+}
+
+.alert-info::before {
+    content: 'ℹ';
+    color: #0c5460;
+}
+
+.wifi-item {
+    cursor: pointer;
+    padding: 15px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.wifi-item:hover {
+    background-color: #f5f5f5;
+}
+
+.network-form {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+}
+
+.network-form input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.network-form button {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 4px;
+    background-color: #1a73e8;
+    color: white;
+    cursor: pointer;
+}
+
+.network-form button:hover {
+    background-color: #0056b3;
+}
+
+.connecting-message {
+    color: #0c5460;
+    background-color: #d1ecf1;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+    margin-top: 10px;
+}
+
+.networks {
+    margin-top: 20px;
+    padding: 15px;
+}
+
+.network {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 4px solid transparent;
+}
+
+.network:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.network.active {
+    border-left-color: #1a73e8;
+    background-color: #f8f9fa;
+}
+
+.network-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ssid {
+    font-weight: bold;
+    font-size: 1.1em;
+    flex: 1;
+}
+
+.signal {
+    color: #666;
+    font-size: 0.9em;
+}
+
+button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background: #0056b3;
+}
+
+.active button {
+    background: #dc3545;
+}
+
+.active button:hover {
+    background: #c82333;
+}
+</style>
+
+<script>
+function showMessage(message, type) {
+    const statusDiv = document.getElementById('status-message');
+    statusDiv.className = 'alert alert-' + type;
+    statusDiv.textContent = message;
+    statusDiv.style.display = 'block';
+    
+    if (type !== 'error') {  // Don't auto-hide error messages
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
+function showConnectForm(ssid) {
+    const networkDiv = document.getElementById('network-' + ssid.replace(/ /g, '_'));
+    const actionsDiv = document.getElementById('actions-' + ssid.replace(/ /g, '_'));
+    
+    if (!networkDiv || !actionsDiv) {
+        console.warn('Network elements not found for:', ssid);
+        return;
+    }
+
+    // If clicking the same network that's already open, close it
+    if (networkDiv.classList.contains('active')) {
+        networkDiv.classList.remove('active');
+        actionsDiv.innerHTML = '';
+        return;
+    }
+    
+    // Close any other open networks first
+    const activeNetworks = document.querySelectorAll('.network.active');
+    activeNetworks.forEach(network => {
+        network.classList.remove('active');
+        const actions = network.querySelector('.network-actions');
+        if (actions) {
+            actions.innerHTML = '';
+        }
+    });
+    
+    // Open the clicked network
+    networkDiv.classList.add('active');
+    
+    const form = document.createElement('div');
+    form.className = 'network-form';
+    form.innerHTML = `
+        <input type="password" 
+               placeholder="Enter WiFi password" 
+               id="password-${ssid.replace(/ /g, '_')}" 
+               onclick="event.stopPropagation()"
+               onkeypress="if(event.key === 'Enter') connectToNetwork('${ssid}')">
+        <button onclick="event.stopPropagation(); connectToNetwork('${ssid}')">Connect</button>
+    `;
+    
+    actionsDiv.appendChild(form);
+    document.getElementById('password-' + ssid.replace(/ /g, '_'))?.focus();
+}
+
+function connectToNetwork(ssid) {
+    const passwordInput = document.getElementById('password-' + ssid.replace(/ /g, '_'));
+    const password = passwordInput ? passwordInput.value : '';
+    const actionsDiv = document.getElementById('actions-' + ssid.replace(/ /g, '_'));
+    
+    if (!password) {
+        showMessage('Please enter the WiFi password', 'error');
+        return;
+    }
+
+    // Show connecting message
+    actionsDiv.innerHTML = '<div class="connecting-message">Connecting to ' + ssid + '...</div>';
+    showMessage('Attempting to connect to ' + ssid, 'info');
+
+    fetch('/api/wifi/connect', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            ssid: ssid,
+            password: password
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Successfully connected to ' + ssid + '! Refreshing page...', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            console.error('Connection error:', data);
+            const errorMsg = data.error === 'auth-failed' ? 
+                           'Incorrect password. Please try again.' : 
+                           'Connection failed: ' + (data.error || 'Please try again.');
+            showMessage(errorMsg, 'error');
+            showConnectForm(ssid);
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        showMessage('Unable to connect: Please check your device and try again.', 'error');
+        showConnectForm(ssid);
+    });
+}
+
+function connectToSavedNetwork(ssid) {
+    showMessage('Connecting to ' + ssid + '...', 'info');
+    
+    fetch('/api/wifi/connect', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            ssid: ssid,
+            saved: true
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Successfully connected to ' + ssid + '! Refreshing page...', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showMessage('Connection failed: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        showMessage('Unable to connect: Please check your device and try again.', 'error');
+    });
+}
+
+function disconnectFromNetwork(ssid) {
+    if (!confirm('Disconnect from ' + ssid + '?')) return;
+
+    showMessage('Disconnecting from ' + ssid, 'info');
+
+    fetch('/api/wifi/disconnect', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Successfully disconnected! Refreshing page...', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showMessage('Disconnection failed: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        showMessage('Error disconnecting: Please try again', 'error');
+    });
+}
+
+function forgetNetwork(ssid) {
+    if (!confirm('Are you sure you want to forget network "' + ssid + '"?')) return;
+    
+    showMessage('Removing network ' + ssid + '...', 'info');
+    
+    fetch('/api/wifi/forget', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            ssid: ssid
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Successfully removed network! Refreshing page...', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showMessage('Failed to remove network: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        showMessage('Error removing network: Please try again', 'error');
+    });
+}
+</script>
+{% endblock %} 

@@ -21,6 +21,9 @@ rm -f /etc/asound.conf
 # Remove log rotation configuration
 rm -f /etc/logrotate.d/radio
 
+# Remove sudoers configuration for nmcli
+rm -f /etc/sudoers.d/radio-wifi
+
 # Clean up Python packages (optional)
 echo "Do you want to remove installed Python packages? (y/N)"
 read -r response
@@ -38,7 +41,8 @@ if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
         libasound2-dev \
         python3-vlc \
         python3-tomli \
-        python3-tomli-w
+        python3-tomli-w \
+        network-manager
     apt-get autoremove -y
 fi
 
@@ -49,6 +53,16 @@ if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
     rm -rf /home/radio/internetRadio/logs/*
     rm -rf /home/radio/internetRadio/config/*
     rm -rf /home/radio/internetRadio/sounds/*
+fi
+
+# Remove radio user from groups (if not removing user)
+echo "Do you want to remove the radio user from groups but keep the user? (y/N)"
+read -r response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+    gpasswd -d radio audio
+    gpasswd -d radio video
+    gpasswd -d radio gpio
+    gpasswd -d radio netdev
 fi
 
 # Remove radio user (optional)

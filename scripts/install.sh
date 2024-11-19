@@ -22,7 +22,8 @@ apt-get install -y \
     libasound2-dev \
     python3-vlc \
     python3-tomli \
-    python3-tomli-w
+    python3-tomli-w \
+    network-manager
 
 # Install Python dependencies from requirements.txt
 echo "Installing Python packages..."
@@ -34,7 +35,7 @@ if ! id "radio" &>/dev/null; then
 fi
 
 # Add radio user to required groups
-usermod -a -G audio,video,gpio radio
+usermod -a -G audio,video,gpio,netdev radio
 
 # Create required directories
 echo "Setting up directories..."
@@ -129,6 +130,10 @@ chmod 644 /etc/systemd/system/radio.service
 
 # Set correct permissions for main.py
 chmod +x /home/radio/internetRadio/main.py
+
+# Add sudoers configuration for nmcli
+echo "radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli" > /etc/sudoers.d/radio-wifi
+chmod 440 /etc/sudoers.d/radio-wifi
 
 echo "Installation complete! Service is running."
 echo "Check status with: systemctl status radio"
