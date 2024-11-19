@@ -460,6 +460,11 @@ h1 {
 .forget-btn {
     background-color: #dc3545;
     color: white;
+    border: none;
+    padding: 5px 10px;
+    margin-left: 5px;
+    border-radius: 4px;
+    cursor: pointer;
 }
 
 .forget-btn:hover {

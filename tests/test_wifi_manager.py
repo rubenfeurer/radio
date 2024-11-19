@@ -242,4 +242,119 @@ class TestWiFiManager:
             result = WiFiManager.disconnect_current_network()
             assert result['success'] is True
             assert 'Not connected' in result['message']
+
+    def test_forget_network_success(self):
+        """Test successfully forgetting a saved network"""
+        with patch('subprocess.run') as mock_run:
+            # First call checks if it's preconfigured (returns no match)
+            mock_run.side_effect = [
+                MagicMock(
+                    returncode=1,  # Not found in preconfigured
+                    stderr='Error: connection not found'
+                ),
+                # Second call deletes the network
+                MagicMock(
+                    returncode=0,
+                    stdout='Connection "TestNetwork" successfully deleted.'
+                )
+            ]
+            
+            result = WiFiManager.forget_network('TestNetwork')
+            assert result['success'] is True
+            assert 'Successfully removed' in result['message']
+            
+            # Verify both calls were made with correct arguments
+            calls = mock_run.call_args_list
+            assert len(calls) == 2
+            
+            # First call should check preconfigured
+            assert calls[0][0][0] == [
+                'sudo', 'nmcli', '-t', '-f', '802-11-wireless.ssid',
+                'connection', 'show', 'preconfigured'
+            ]
+            
+            # Second call should delete the network
+            assert calls[1][0][0] == [
+                'sudo', 'nmcli', 'connection', 'delete', 'TestNetwork'
+            ]
+
+    def test_forget_network_failure(self):
+        """Test failure when forgetting a network"""
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(
+                1, 'nmcli', 'Error: Connection "TestNetwork" does not exist.'
+            )
+            
+            result = WiFiManager.forget_network('TestNetwork')
+            assert result['success'] is False
+            assert 'Error' in result['message']
+
+    def test_get_saved_connections_with_preconfigured(self):
+        """Test getting saved WiFi connections including preconfigured ones"""
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = [
+                # First call - get connections
+                MagicMock(
+                    returncode=0,
+                    stdout='Salt_2GHz_D8261F:802-11-wireless:wlan0\n'
+                          'preconfigured:802-11-wireless:--\n'
+                          'Wired connection 1:802-3-ethernet:--\n'
+                ),
+                # Second call - get SSID of preconfigured
+                MagicMock(
+                    returncode=0,
+                    stdout='802-11-wireless.ssid:Salt_5GHz_D8261F\n'
+                )
+            ]
+            
+            saved = WiFiManager.get_saved_connections()
+            assert 'Salt_2GHz_D8261F' in saved
+            assert 'Salt_5GHz_D8261F' in saved
+            assert 'Wired connection 1' not in saved
+
+    def test_forget_preconfigured_network(self):
+        """Test forgetting a preconfigured network"""
+        with patch('subprocess.run') as mock_run:
+            # Mock all expected subprocess calls
+            mock_run.side_effect = [
+                # First call - check if preconfigured
+                MagicMock(
+                    returncode=0,
+                    stdout='802-11-wireless.ssid:TestNetwork\n'
+                ),
+                # Second call - delete preconfigured
+                MagicMock(
+                    returncode=0,
+                    stdout='Successfully deleted preconfigured connection.'
+                ),
+                # Third call - reload connections
+                MagicMock(
+                    returncode=0,
+                    stdout=''
+                )
+            ]
+            
+            result = WiFiManager.forget_network('TestNetwork')
+            assert result['success'] is True
+            assert 'Successfully removed' in result['message']
+            
+            # Verify the correct commands were used
+            calls = mock_run.call_args_list
+            assert len(calls) == 3
+            
+            # Check preconfigured network
+            assert calls[0][0][0] == [
+                'sudo', 'nmcli', '-t', '-f', '802-11-wireless.ssid',
+                'connection', 'show', 'preconfigured'
+            ]
+            
+            # Delete preconfigured
+            assert calls[1][0][0] == [
+                'sudo', 'nmcli', 'connection', 'delete', 'preconfigured'
+            ]
+            
+            # Reload connections
+            assert calls[2][0][0] == [
+                'sudo', 'nmcli', 'connection', 'reload'
+            ]
   

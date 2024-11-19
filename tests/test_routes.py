@@ -64,3 +64,16 @@ class TestRoutes:
             data = response.get_json()
             assert data['success'] is True
             mock_disconnect.assert_called_once()
+
+    def test_forget_network(self):
+        """Test forgetting a saved network"""
+        with patch.object(WiFiManager, 'forget_network') as mock_forget:
+            mock_forget.return_value = {'success': True, 'message': 'Successfully removed network TestNetwork'}
+            
+            response = self.client.post('/api/wifi/forget', 
+                json={'ssid': 'TestNetwork'})
+            
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['success'] is True
+            mock_forget.assert_called_once_with('TestNetwork')

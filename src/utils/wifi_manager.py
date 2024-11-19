@@ -92,34 +92,51 @@ class WiFiManager:
 
     @classmethod
     def get_saved_connections(cls) -> List[str]:
-        """Get list of saved WiFi connections"""
+        """Get list of saved WiFi connections including preconfigured ones."""
         try:
-            # Get all connections
+            # Get all connections with their types and devices
             result = subprocess.run(
-                ['sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'],
+                ['sudo', 'nmcli', '-t', '-f', 'NAME,TYPE,DEVICE', 'connection', 'show'],
                 capture_output=True,
-                text=True,
-                check=True
+                text=True
             )
             
+            if result.returncode != 0:
+                return []
+
             saved = []
-            for line in result.stdout.strip().split('\n'):
-                if ':802-11-wireless' in line:  # Only get WiFi connections
-                    name = line.split(':')[0]
-                    if name != 'preconfigured':  # Skip the preconfigured connection
-                        saved.append(name)
-                    else:
-                        # If it's preconfigured, get its SSID
-                        ssid_result = subprocess.run(
-                            ['sudo', 'nmcli', '-g', '802-11-wireless.ssid', 'connection', 'show', 'preconfigured'],
-                            capture_output=True,
-                            text=True
-                        )
-                        if ssid_result.returncode == 0 and ssid_result.stdout.strip():
-                            saved.append(ssid_result.stdout.strip())
+            preconfigured_name = None
             
-            logger.info(f"Found saved connections: {saved}")
+            for line in result.stdout.strip().split('\n'):
+                if ':' in line:
+                    parts = line.split(':')
+                    name, conn_type = parts[0], parts[1]
+                    
+                    if conn_type == '802-11-wireless':
+                        if name == 'preconfigured':
+                            preconfigured_name = name
+                        else:
+                            saved.append(name)
+            
+            # If we found a preconfigured connection, get its SSID
+            if preconfigured_name:
+                result = subprocess.run(
+                    ['sudo', 'nmcli', '-t', '-f', '802-11-wireless.ssid', 
+                     'connection', 'show', preconfigured_name],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n'):
+                        if ':' in line:
+                            _, ssid = line.split(':')
+                            if ssid:
+                                saved.append(ssid)
+            
+            logger.info(f"Found saved WiFi connections: {saved}")
             return saved
+            
         except Exception as e:
             logger.error(f"Error getting saved connections: {str(e)}")
             return []
@@ -136,20 +153,43 @@ class WiFiManager:
                 logger.info(f"Already connected to {ssid}")
                 return {'success': True, 'message': f'Already connected to {ssid}'}
 
-            # For saved networks, we don't need the password
+            # For saved networks, try both the SSID and 'preconfigured'
             if saved:
+                # Try connecting by SSID first
                 command = ['sudo', 'nmcli', 'connection', 'up', ssid]
+                result = subprocess.run(command, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    # Check if it's a preconfigured network
+                    pre_result = subprocess.run(
+                        ['sudo', 'nmcli', '-t', '-f', '802-11-wireless.ssid', 
+                         'connection', 'show', 'preconfigured'],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if pre_result.returncode == 0 and ssid in pre_result.stdout:
+                        # It's preconfigured, try to connect using that profile
+                        command = ['sudo', 'nmcli', 'connection', 'up', 'preconfigured']
+                        result = subprocess.run(command, capture_output=True, text=True)
+                    else:
+                        # Try to create a new connection
+                        command = [
+                            'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid
+                        ]
+                        if password:
+                            command.extend(['password', password])
+                        result = subprocess.run(command, capture_output=True, text=True)
             else:
-                # Escape special characters in SSID and password
+                # New connection
                 escaped_ssid = ssid.replace('"', '\\"')
-                escaped_password = password.replace('"', '\\"')
+                escaped_password = password.replace('"', '\\"') if password else None
                 command = [
-                    'sudo', 'nmcli', 'device', 'wifi', 'connect', escaped_ssid,
-                    'password', escaped_password
+                    'sudo', 'nmcli', 'device', 'wifi', 'connect', escaped_ssid
                 ]
-            
-            logger.info(f"Executing connection command for {ssid}")
-            result = subprocess.run(command, capture_output=True, text=True)
+                if password:
+                    command.extend(['password', escaped_password])
+                result = subprocess.run(command, capture_output=True, text=True)
             
             if result.returncode == 0:
                 logger.info(f"Successfully connected to {ssid}")
@@ -159,10 +199,6 @@ class WiFiManager:
                 logger.error(f"Failed to connect to {ssid}: {error_msg}")
                 return {'success': False, 'message': error_msg}
 
-        except subprocess.TimeoutExpired:
-            error_msg = f"Connection timed out while connecting to {ssid}"
-            logger.error(error_msg)
-            return {'success': False, 'message': error_msg}
         except Exception as e:
             error_msg = f"Error connecting to {ssid}: {str(e)}"
             logger.error(error_msg)
@@ -218,3 +254,68 @@ class WiFiManager:
         except Exception as e:
             logger.error(f"Error getting current connection: {str(e)}", exc_info=True)
             return None
+
+    @classmethod
+    def forget_network(cls, ssid: str) -> Dict[str, Any]:
+        """Remove a saved WiFi network."""
+        try:
+            logger.info(f"Attempting to remove saved network: {ssid}")
+            
+            # First, check if this is a preconfigured network
+            result = subprocess.run(
+                ['sudo', 'nmcli', '-t', '-f', '802-11-wireless.ssid', 
+                 'connection', 'show', 'preconfigured'],
+                capture_output=True,
+                text=True
+            )
+            
+            is_preconfigured = False
+            if result.returncode == 0 and result.stdout:
+                for line in result.stdout.strip().split('\n'):
+                    if ':' in line:
+                        _, saved_ssid = line.split(':')
+                        if saved_ssid.strip() == ssid:
+                            is_preconfigured = True
+                            break
+            
+            # If it's preconfigured, delete that profile
+            if is_preconfigured:
+                logger.info("Deleting preconfigured network profile")
+                result = subprocess.run(
+                    ['sudo', 'nmcli', 'connection', 'delete', 'preconfigured'],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    # Add a small delay to let NetworkManager process the change
+                    time.sleep(1)
+                    # Reload NetworkManager connections
+                    reload_result = subprocess.run(
+                        ['sudo', 'nmcli', 'connection', 'reload'],
+                        capture_output=True,
+                        text=True
+                    )
+                    if reload_result.returncode != 0:
+                        logger.warning("Connection reload failed, but network was removed")
+                    time.sleep(0.5)  # Wait for reload to complete
+            else:
+                logger.info(f"Deleting regular network profile: {ssid}")
+                result = subprocess.run(
+                    ['sudo', 'nmcli', 'connection', 'delete', ssid],
+                    capture_output=True,
+                    text=True
+                )
+            
+            if result.returncode == 0:
+                logger.info(f"Successfully removed network {ssid}")
+                return {'success': True, 'message': f'Successfully removed network {ssid}'}
+            else:
+                error_msg = result.stderr or result.stdout or 'Unknown error'
+                logger.error(f"Failed to remove network {ssid}: {error_msg}")
+                return {'success': False, 'message': error_msg}
+            
+        except Exception as e:
+            error_msg = f"Error removing network {ssid}: {str(e)}"
+            logger.error(error_msg)
+            return {'success': False, 'message': error_msg}

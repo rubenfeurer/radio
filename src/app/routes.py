@@ -292,6 +292,17 @@ def wifi_status():
     current = WiFiManager.get_current_connection()
     return jsonify({'current': current})
 
+@app.route('/api/wifi/forget', methods=['POST'])
+def forget_wifi():
+    data = request.get_json()
+    ssid = data.get('ssid')
+    
+    if not ssid:
+        return jsonify({'success': False, 'message': 'SSID is required'})
+    
+    result = WiFiManager.forget_network(ssid)
+    return jsonify(result)
+
 if __name__ == '__main__':
     try:
         logger.info("Starting Flask application...")

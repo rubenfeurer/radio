@@ -39,6 +39,7 @@
                     </div>
                     <div class="network-actions">
                         <button class="connect-btn" onclick="connectToSavedNetwork('{{ network.ssid }}')">Connect</button>
+                        <button class="forget-btn" onclick="forgetNetwork('{{ network.ssid }}')">Forget</button>
                     </div>
                 </div>
                 {% endif %}
@@ -389,6 +390,35 @@ function disconnectFromNetwork(ssid) {
     .catch(error => {
         console.error('Fetch error:', error);
         showMessage('Error disconnecting: Please try again', 'error');
+    });
+}
+
+function forgetNetwork(ssid) {
+    if (!confirm('Are you sure you want to forget network "' + ssid + '"?')) return;
+    
+    showMessage('Removing network ' + ssid + '...', 'info');
+    
+    fetch('/api/wifi/forget', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            ssid: ssid
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('Successfully removed network! Refreshing page...', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showMessage('Failed to remove network: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        showMessage('Error removing network: Please try again', 'error');
     });
 }
 </script>
