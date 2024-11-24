@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
+from src.app import create_app
 
 @pytest.fixture
 def mock_wifi_manager():
@@ -17,8 +18,10 @@ def mock_wifi_manager():
 
 @pytest.fixture
 def app():
-    from src.app.routes import app
-    app.config['TESTING'] = True
+    app = create_app({
+        'TESTING': True,
+        'WTF_CSRF_ENABLED': False
+    })
     return app
 
 @pytest.fixture
