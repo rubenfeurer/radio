@@ -1,15 +1,16 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.app import app
+from src.app import create_app
 from src.utils.wifi_manager import WiFiManager
 
 class TestRoutes:
     @pytest.fixture(autouse=True)
     def setup(self):
         """Setup test client before each test"""
-        self.app = app
-        self.app.config['TESTING'] = True
-        self.app.config['WTF_CSRF_ENABLED'] = False
+        self.app = create_app({
+            'TESTING': True,
+            'WTF_CSRF_ENABLED': False
+        })
         self.client = self.app.test_client()
         self.ctx = self.app.app_context()
         self.ctx.push()
