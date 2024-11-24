@@ -15,6 +15,7 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
+tests/__pycache__/
 
 # IDE
 .idea/
