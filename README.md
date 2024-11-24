@@ -20,6 +20,12 @@ The project follows a modular design pattern with these key components:
      * Handles audio device detection
      * Controls volume and playback
      * Maintains player state
+   
+   - WiFiManager (src/utils/wifi_manager.py)
+     * Manages WiFi connections using nmcli
+     * Scans available networks
+     * Handles connection/disconnection
+     * Provides network status information
 
 2. Hardware Interface:
    - GPIOHandler (src/hardware/gpio_handler.py)
@@ -47,6 +53,17 @@ The project follows a modular design pattern with these key components:
      * Provides REST API endpoints
      * Enables remote control
      * Reports system status
+
+5. Network Management:
+   - WiFi Configuration
+     * Web-based network selection
+     * Password-protected connections
+     * Current connection status
+     * Signal strength monitoring
+   - Connection Management
+     * Automatic reconnection
+     * Network scanning
+     * Connection status monitoring
 
 Directory Structure
 -----------------
@@ -100,6 +117,198 @@ Technical Details
    - Systemd journal integration
    - Debug logging capabilities
 
+API Endpoints
+------------
+All endpoints return JSON responses with at least `success` and `message` fields.
+
+WiFi Management
+-------------
+1. Get WiFi Status
+   ```
+   GET /api/wifi/status
+   Response: {
+       "success": true,
+       "current": {
+           "ssid": "NetworkName",
+           "signal": 90,
+           "connected": true
+       }
+   }
+   ```
+
+2. Scan Networks
+   ```
+   GET /api/wifi/scan
+   Response: {
+       "success": true,
+       "networks": [
+           {
+               "ssid": "NetworkName",
+               "signal": 85,
+               "security": "WPA2",
+               "active": false,
+               "saved": true
+           },
+           ...
+       ]
+   }
+   ```
+
+3. Connect to Network
+   ```
+   POST /api/wifi/connect
+   Body: {
+       "ssid": "NetworkName",
+       "password": "NetworkPassword",  // Optional for saved networks
+       "saved": true|false            // Optional, default false
+   }
+   Response: {
+       "success": true,
+       "message": "Successfully connected to NetworkName"
+   }
+   ```
+
+4. Disconnect from Network
+   ```
+   POST /api/wifi/disconnect
+   Response: {
+       "success": true,
+       "message": "Disconnected from NetworkName"
+   }
+   ```
+
+5. Forget Network
+   ```
+   POST /api/wifi/forget
+   Body: {
+       "ssid": "NetworkName"
+   }
+   Response: {
+       "success": true,
+       "message": "Successfully removed network NetworkName"
+   }
+   ```
+
+Radio Control
+------------
+1. Get Player Status
+   ```
+   GET /api/radio/status
+   Response: {
+       "success": true,
+       "status": {
+           "playing": true|false,
+           "current_stream": "Stream Name",
+           "volume": 75
+       }
+   }
+   ```
+
+2. Control Volume
+   ```
+   POST /api/radio/volume
+   Body: {
+       "volume": 75,  // 0-100
+       "action": "set|up|down"  // Optional, default "set"
+   }
+   Response: {
+       "success": true,
+       "volume": 75
+   }
+   ```
+
+3. Control Playback
+   ```
+   POST /api/radio/control
+   Body: {
+       "action": "play|stop|toggle",
+       "stream_id": "1"  // Required for "play" action
+   }
+   Response: {
+       "success": true,
+       "message": "Now playing: Stream Name"
+   }
+   ```
+
+Stream Management
+---------------
+1. Get Available Streams
+   ```
+   GET /api/streams
+   Response: {
+       "success": true,
+       "streams": [
+           {
+               "id": "1",
+               "name": "Stream Name",
+               "url": "http://stream.url",
+               "slot": 1
+           },
+           ...
+       ]
+   }
+   ```
+
+2. Update Stream
+   ```
+   POST /api/streams/update
+   Body: {
+       "id": "1",
+       "name": "New Name",
+       "url": "http://new.url",
+       "slot": 2
+   }
+   Response: {
+       "success": true,
+       "message": "Stream updated successfully"
+   }
+   ```
+
+Error Responses
+-------------
+All endpoints may return error responses in this format:
+```
+{
+    "success": false,
+    "message": "Error description"
+}
+```
+
+Common error codes:
+- 400: Bad Request (missing or invalid parameters)
+- 404: Not Found (endpoint or resource not found)
+- 500: Internal Server Error
+
+Usage Examples
+------------
+1. Connect to a new WiFi network:
+```bash
+curl -X POST http://your-pi-ip:5000/api/wifi/connect \
+     -H "Content-Type: application/json" \
+     -d '{"ssid": "MyNetwork", "password": "MyPassword"}'
+```
+
+2. Connect to a saved network:
+```bash
+curl -X POST http://your-pi-ip:5000/api/wifi/connect \
+     -H "Content-Type: application/json" \
+     -d '{"ssid": "MyNetwork", "saved": true}'
+```
+
+3. Set volume:
+```bash
+curl -X POST http://your-pi-ip:5000/api/radio/volume \
+     -H "Content-Type: application/json" \
+     -d '{"volume": 75}'
+```
+
+4. Play a stream:
+```bash
+curl -X POST http://your-pi-ip:5000/api/radio/control \
+     -H "Content-Type: application/json" \
+     -d '{"action": "play", "stream_id": "1"}'
+```
+
 Dependencies
 -----------
 Core:
@@ -107,6 +316,7 @@ Core:
 - RPi.GPIO: Hardware interface
 - Flask: Web API
 - toml/tomli: Configuration parsing
+- NetworkManager: WiFi management (nmcli)
 
 Development:
 - pytest: Testing framework
@@ -136,6 +346,60 @@ Testing Strategy
    - Mock hardware interfaces
    - Configuration validation
    - Error handling verification
+
+   Mock Dependencies and Patterns:
+   - unittest.mock (patch, MagicMock): Core mocking functionality
+   - pytest-mock: Fixture-based mocking
+   
+   Common Mocking Patterns:
+   a) Hardware Interface Mocks:
+      ```python
+      @pytest.fixture
+      def mock_gpio():
+          with patch('RPi.GPIO') as mock:
+              yield mock
+      ```
+   
+   b) Subprocess Calls:
+      ```python
+      @pytest.fixture
+      def mock_subprocess():
+          with patch('subprocess.run') as mock:
+              yield mock
+      ```
+   
+   c) File Operations:
+      ```python
+      @pytest.fixture
+      def mock_open():
+          with patch('builtins.open') as mock:
+              yield mock
+      ```
+   
+   d) Class-based Test Structure:
+      ```python
+      class TestComponent:
+          @pytest.fixture
+          def setup_component(self):
+              with patch('dependency') as mock:
+                  yield mock
+      ```
+
+   Component-Specific Patterns:
+   - RadioPlayer: Mocks VLC instance and audio device detection
+   - GPIOHandler: Mocks GPIO input/output and interrupt handling
+   - StreamManager: Mocks file operations and URL validation
+   - SoundPlayer: Mocks audio playback and device access
+   - WiFiManager: Mocks nmcli subprocess calls
+
+   Best Practices:
+   - Use fixtures for common mock setups
+   - Mock at the lowest possible level
+   - Verify mock calls and interactions
+   - Test error cases and edge conditions
+   - Maintain isolation between tests
+   - Use descriptive test names
+   - Follow arrange-act-assert pattern
 
 2. Integration Tests:
    - Component interaction

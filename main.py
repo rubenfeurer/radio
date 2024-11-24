@@ -10,6 +10,11 @@ gpio_handler = GPIOHandler()
 # Register cleanup
 atexit.register(gpio_handler.cleanup)
 
+def create_app(test_config=None):
+    if test_config is not None:
+        app.config.update(test_config)
+    return app
+
 if __name__ == '__main__':
     try:
         # Add project root to Python path
