@@ -195,3 +195,13 @@ class RadioPlayer:
                 logger.error(f"Failed to change volume to {new_volume}")
         except Exception as e:
             logger.error(f"Error in volume change handler: {e}", exc_info=True)
+    
+    def increment_volume(self, step=5):
+        """Increment volume by given step"""
+        new_volume = min(self.volume + step, 100)
+        return self.set_volume(new_volume)
+    
+    def decrement_volume(self, step=5):
+        """Decrement volume by given step"""
+        new_volume = max(self.volume - step, 0)
+        return self.set_volume(new_volume)

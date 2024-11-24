@@ -2,13 +2,15 @@ import os
 import signal
 import logging
 from logging.handlers import RotatingFileHandler
-from flask import Flask, request, jsonify, send_from_directory, render_template
+from flask import Flask, request, jsonify, send_from_directory, render_template, make_response
 from src.player.radio_player import RadioPlayer
 from src.utils.stream_manager import StreamManager
 from src.utils.state_manager import StateManager
 import toml
 import json
 from src.app.radio_service import RadioService
+from src.utils.wifi_manager import WiFiManager
+from src.app import app  # This is causing the circular import
 
 # Set up logging with more detail and rotation
 logging.basicConfig(
@@ -25,11 +27,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# Create Flask app
-app = Flask(__name__, 
-           template_folder='../../templates',
-           static_folder='../../static')
 
 # Global service instance
 try:
@@ -251,6 +248,60 @@ def select_station():
     except Exception as e:
         logger.error(f"Error in select_station endpoint: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/wifi')
+def wifi():
+    current = WiFiManager.get_current_connection()
+    networks = WiFiManager.scan_networks()
+    
+    logger.info(f"Current connection: {current}")
+    logger.info(f"Available networks: {networks}")
+    
+    return render_template('wifi.html', current=current, networks=networks)
+
+@app.route('/api/wifi/scan')
+def wifi_scan():
+    """API endpoint to scan for WiFi networks"""
+    networks = WiFiManager.scan_networks()
+    return jsonify({'networks': networks})
+
+@app.route('/api/wifi/connect', methods=['POST'])
+def connect_wifi():
+    data = request.get_json()
+    ssid = data.get('ssid')
+    password = data.get('password')
+    saved = data.get('saved', False)
+    
+    if not ssid:
+        return jsonify({'success': False, 'message': 'SSID is required'})
+    
+    if not saved and not password:
+        return jsonify({'success': False, 'message': 'Password is required for unsaved networks'})
+    
+    result = WiFiManager.connect_to_network(ssid, password, saved)
+    return jsonify(result)
+
+@app.route('/api/wifi/disconnect', methods=['POST'])
+def disconnect_wifi():
+    result = WiFiManager.disconnect_current_network()
+    return jsonify(result)
+
+@app.route('/api/wifi/status')
+def wifi_status():
+    """API endpoint to get current WiFi status"""
+    current = WiFiManager.get_current_connection()
+    return jsonify({'current': current})
+
+@app.route('/api/wifi/forget', methods=['POST'])
+def forget_wifi():
+    data = request.get_json()
+    ssid = data.get('ssid')
+    
+    if not ssid:
+        return jsonify({'success': False, 'message': 'SSID is required'})
+    
+    result = WiFiManager.forget_network(ssid)
+    return jsonify(result)
 
 if __name__ == '__main__':
     try:

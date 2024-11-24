@@ -424,3 +424,40 @@ def test_volume_control():
             mock_run.call_args == call(['amixer', '-c', '2', 'sset', 'PCM', '75%'], 
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         ]), "Unexpected amixer command format"
+
+def test_volume_increment():
+    """Test volume increment within bounds"""
+    with patch('subprocess.run') as mock_run:
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        player = RadioPlayer()
+        player.volume = 50  # Set initial volume
+        
+        # Test normal increment
+        assert player.increment_volume(5) == True
+        assert player.volume == 55
+        
+        # Test increment near max
+        player.volume = 98
+        assert player.increment_volume(5) == True
+        assert player.volume == 100  # Should cap at 100
+
+def test_volume_decrement():
+    """Test volume decrement within bounds"""
+    with patch('subprocess.run') as mock_run:
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+        
+        player = RadioPlayer()
+        player.volume = 50  # Set initial volume
+        
+        # Test normal decrement
+        assert player.decrement_volume(5) == True
+        assert player.volume == 45
+        
+        # Test decrement near min
+        player.volume = 2
+        assert player.decrement_volume(5) == True
