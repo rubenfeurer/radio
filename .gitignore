@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-__pycache__/
 
 # Testing
 .pytest_cache/
@@ -16,6 +15,7 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
+tests/__pycache__/
 
 # IDE
 .idea/
