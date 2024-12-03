@@ -83,6 +83,22 @@ radio/
 - `GET /health`: System health check
   - Response: `{"status": "healthy"}`
 
+- `POST /stations/{slot}/play`: Play a specific radio station by slot
+  - Request: `{ "slot": 1 }`
+  - Response: `{ "message": "Playing station" }`
+
+- `GET /volume`: Get the current volume level
+  - Response: `{ "volume": 70 }`
+
+- `POST /volume`: Set the volume level
+  - Request: `{ "volume": 50 }`
+  - Response: `{ "message": "Volume set successfully" }`
+
+## Configuration
+
+- **Hardware Pins**: Configurable in `config.py`
+- **Volume Behavior**: Adjust sensitivity and default settings in `config.py`
+
 ## Development Notes
 
 - The server runs in development mode with auto-reload enabled

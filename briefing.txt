@@ -1,0 +1,431 @@
+Internet Radio - Architecture Overview
+
+1. System Layers
+---------------
+a) API Layer (/src/api)
+   • Handles all HTTP/WebSocket communication
+   • REST endpoints for radio control, WiFi, system management
+   • WebSocket for real-time updates
+   • Request validation and error handling
+   • API documentation (OpenAPI/Swagger)
+
+b) Core Layer (/src/core)
+   • Business logic implementation
+   • State management
+   • Event handling
+   • Service coordination
+   • Domain models and validation
+
+c) Hardware Abstraction Layer (/src/hardware)
+   • GPIO management (buttons, rotary encoder)
+   • Audio device handling
+   • Hardware event processing
+
+2. Key Components
+----------------
+a) Radio Service
+   • Station management
+   • Volume control
+   • Playback control
+   • State persistence
+   • Event emission
+
+b) WiFi Service
+   • Network scanning
+   • Connection management
+   • Network configuration
+   • Status monitoring
+
+c) System Service
+   • Update management
+   • Configuration handling
+   • Recovery procedures
+   • System monitoring
+
+3. Data Flow
+-----------
+Web/Physical Input → API Layer → Core Services → Hardware Layer → Physical Output
+                                     ↕
+                              State Management
+                                     ↕
+                            Persistent Storage
+
+4. Communication
+---------------
+• REST API: Client-server communication
+• WebSocket: Real-time updates
+• Event Bus: Internal component communication
+• Hardware Events: Physical input processing
+
+5. File Structure
+----------------
+/radio
+├── src/
+│   ├── api/           # API endpoints and WebSocket
+│   ├── core/          # Business logic and services
+│   ├── hardware/      # Hardware abstraction
+│   ├── system/        # System management
+│   └── utils/         # Shared utilities
+├── tests/
+│   ├── unit/         # Unit tests
+│   ├── integration/  # Integration tests
+│   └── e2e/          # End-to-end tests
+├── install/          # Installation scripts
+└── config/          # Configuration files
+
+6. Key Technologies
+------------------
+• FastAPI: Web framework
+• Pydantic: Data validation
+• RPi.GPIO: Hardware control
+• MPV: Audio playback
+• SQLite: Local storage
+• WebSocket: Real-time updates
+• Svelte/SvelteKit: Web development
+• Flowbite: UI components https://flowbite-svelte.com/
+
+7. Design Patterns
+-----------------
+• Factory Pattern: Component creation
+• Observer Pattern: Event handling
+• Repository Pattern: Data access
+• Strategy Pattern: Hardware abstraction
+• Singleton: Configuration management
+
+8. Testing Strategy
+------------------
+• Unit Tests: Individual components
+• Integration Tests: Component interaction
+• E2E Tests: Full system testing
+• Hardware Mocking: GPIO simulation
+• Continuous Integration
+
+9. Security Measures
+-------------------
+• Input validation
+• Secure updates
+• Configuration encryption
+• Access control
+• Error handling
+• Secure storage
+
+10. Deployment
+-------------
+• Single installation script
+• Automatic dependency resolution
+• System service setup
+• Backup/restore functionality
+• Update mechanism
+• Recovery procedures
+
+11. Monitoring
+-------------
+• System health checks
+• Performance metrics
+• Error logging
+• Usage statistics
+• Update status
+• Connection monitoring
+
+
+User Requirements
+Hardware:
+• I want the software to be running smoothly on a Raspberry Pi 4b and Raspberry Pi Zero 2 WH
+
+Audio Playback:
+• I want to play internet radio stations without interruption
+• I want to adjust the volume using both the web interface and physical knob
+• I want the radio to remember my last volume setting
+• I want to hear audio immediately when I select a station
+• I want the audio to stop when I turn off the device
+
+Station Management:
+• I want to see a list of all available radio stations
+• I want to search for a radio station
+• I want to see Title, Country and Location for each radio station
+• I want to see three slots for radio stations
+• I want to assign one station per slot from the list of all available stations
+• I want the radio to save the stations I have assigned to slots
+• I want the radio to assign three default stations to the slots if I havent’ assigned them yes
+• I want to switch between slots quickly
+• I want to use stream URLs from radio garden such as https://radio.garden/api/ara/content/listen/lQ5fQGJj/channel.mp3 and https://radio.garden/api/ara/content/listen/vXgwtZfQ/channel.mp3 that forward to the original stream
+• I want to have one single file (e.g. json) where I can edit the radio station title, url etc.
+
+
+
+Physical Controls:
+• I want to control volume with a rotary knob
+• I want to use three push buttons to control the slots
+• I want each of the buttons to be assigned to a slot
+• I want to play/pause the station of a slot on a button press
+• I want that only one station is playing at the time
+• I want immediate response when I use physical controls
+• I want the radio to reboot when pressing the rotary knob twice
+• I want the radio to go to toggle between Wifi and AP mode when I press the rotary knob for 3 secs or longer
+
+
+Web Interface:
+• I want to access the radio controls from my phone/tablet/computer
+• I want a simple, clean interface that's easy to use built with Svelte and the UI framework
+• I want to see the three slots and their assigned stations
+• I want to see the current status of each slot (playing/stopped)
+• I want real-time updates when using physical controls
+• I want the interface to work well on mobile devices
+• I want to access the interface without installing apps
+• I want to access the interface by typing an easy to remember URL into my browser
+
+WiFi Management:
+• I want to connect to my WiFi network easily
+• I want to see available WiFi networks
+• I want to see which WiFi networks I have saved
+• I want to add new WiFi networks when needed
+• I want to ‘forget’ saved WiFi networks
+• I want to see the current WiFi signal strength
+• I want the radio to automatically reconnect after power loss
+• I want to see if my network has internet connection or not
+
+
+AP Mode (Access Point mode):
+• I want to see if the radio is in Wifi or AP mode in the web interface 
+• In the web interface I want to see if the radio is in Wifi or AP mode
+• I want to connect to Raspberry Pi with my laptop or mobile phone when its in AP mode
+• I want to be able to access the web interface when I’m connected to Pi’s Wifi
+• I want to be able to successfully connect the Pi to an available Wifi network when I’m connected to it
+• I want to get feedback what is happening and easy to understand errors if thing go wrong
+
+Configuration:
+• I want to be able to configure:
+One default radio station for each slot
+The direction of volume rotary knob, clockwise or anti-clockwise
+The SSID and password of Pi when in AP mode
+The URL of the interface
+The sensitivity of the volume rotary knob
+The pins used for the hardware
+The default volume
+Turn on/off system sounds
+The default volume of system sounds
+
+
+System Management:
+• I want the radio to start automatically when powered on
+• I want to update the software easily when new versions are available
+• I want to back up my settings and stations
+• I want to restore my settings if something goes wrong
+• I want to see if the system is running properly
+• I want to safely shut down the system
+
+Installation:
+• I want to install the system with minimal technical knowledge
+• I want clear instructions for setting up the hardware
+• I want to know what parts I need to buy
+• I want to know if installation was successful
+• I want to easily fix installation problems
+• I want to start using the radio right after installation
+
+Updates:
+• I want to know when updates are available
+• I want to see what's new in each update
+• I want updates to install automatically (optional)
+• I want my settings preserved after updates
+• I want to roll back updates if something goes wrong
+• I want to choose when to install updates
+
+Recovery:
+• I want to reset to factory settings if needed
+• I want to recover from failed updates
+• I want to recover from power failures
+• I want to keep my stations list in case of problems
+• I want to know what went wrong if there's an error
+• I want clear instructions for fixing problems
+
+Security:
+• I want my WiFi password to be stored securely
+• I want to restrict access to the radio controls
+• I want to know if someone else is controlling my radio
+• I want secure software updates
+• I want to protect access to system settings
+• I want to know if there are security updates
+
+Performance:
+• I want the radio to start playing quickly
+• I want smooth volume adjustment
+• I want quick station switching
+• I want the web interface to be responsive
+• I want stable WiFi connection
+• I want minimal buffering or interruptions
+
+System Sounds:
+• I want to hear system sounds for important user feedbacks
+• I want to hear a success sound when:
+Pi bootet successfully and radio is ready to play stations immediately
+When Pi connected to a wifi network successfully
+ error and in-progress sound
+Technology Requirements
+• I want to use the most robust and lightweight dependencies as possible
+• I want to be able to easily add following features or other features later as extensions
+	• Connect bluetooth speakers via web interface
+	• Use RFID cards to play/pause slots
+
+Core Dependencies
+----------------
+• FastAPI
+  - Modern, fast web framework
+  - Better performance than Flask
+  - Built-in API documentation
+  - Native async support
+  - Type checking and validation
+
+• Pydantic
+  - Data validation
+  - Settings management
+  - Configuration parsing
+  - API request/response models
+  - Type safety
+
+• python-mpv
+  - Audio playback
+  - Stream handling
+  - Volume control
+  - Lightweight compared to VLC
+  - Better stability on Raspberry Pi
+
+• RPi.GPIO
+  - Hardware interface
+  - Button handling
+  - Rotary encoder support
+  - LED control
+  - Interrupt handling
+
+• websockets
+  - Real-time updates
+  - Bi-directional communication
+  - Event streaming
+  - Client-server sync
+  - Status updates
+
+• SQLite (via aiosqlite)
+  - Local data storage
+  - Station management
+  - Configuration storage
+  - Async support
+  - No separate server needed
+
+Development Dependencies
+----------------------
+• pytest
+  - Unit testing
+  - Async testing support
+  - Fixture management
+  - Test coverage
+  - Mocking support
+
+• pytest-asyncio
+  - Async test support
+  - Coroutine testing
+  - Event loop management
+  - Async fixture support
+
+• pytest-cov
+  - Code coverage reporting
+  - Coverage enforcement
+  - Report generation
+  - Missing test identification
+
+• black
+  - Code formatting
+  - Style consistency
+  - Automatic formatting
+  - PEP 8 compliance
+
+• isort
+  - Import sorting
+  - Import organization
+  - Style consistency
+  - Automatic cleanup
+
+• mypy
+  - Static type checking
+  - Type verification
+  - Error prevention
+  - Code quality
+
+System Dependencies
+------------------
+• mpv
+  - Audio playback backend
+  - Stream handling
+  - Format support
+  - Hardware acceleration
+
+• wpa_supplicant
+  - WiFi management
+  - Network configuration
+  - Connection handling
+  - Security support
+
+• systemd
+  - Service management
+  - Auto-start capability
+  - Process monitoring
+  - Log management
+
+Optional Dependencies
+-------------------
+• uvicorn
+  - ASGI server
+  - High performance
+  - WebSocket support
+  - Production deployment
+
+• gunicorn
+  - Process management
+  - Worker management
+  - Production deployment
+  - Load balancing
+
+• loguru
+  - Enhanced logging
+  - Better formatting
+  - Error tracking
+  - Debug support
+
+• python-dotenv
+  - Environment management
+  - Configuration loading
+  - Secret management
+  - Development setup
+
+Security Dependencies
+-------------------
+• python-jose[cryptography]
+  - JWT handling
+  - Token encryption
+  - Security features
+  - Authentication
+
+• passlib
+  - Password hashing
+  - Security management
+  - Credential storage
+  - Hash verification
+
+• bcrypt
+  - Password hashing
+  - Secure storage
+  - Salt management
+  - Encryption support
+
+Development Tools
+----------------
+• pre-commit
+  - Git hooks
+  - Code quality checks
+  - Automatic formatting
+  - Consistency enforcement
+
+• pip-tools
+  - Dependency management
+  - Requirements compilation
+  - Version pinning
+  - Dependency resolution
+
