@@ -1,8 +1,7 @@
-import RPi.GPIO as GPIO
-from typing import Callable, Optional
-from src.core.config import settings
+import pigpio
+from typing import Optional, Callable
 from src.utils.logger import logger
-import os
+from src.core.config import settings
 
 class GPIOController:
     def __init__(
@@ -11,6 +10,7 @@ class GPIOController:
         button_press_callback: Optional[Callable[[int], None]] = None,
         volume_step: int = settings.ROTARY_VOLUME_STEP
     ):
+        logger.info("Initializing GPIOController with pigpio")
         self.volume_step = volume_step
         self.volume_change_callback = volume_change_callback
         self.button_press_callback = button_press_callback
@@ -27,57 +27,67 @@ class GPIOController:
             settings.BUTTON_PIN_3: 3
         }
         
-        # Skip GPIO setup in test environment
-        if os.environ.get('PYTEST_CURRENT_TEST'):
-            self.is_initialized = True
-            return
-            
-        # Setup GPIO
-        GPIO.setmode(GPIO.BCM)
-        
         try:
-            # Initialize pins
-            GPIO.setup(self.rotary_clk, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.setup(self.rotary_dt, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.setup(self.rotary_sw, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            # Initialize pigpio
+            self.pi = pigpio.pi()
+            if not self.pi.connected:
+                logger.error("Failed to connect to pigpio daemon")
+                return
+                
+            logger.info("Connected to pigpio daemon")
+            
+            # Setup rotary encoder pins
+            self.pi.set_mode(self.rotary_clk, pigpio.INPUT)
+            self.pi.set_mode(self.rotary_dt, pigpio.INPUT)
+            self.pi.set_mode(self.rotary_sw, pigpio.INPUT)
+            
+            # Enable pull-up resistors
+            self.pi.set_pull_up_down(self.rotary_clk, pigpio.PUD_UP)
+            self.pi.set_pull_up_down(self.rotary_dt, pigpio.PUD_UP)
+            self.pi.set_pull_up_down(self.rotary_sw, pigpio.PUD_UP)
+            
+            # Setup button pins
+            for pin in self.button_pins.keys():
+                self.pi.set_mode(pin, pigpio.INPUT)
+                self.pi.set_pull_up_down(pin, pigpio.PUD_UP)
+            
+            # Setup callbacks
+            self.pi.callback(self.rotary_clk, pigpio.FALLING_EDGE, self._handle_rotation)
+            self.pi.callback(self.rotary_sw, pigpio.FALLING_EDGE, self._handle_button)
             
             for pin in self.button_pins.keys():
-                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                self.pi.callback(pin, pigpio.FALLING_EDGE, self._handle_button)
+                
+            logger.info("GPIO initialization completed successfully")
             
-            # Add event detection
-            GPIO.add_event_detect(self.rotary_clk, GPIO.FALLING, 
-                                callback=self._handle_rotation, bouncetime=50)
-            GPIO.add_event_detect(self.rotary_sw, GPIO.FALLING, 
-                                callback=self._handle_button, bouncetime=300)
-                                
-            for pin in self.button_pins.keys():
-                GPIO.add_event_detect(pin, GPIO.FALLING, 
-                                    callback=self._handle_button, bouncetime=300)
-                                    
-        except (RuntimeError, Exception) as e:
-            logger.error(f"GPIO initialization error (this is normal in test environment): {e}")
-        
-        self.is_initialized = True
-        
-    def _handle_rotation(self, channel):
+        except Exception as e:
+            logger.error(f"GPIO initialization failed: {str(e)}")
+            if hasattr(self, 'pi') and self.pi.connected:
+                self.pi.stop()
+            raise
+
+    def _handle_rotation(self, gpio, level, tick):
+        logger.debug(f"Rotation detected on GPIO {gpio}")
         if not self.volume_change_callback:
             return
-        clk_state = GPIO.input(self.rotary_clk)
-        dt_state = GPIO.input(self.rotary_dt)
-        if clk_state == 0:
-            volume_change = self.volume_step if dt_state == 1 else -self.volume_step
-            if not settings.ROTARY_CLOCKWISE_INCREASES:
-                volume_change = -volume_change
-            logger.info(f"Rotary encoder turned, volume change: {volume_change}")
-            self.volume_change_callback(volume_change)
-    
-    def _handle_button(self, channel):
-        if channel in self.button_pins and self.button_press_callback:
-            button_number = self.button_pins[channel]
-            logger.info(f"Button {button_number} pressed")
+            
+        dt_state = self.pi.read(self.rotary_dt)
+        volume_change = self.volume_step if dt_state else -self.volume_step
+        
+        if not settings.ROTARY_CLOCKWISE_INCREASES:
+            volume_change = -volume_change
+            
+        logger.info(f"Volume change: {volume_change}")
+        self.volume_change_callback(volume_change)
+
+    def _handle_button(self, gpio, level, tick):
+        logger.debug(f"Button press detected on GPIO {gpio}")
+        if gpio in self.button_pins and self.button_press_callback:
+            button_number = self.button_pins[gpio]
+            logger.info(f"Button {button_number} pressed (GPIO {gpio})")
             self.button_press_callback(button_number)
-    
+
     def cleanup(self):
-        """Clean up GPIO resources."""
-        if not os.environ.get('PYTEST_CURRENT_TEST'):
-            GPIO.cleanup()
+        if hasattr(self, 'pi') and self.pi.connected:
+            self.pi.stop()
+            logger.info("GPIO cleanup completed")

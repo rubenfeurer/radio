@@ -142,3 +142,102 @@ The application uses rotating log files to track events and errors. Logs are sto
 - WARNING: Unexpected but handled events
 - ERROR: Error conditions that need attention
 - DEBUG: Detailed information for debugging
+
+## Radio Manager
+
+The `RadioManager` class handles the core functionality of the radio, including station management, playback control, and hardware interactions.
+
+### Basic Usage
+
+```python
+from src.core.radio_manager import RadioManager
+from src.core.models import RadioStation
+
+# Initialize the radio manager
+radio = RadioManager()
+
+# Add a radio station
+station = RadioStation(
+    name="Example Radio",
+    url="http://example.com/stream",
+    slot=1
+)
+radio.add_station(station)
+
+# Play a station
+await radio.play_station(1)
+
+# Control volume
+await radio.set_volume(75)  # Set volume to 75%
+
+# Stop playback
+await radio.stop_playback()
+```
+
+### Hardware Controls
+
+The RadioManager automatically handles hardware interactions:
+
+- **Buttons**: 
+  - Button 1: Play station in slot 1
+  - Button 2: Play station in slot 2
+  - Button 3: Play station in slot 3
+
+- **Rotary Encoder**:
+  - Clockwise: Increase volume
+  - Counter-clockwise: Decrease volume
+
+### Methods
+
+- `add_station(station: RadioStation)`: Add or update a station in a slot
+- `remove_station(slot: int)`: Remove a station from a slot
+- `get_station(slot: int)`: Get station information for a slot
+- `play_station(slot: int)`: Start playing the station in the specified slot
+- `stop_playback()`: Stop the current playback
+- `set_volume(volume: int)`: Set the volume (0-100)
+- `get_status()`: Get the current system status
+
+### System Status
+
+The system status includes:
+- Current volume level
+- Currently playing station
+- Playback status (playing/stopped)
+
+## GPIO Setup
+
+### Enable GPIO Daemon
+
+The GPIO daemon (pigpiod) is required for hardware control. To enable and start it:
+
+```bash
+# Enable pigpiod to start on boot
+sudo systemctl enable pigpiod
+
+# Start pigpiod immediately
+sudo systemctl start pigpiod
+
+# Check status
+sudo systemctl status pigpiod
+```
+
+### Troubleshooting GPIO
+
+If hardware controls aren't working:
+
+1. **Check GPIO Service Status**:
+   ```bash
+   sudo systemctl status pigpiod
+   ```
+
+2. **Restart GPIO Service**:
+   ```bash
+   sudo systemctl restart pigpiod
+   ```
+
+3. **Enable Debug Logging**:
+   - Set log level to DEBUG in configuration
+   - Monitor hardware events:
+     ```bash
+     tail -f logs/radio.log | grep "GPIO"
+     ```
