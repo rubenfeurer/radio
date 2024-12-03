@@ -13,7 +13,7 @@
 ## Key Technologies
 - FastAPI for web framework
 - Pydantic for data validation
-- RPi.GPIO for hardware control
+- pigpio for hardware control
 - MPV for audio playback
 - SQLite for local storage
 - WebSocket for real-time updates

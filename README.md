@@ -206,20 +206,32 @@ The system status includes:
 
 ## GPIO Setup
 
-### Enable GPIO Daemon
+### Hardware Control
+The application uses `pigpio` for GPIO management, providing:
+- Reliable hardware control with microsecond precision
+- Better timing accuracy for rotary encoder
+- Hardware-timed PWM
+- Stable interrupt handling
 
-The GPIO daemon (pigpiod) is required for hardware control. To enable and start it:
+### Installation
 
-```bash
-# Enable pigpiod to start on boot
-sudo systemctl enable pigpiod
+1. **Install pigpio System Package**:
+   ```bash
+   sudo apt-get update
+   sudo apt-get install pigpio python3-pigpio
+   ```
 
-# Start pigpiod immediately
-sudo systemctl start pigpiod
+2. **Enable GPIO Daemon**:
+   ```bash
+   # Enable pigpiod to start on boot
+   sudo systemctl enable pigpiod
 
-# Check status
-sudo systemctl status pigpiod
-```
+   # Start pigpiod immediately
+   sudo systemctl start pigpiod
+
+   # Check status
+   sudo systemctl status pigpiod
+   ```
 
 ### Troubleshooting GPIO
 
@@ -235,9 +247,20 @@ If hardware controls aren't working:
    sudo systemctl restart pigpiod
    ```
 
-3. **Enable Debug Logging**:
+3. **Verify pigpio Installation**:
+   ```bash
+   # Test Python pigpio module
+   python3 -c "import pigpio; pi = pigpio.pi(); print('Connected' if pi.connected else 'Not connected')"
+   ```
+
+4. **Enable Debug Logging**:
    - Set log level to DEBUG in configuration
    - Monitor hardware events:
      ```bash
      tail -f logs/radio.log | grep "GPIO"
      ```
+
+5. **Check Hardware Connections**:
+   - Verify pin numbers in config.py match physical connections
+   - Check for loose wires or connections
+   - Ensure proper grounding

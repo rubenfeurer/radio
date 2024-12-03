@@ -15,9 +15,19 @@ check_port() {
     fi
 }
 
+check_pigpiod() {
+    if ! pgrep -x "pigpiod" > /dev/null; then
+        echo "Starting pigpiod..."
+        sudo systemctl start pigpiod
+    else
+        echo "pigpiod is already running."
+    fi
+}
+
 start() {
     echo "Starting $APP_NAME..."
     check_port
+    check_pigpiod
     source $VENV_PATH/bin/activate
     echo "Virtual environment activated"
     
