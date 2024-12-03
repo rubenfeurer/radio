@@ -25,14 +25,15 @@ def test_remove_station(radio_manager):
     radio_manager.remove_station(1)
     assert radio_manager.get_station(1) is None
 
-def test_play_station(radio_manager):
+@pytest.mark.asyncio
+async def test_play_station(radio_manager):
     station = RadioStation(
         name="Test Radio",
         url="http://test.stream/radio",
         slot=1
     )
     radio_manager.add_station(station)
-    radio_manager.play_station(1)
+    await radio_manager.play_station(1)
     status = radio_manager.get_status()
     assert status.is_playing == True
     assert status.current_station == 1 

@@ -1,8 +1,9 @@
-from fastapi import FastAPI, WebSocket, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, List
+from typing import Dict
 from src.core.models import RadioStation, SystemStatus
 from src.core.radio_manager import RadioManager
+from pydantic import BaseModel
 
 app = FastAPI(title="Internet Radio API")
 radio_manager = RadioManager()
@@ -17,6 +18,10 @@ app.add_middleware(
 
 # Store active WebSocket connections
 active_connections: Dict[int, WebSocket] = {}
+
+# Add request model for volume
+class VolumeRequest(BaseModel):
+    volume: int
 
 @app.get("/")
 async def root():
@@ -43,9 +48,19 @@ async def play_station(slot: int):
     station = radio_manager.get_station(slot)
     if not station:
         raise HTTPException(status_code=404, detail="Station not found")
-    radio_manager.play_station(slot)
+    await radio_manager.play_station(slot)
     await broadcast_status(radio_manager.get_status().model_dump())
     return {"message": "Playing station"}
+
+@app.get("/volume")
+async def get_volume():
+    return {"volume": radio_manager.get_status().volume}
+
+@app.post("/volume")
+async def set_volume(request: VolumeRequest):
+    await radio_manager.set_volume(request.volume)
+    await broadcast_status(radio_manager.get_status().model_dump())
+    return {"message": "Volume set successfully"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -62,8 +77,20 @@ async def websocket_endpoint(websocket: WebSocket):
                     "type": "status_response",
                     "data": status.model_dump()
                 })
+    except WebSocketDisconnect:
+        del active_connections[connection_id]
     except Exception as e:
         print(f"WebSocket error: {e}")
-    finally:
         if connection_id in active_connections:
             del active_connections[connection_id]
+
+# Broadcast function for sending updates to all connected clients
+async def broadcast_status(status_data: dict):
+    for connection in active_connections.values():
+        try:
+            await connection.send_json({
+                "type": "status_update",
+                "data": status_data
+            })
+        except Exception as e:
+            print(f"Broadcast error: {e}")
