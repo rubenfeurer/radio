@@ -59,37 +59,18 @@ class GPIOController:
         self.is_initialized = True
         
     def _handle_rotation(self, channel):
-        """Handle rotary encoder rotation events."""
         if not self.volume_change_callback:
             return
-            
         clk_state = GPIO.input(self.rotary_clk)
         dt_state = GPIO.input(self.rotary_dt)
-        
-        # Determine direction based on state change
         if clk_state == 0:
-            if dt_state == 1:
-                # Clockwise
-                volume_change = self.volume_step
-            else:
-                # Counter-clockwise
-                volume_change = -self.volume_step
-        else:
-            return  # No change detected
-        
-        # If ROTARY_CLOCKWISE_INCREASES is False, invert the volume change
-        if not settings.ROTARY_CLOCKWISE_INCREASES:
-            volume_change = -volume_change
-            
-        self.volume_change_callback(volume_change)
+            volume_change = self.volume_step if dt_state == 1 else -self.volume_step
+            if not settings.ROTARY_CLOCKWISE_INCREASES:
+                volume_change = -volume_change
+            self.volume_change_callback(volume_change)
     
     def _handle_button(self, channel):
-        """Handle button press events."""
-        if channel == self.rotary_sw:
-            # Handle rotary encoder button press
-            pass
-        elif channel in self.button_pins and self.button_press_callback:
-            # Handle station selection buttons
+        if channel in self.button_pins and self.button_press_callback:
             self.button_press_callback(self.button_pins[channel])
     
     def cleanup(self):
