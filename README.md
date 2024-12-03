@@ -104,3 +104,41 @@ radio/
 - The server runs in development mode with auto-reload enabled
 - API documentation is automatically generated at `/docs`
 - CORS is enabled for all origins in development mode
+
+## Logging
+
+The application uses rotating log files to track events and errors. Logs are stored in the `logs` directory.
+
+### Log File Location
+- Main log file: `logs/radio.log`
+- Rotating backup files: `radio.log.1`, `radio.log.2`, etc.
+- Maximum log file size: 10MB
+- Maximum number of backup files: 5
+
+### Viewing Logs
+
+1. **View the entire log file**:
+   ```bash
+   cat logs/radio.log
+   ```
+
+2. **Follow log updates in real-time**:
+   ```bash
+   tail -f logs/radio.log
+   ```
+
+3. **View last 50 lines**:
+   ```bash
+   tail -n 50 logs/radio.log
+   ```
+
+4. **Search logs for specific terms**:
+   ```bash
+   grep "ERROR" logs/radio.log
+   ```
+
+### Log Levels
+- INFO: Normal operation events
+- WARNING: Unexpected but handled events
+- ERROR: Error conditions that need attention
+- DEBUG: Detailed information for debugging
