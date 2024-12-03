@@ -1,6 +1,7 @@
 import RPi.GPIO as GPIO
 from typing import Callable, Optional
 from src.core.config import settings
+from src.utils.logger import logger
 import os
 
 class GPIOController:
@@ -54,7 +55,7 @@ class GPIOController:
                                     callback=self._handle_button, bouncetime=300)
                                     
         except (RuntimeError, Exception) as e:
-            print(f"GPIO initialization error (this is normal in test environment): {e}")
+            logger.error(f"GPIO initialization error (this is normal in test environment): {e}")
         
         self.is_initialized = True
         
@@ -67,11 +68,14 @@ class GPIOController:
             volume_change = self.volume_step if dt_state == 1 else -self.volume_step
             if not settings.ROTARY_CLOCKWISE_INCREASES:
                 volume_change = -volume_change
+            logger.info(f"Rotary encoder turned, volume change: {volume_change}")
             self.volume_change_callback(volume_change)
     
     def _handle_button(self, channel):
         if channel in self.button_pins and self.button_press_callback:
-            self.button_press_callback(self.button_pins[channel])
+            button_number = self.button_pins[channel]
+            logger.info(f"Button {button_number} pressed")
+            self.button_press_callback(button_number)
     
     def cleanup(self):
         """Clean up GPIO resources."""
