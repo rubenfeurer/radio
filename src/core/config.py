@@ -20,6 +20,9 @@ class Settings(BaseModel):
     # Audio Settings
     DEFAULT_VOLUME: int = 70
     
+    # Rotary Encoder Sensitivity
+    ROTARY_VOLUME_STEP: int = 5  # Default step size for volume change
+    
     model_config = {
         "case_sensitive": True
     }

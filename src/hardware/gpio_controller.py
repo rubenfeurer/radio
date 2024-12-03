@@ -8,7 +8,7 @@ class GPIOController:
         self,
         volume_change_callback: Optional[Callable[[int], None]] = None,
         button_press_callback: Optional[Callable[[int], None]] = None,
-        volume_step: int = 5
+        volume_step: int = settings.ROTARY_VOLUME_STEP
     ):
         self.volume_step = volume_step
         self.volume_change_callback = volume_change_callback
