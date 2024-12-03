@@ -1,74 +1,84 @@
 import pytest
 from unittest.mock import Mock, patch
 from src.hardware.gpio_controller import GPIOController
-from src.core.config import settings, Settings
+from config.config import settings, Settings
 import os
 
 @pytest.fixture
 def gpio_controller():
-    # Store original environment state
-    original_env = os.environ.get('PYTEST_CURRENT_TEST')
-    
-    # Set test environment
-    os.environ['PYTEST_CURRENT_TEST'] = 'test_mode'
-    
-    # Create controller
-    with patch('RPi.GPIO'):
+    # Mock pigpio
+    with patch('pigpio.pi') as mock_pi:
+        # Setup mock pi instance
+        mock_instance = Mock()
+        mock_instance.connected = True
+        mock_pi.return_value = mock_instance
+        
+        # Create controller
         controller = GPIOController()
         yield controller
-    
-    # Restore original environment state
-    if original_env:
-        os.environ['PYTEST_CURRENT_TEST'] = original_env
-    elif 'PYTEST_CURRENT_TEST' in os.environ:
-        del os.environ['PYTEST_CURRENT_TEST']
+        
+        # Cleanup
+        if hasattr(controller, 'pi'):
+            controller.cleanup()
 
 def test_gpio_init(gpio_controller):
-    assert gpio_controller.is_initialized == True
+    assert hasattr(gpio_controller, 'pi')
+    assert gpio_controller.pi.connected
 
 @pytest.mark.asyncio
 async def test_volume_callback():
     mock_callback = Mock()
-    with patch('RPi.GPIO.input') as mock_input:
-        # Setup GPIO mock
-        mock_input.side_effect = [0, 1]  # CLK=0, DT=1 for clockwise
+    with patch('pigpio.pi') as mock_pi:
+        # Setup mock pi instance
+        mock_instance = Mock()
+        mock_instance.connected = True
+        mock_instance.read.return_value = 1  # Mock DT state
+        mock_pi.return_value = mock_instance
         
-        # Ensure the default setting is used
-        test_settings = Settings(ROTARY_CLOCKWISE_INCREASES=True)
-        with patch('src.hardware.gpio_controller.settings', test_settings):
-            controller = GPIOController(volume_change_callback=mock_callback)
-            controller._handle_rotation(0)  # Simulate rotation
-            mock_callback.assert_called_once_with(controller.volume_step)
+        controller = GPIOController(volume_change_callback=mock_callback)
+        # Simulate rotation with required arguments (gpio, level, tick)
+        controller._handle_rotation(settings.ROTARY_CLK, 0, 0)
+        
+        mock_callback.assert_called_once_with(controller.volume_step)
 
 @pytest.mark.asyncio
 async def test_button_callback():
     mock_callback = Mock()
-    with patch('RPi.GPIO') as mock_gpio:
+    with patch('pigpio.pi') as mock_pi:
+        # Setup mock pi instance
+        mock_instance = Mock()
+        mock_instance.connected = True
+        mock_pi.return_value = mock_instance
+        
         controller = GPIOController(button_press_callback=mock_callback)
-        controller._handle_button(settings.BUTTON_PIN_1)  # Simulate button 1 press
+        # Simulate button press with required arguments (gpio, level, tick)
+        controller._handle_button(settings.BUTTON_PIN_1, 0, 0)
+        
         mock_callback.assert_called_once_with(1)
 
 @pytest.mark.asyncio
 async def test_rotation_direction():
     mock_callback = Mock()
-    with patch('RPi.GPIO.input') as mock_input:
-        # Create a new settings instance for testing
-        test_settings = Settings(ROTARY_CLOCKWISE_INCREASES=False)
+    with patch('pigpio.pi') as mock_pi:
+        # Setup mock pi instance
+        mock_instance = Mock()
+        mock_instance.connected = True
+        mock_pi.return_value = mock_instance
         
-        # Patch the settings in the gpio_controller module
+        # Test counter-clockwise rotation
+        test_settings = Settings(ROTARY_CLOCKWISE_INCREASES=False)
         with patch('src.hardware.gpio_controller.settings', test_settings):
             controller = GPIOController(volume_change_callback=mock_callback)
             
-            # Test clockwise rotation (CLK=0, DT=1)
-            mock_input.side_effect = [0, 1]
-            controller._handle_rotation(0)
-            mock_callback.assert_called_with(-controller.volume_step)
-            
-            # Reset mock
-            mock_callback.reset_mock()
-            # Test counter-clockwise rotation (CLK=0, DT=0)
-            mock_input.side_effect = [0, 0]
-            controller._handle_rotation(0)
+            # Mock DT state for counter-clockwise
+            mock_instance.read.return_value = 0
+            controller._handle_rotation(settings.ROTARY_CLK, 0, 0)
             mock_callback.assert_called_with(controller.volume_step)
+            
+            # Reset mock and test clockwise
+            mock_callback.reset_mock()
+            mock_instance.read.return_value = 1
+            controller._handle_rotation(settings.ROTARY_CLK, 0, 0)
+            mock_callback.assert_called_with(-controller.volume_step)
 
 # ... (rest of the test cases remain the same) 

@@ -1,7 +1,7 @@
 import pigpio
 from typing import Optional, Callable
 from src.utils.logger import logger
-from src.core.config import settings
+from config.config import settings
 
 class GPIOController:
     def __init__(

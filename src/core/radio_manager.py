@@ -2,7 +2,7 @@ from typing import Dict, Optional
 from src.core.models import RadioStation, SystemStatus
 from src.hardware.audio_player import AudioPlayer
 from src.hardware.gpio_controller import GPIOController
-from src.core.config import settings
+from config.config import settings
 
 class RadioManager:
     def __init__(self):

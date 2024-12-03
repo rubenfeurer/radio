@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
 from src.core.models import RadioStation, SystemStatus
 from src.core.radio_manager import RadioManager
+from config.config import settings
 from pydantic import BaseModel
 
 app = FastAPI(title="Internet Radio API")
