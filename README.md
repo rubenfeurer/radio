@@ -305,3 +305,110 @@ If the application fails to start:
 - If the application shows as "not running" but the port is in use, use the restart command
 - If you see "stale PID file found", the application may have crashed - check the logs and restart
 - If the GPIO controls aren't working, ensure pigpiod is running with the status command
+
+## Testing
+
+The project uses pytest for unit testing. Tests are located in the `/tests` directory.
+
+### Setting Up Tests
+
+1. **Activate Virtual Environment**:
+   ```bash
+   cd ~/radio
+   source venv/bin/activate
+   ```
+
+2. **Install Required Test Packages**:
+   ```bash
+   pip install pytest
+   pip install pytest-asyncio
+   pip install pytest-cov
+   ```
+
+3. **Add Test Dependencies to requirements.txt**:
+   ```bash
+   echo "pytest" >> requirements.txt
+   echo "pytest-asyncio" >> requirements.txt
+   echo "pytest-cov" >> requirements.txt
+   ```
+
+### Running Tests
+
+After installing the required packages, you can run tests using:
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run tests with verbose output
+pytest -v tests/
+
+# Run specific test file
+pytest tests/core/test_radio_manager.py
+```
+
+### Test Structure
+
+```
+tests/
+├── api/              # API endpoint tests
+│   ├── test_main.py
+│   └── test_routes.py
+├── core/             # Core functionality tests
+│   ├── test_models.py
+│   └── test_radio_manager.py
+└── hardware/         # Hardware interface tests
+    ├── test_audio_player.py
+    └── test_gpio_controller.py
+```
+
+### Writing Tests
+
+Tests are written using pytest and follow these conventions:
+- Test files start with `test_`
+- Test functions start with `test_`
+- Async tests use `@pytest.mark.asyncio` decorator
+- Fixtures are defined in `conftest.py` or test files
+
+Example test:
+```python
+import pytest
+from src.core.radio_manager import RadioManager
+from src.core.models import RadioStation
+
+@pytest.mark.asyncio
+async def test_play_station():
+    manager = RadioManager()
+    station = RadioStation(name="Test", url="http://test.com", slot=1)
+    manager.add_station(station)
+    
+    await manager.play_station(1)
+    status = manager.get_status()
+    
+    assert status.is_playing == True
+    assert status.current_station == 1
+```
+
+### Common Test Commands
+
+```bash
+# Run tests and show coverage
+pytest --cov=src tests/
+
+# Run tests matching a pattern
+pytest -k "test_station"
+
+# Run tests and stop on first failure
+pytest -x tests/
+
+# Run tests with debug logging
+pytest --log-cli-level=DEBUG tests/
+```
+
+### Troubleshooting Tests
+
+If tests fail:
+1. Check the virtual environment is activated
+2. Verify all test dependencies are installed
+3. Check the log output for detailed error messages
+4. Ensure the GPIO daemon (pigpiod) is running for hardware tests

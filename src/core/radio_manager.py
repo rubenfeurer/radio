@@ -3,12 +3,19 @@ from src.core.models import RadioStation, SystemStatus
 from src.hardware.audio_player import AudioPlayer
 from src.hardware.gpio_controller import GPIOController
 from config.config import settings
+from src.utils.station_loader import load_default_stations
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RadioManager:
     def __init__(self):
         self._stations: Dict[int, RadioStation] = {}
         self._status = SystemStatus(volume=settings.DEFAULT_VOLUME)
         self._player = AudioPlayer()
+        
+        # Initialize with default stations
+        self._load_default_stations()
         
         # Initialize GPIO controller with callbacks
         self._gpio = GPIOController(
@@ -19,6 +26,16 @@ class RadioManager:
         self.current_slot = None
         self.is_playing = False
         
+    def _load_default_stations(self) -> None:
+        """Load default stations into empty slots"""
+        default_stations = load_default_stations()
+        
+        # Add default stations to empty slots
+        for slot, station in default_stations.items():
+            if slot not in self._stations:
+                self._stations[slot] = station
+                logger.info(f"Added default station to slot {slot}: {station.name}")
+    
     async def _handle_volume_change(self, change: int) -> None:
         """Handle volume change from rotary encoder."""
         current_volume = self._status.volume
@@ -31,9 +48,11 @@ class RadioManager:
             await self.play_station(button)
     
     def add_station(self, station: RadioStation) -> None:
+        """Override existing station in slot"""
         if station.slot is not None:
             self._stations[station.slot] = station
-            
+            logger.info(f"Updated station in slot {station.slot}: {station.name}")
+    
     def remove_station(self, slot: int) -> None:
         if slot in self._stations:
             del self._stations[slot]
