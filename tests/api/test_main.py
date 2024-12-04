@@ -20,8 +20,12 @@ def test_health():
     assert response.json() == {"status": "healthy"}
 
 def test_websocket():
-    with client.websocket_connect("/api/v1/ws") as websocket:
+    """Test WebSocket connection and status request/response"""
+    with client.websocket_connect("/ws") as websocket:
+        # Send a status request
         websocket.send_json({"type": "status_request"})
+        
+        # Get response
         data = websocket.receive_json()
         assert data["type"] == "status_response"
         assert isinstance(data["data"], dict)

@@ -2,18 +2,23 @@ import pigpio
 from typing import Optional, Callable
 from src.utils.logger import logger
 from config.config import settings
+import time
 
 class GPIOController:
     def __init__(
         self,
         volume_change_callback: Optional[Callable[[int], None]] = None,
         button_press_callback: Optional[Callable[[int], None]] = None,
+        long_press_callback: Optional[Callable[[int], None]] = None,
+        double_press_callback: Optional[Callable[[int], None]] = None,
         volume_step: int = settings.ROTARY_VOLUME_STEP
     ):
         logger.info("Initializing GPIOController with pigpio")
         self.volume_step = volume_step
         self.volume_change_callback = volume_change_callback
         self.button_press_callback = button_press_callback
+        self.long_press_callback = long_press_callback
+        self.double_press_callback = double_press_callback
         
         # Setup pins from config
         self.rotary_clk = settings.ROTARY_CLK
@@ -26,6 +31,10 @@ class GPIOController:
             settings.BUTTON_PIN_2: 2,
             settings.BUTTON_PIN_3: 3
         }
+        
+        # Track button press times
+        self.last_press_time = {}
+        self.press_start_time = {}
         
         try:
             # Initialize pigpio
@@ -82,10 +91,32 @@ class GPIOController:
 
     def _handle_button(self, gpio, level, tick):
         logger.debug(f"Button press detected on GPIO {gpio}")
-        if gpio in self.button_pins and self.button_press_callback:
+        if gpio in self.button_pins:
             button_number = self.button_pins[gpio]
-            logger.info(f"Button {button_number} pressed (GPIO {gpio})")
-            self.button_press_callback(button_number)
+            current_time = time.time()
+            
+            # Long press detection
+            if level == 0:  # Button pressed
+                self.press_start_time[gpio] = current_time
+            else:  # Button released
+                press_duration = current_time - self.press_start_time.get(gpio, current_time)
+                if press_duration > settings.LONG_PRESS_DURATION:
+                    if self.long_press_callback:
+                        logger.info(f"Long press detected on button {button_number}")
+                        self.long_press_callback(button_number)
+                else:
+                    # Double press detection
+                    last_press = self.last_press_time.get(gpio, 0)
+                    if current_time - last_press < settings.DOUBLE_PRESS_INTERVAL:
+                        if self.double_press_callback:
+                            logger.info(f"Double press detected on button {button_number}")
+                            self.double_press_callback(button_number)
+                    else:
+                        if self.button_press_callback:
+                            logger.info(f"Button {button_number} pressed (GPIO {gpio})")
+                            self.button_press_callback(button_number)
+                
+                self.last_press_time[gpio] = current_time
 
     def cleanup(self):
         if hasattr(self, 'pi') and self.pi.connected:

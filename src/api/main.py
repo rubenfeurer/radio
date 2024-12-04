@@ -15,7 +15,7 @@ app.add_middleware(
 # Include routers
 app.include_router(stations.router, prefix="/api/v1")
 app.include_router(system.router, prefix="/api/v1")
-app.include_router(websocket.router, prefix="/api/v1")
+app.include_router(websocket.router)
 
 @app.get("/")
 async def root():

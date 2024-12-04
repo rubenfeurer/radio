@@ -30,6 +30,10 @@ class Settings(BaseModel):
     # Rotary Encoder Sensitivity
     ROTARY_VOLUME_STEP: int = 5  # Default step size for volume change
     
+    # Button press durations (in seconds)
+    LONG_PRESS_DURATION: float = 3.0
+    DOUBLE_PRESS_INTERVAL: float = 0.5
+    
     model_config = {
         "case_sensitive": True
     }

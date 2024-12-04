@@ -4,13 +4,10 @@ from src.core.radio_manager import RadioManager
 
 router = APIRouter()
 radio_manager = RadioManager()
-active_connections: Dict[int, WebSocket] = {}
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    connection_id = id(websocket)
-    active_connections[connection_id] = websocket
     
     try:
         while True:
@@ -22,4 +19,4 @@ async def websocket_endpoint(websocket: WebSocket):
                     "data": status.model_dump()
                 })
     except WebSocketDisconnect:
-        del active_connections[connection_id]
+        pass
