@@ -413,6 +413,53 @@ If tests fail:
 3. Check the log output for detailed error messages
 4. Ensure the GPIO daemon (pigpiod) is running for hardware tests
 
+### Hardware Mocking
+
+The project uses a comprehensive mocking system for hardware components during testing:
+
+1. **Environment Variables**:
+   ```bash
+   # Run tests with hardware mocking
+   MOCK_HARDWARE=true pytest -v tests/
+   
+   # Or in CI environment (GitHub Actions)
+   # Hardware mocking is automatically enabled
+   ```
+
+2. **Mock Configuration**:
+   - MPV player for audio playback
+   - pigpio for GPIO control
+   - All hardware interactions are simulated
+   - Defined in `tests/conftest.py`
+
+3. **Testing Hardware Components**:
+   ```python
+   # Example test using hardware mocks
+   @pytest.mark.asyncio
+   async def test_audio_player(mock_hardware):
+       player = AudioPlayer()
+       await player.play("http://test.stream")
+       mock_hardware['mpv'].play.assert_called_once()
+   ```
+
+4. **Local vs CI Testing**:
+   ```bash
+   # Local development (real hardware)
+   pytest -v tests/
+   
+   # CI environment (mocked hardware)
+   MOCK_HARDWARE=true pytest -v tests/
+   ```
+
+### Common Test Issues
+
+- If hardware tests fail locally, ensure pigpiod is running:
+  ```bash
+  sudo systemctl start pigpiod
+  ```
+- For CI failures, verify MOCK_HARDWARE is set
+- Check `tests/conftest.py` for mock configurations
+
 ## WebSocket API
 
 The application provides real-time updates through WebSocket connections at `/ws`. This enables immediate feedback for physical controls and system status changes.
