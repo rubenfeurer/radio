@@ -412,3 +412,145 @@ If tests fail:
 2. Verify all test dependencies are installed
 3. Check the log output for detailed error messages
 4. Ensure the GPIO daemon (pigpiod) is running for hardware tests
+
+## WebSocket API
+
+The application provides real-time updates through WebSocket connections at `/ws`. This enables immediate feedback for physical controls and system status changes.
+
+### Connecting to WebSocket
+
+```javascript
+// Browser example
+const ws = new WebSocket('ws://your-pi-ip:8000/ws');
+
+ws.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    console.log('Received:', data);
+};
+```
+
+```python
+# Python example using websockets
+import asyncio
+import websockets
+import json
+
+async def connect():
+    async with websockets.connect('ws://your-pi-ip:8000/ws') as ws:
+        # Send status request
+        await ws.send(json.dumps({"type": "status_request"}))
+        # Receive response
+        response = await ws.recv()
+        print(json.loads(response))
+```
+
+### Message Types
+
+#### Client to Server:
+1. **Status Request**
+   ```json
+   {
+       "type": "status_request"
+   }
+   ```
+
+2. **WiFi Scan Request**
+   ```json
+   {
+       "type": "wifi_scan"
+   }
+   ```
+
+#### Server to Client:
+1. **Status Response/Update**
+   ```json
+   {
+       "type": "status_response",
+       "data": {
+           "volume": 70,
+           "current_station": 1,
+           "is_playing": true,
+           "wifi_status": "connected",
+           "signal_strength": -67
+       }
+   }
+   ```
+
+2. **WiFi Scan Results**
+   ```json
+   {
+       "type": "wifi_scan_result",
+       "data": [
+           {
+               "ssid": "Network1",
+               "signal_strength": -65,
+               "secured": true
+           }
+       ]
+   }
+   ```
+
+### Real-time Updates
+
+The WebSocket connection automatically broadcasts:
+- Volume changes from physical knob or web interface
+- Station play/pause status changes
+- WiFi connection status changes
+- System mode changes (WiFi/AP mode)
+
+### Error Handling
+
+The WebSocket connection will automatically:
+- Reconnect on disconnection
+- Clean up resources on client disconnect
+- Handle connection timeouts
+- Report connection errors
+
+### Example Usage
+
+```javascript
+// Complete browser example
+const ws = new WebSocket('ws://your-pi-ip:8000/ws');
+
+ws.onopen = function() {
+    // Request initial status
+    ws.send(JSON.stringify({
+        type: "status_request"
+    }));
+};
+
+ws.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    
+    switch(data.type) {
+        case "status_response":
+        case "status_update":
+            updateUI(data.data);
+            break;
+        case "wifi_scan_result":
+            updateNetworkList(data.data);
+            break;
+    }
+};
+
+ws.onerror = function(error) {
+    console.error('WebSocket error:', error);
+};
+
+ws.onclose = function() {
+    console.log('WebSocket connection closed');
+    // Implement reconnection logic here
+};
+```
+
+### Testing WebSocket Connection
+
+You can test the WebSocket connection using the provided test suite:
+
+```bash
+# Run WebSocket-specific tests
+pytest -v tests/api/test_routes.py -k "websocket"
+
+# Run all API tests including WebSocket
+pytest -v tests/api/
+```
