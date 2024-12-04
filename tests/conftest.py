@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, PropertyMock
 @pytest.fixture(autouse=True)
 def mock_hardware():
     """Mock hardware components when MOCK_HARDWARE is set"""
-    if os.getenv("MOCK_HARDWARE") == "true":
+    if os.getenv("GITHUB_ACTIONS") or os.getenv("MOCK_HARDWARE") == "true":
         # Mock MPV
         mock_mpv = MagicMock()
-        # Set up volume property
-        volume_property = PropertyMock(return_value=50)
-        type(mock_mpv).volume = volume_property
+        mock_mpv.play = MagicMock()
+        mock_mpv.stop = MagicMock()
+        type(mock_mpv).volume = PropertyMock(return_value=50)
         
         # Mock MPV class
         mock_mpv_class = MagicMock()
@@ -28,28 +28,28 @@ def mock_hardware():
         # Create a mock callback class
         class MockCallback:
             def __init__(self, *args, **kwargs):
-                pass
-            
+                self.callback = None
             def cancel(self):
                 pass
         
         mock_pi.callback = MockCallback
         
+        # Mock pigpio module
+        mock_pigpio = MagicMock()
+        mock_pigpio.pi.return_value = mock_pi
+        for attr in ['INPUT', 'OUTPUT', 'PUD_UP', 'FALLING_EDGE', 'RISING_EDGE']:
+            setattr(mock_pigpio, attr, getattr(mock_pi, attr))
+        
         # Patch the imports
         import sys
-        sys.modules['pigpio'] = MagicMock()
-        sys.modules['pigpio'].pi.return_value = mock_pi
-        for attr in ['INPUT', 'OUTPUT', 'PUD_UP', 'FALLING_EDGE', 'RISING_EDGE']:
-            setattr(sys.modules['pigpio'], attr, getattr(mock_pi, attr))
-            
-        sys.modules['mpv'] = MagicMock()
-        sys.modules['mpv'].MPV = mock_mpv_class
+        sys.modules['pigpio'] = mock_pigpio
+        sys.modules['mpv'] = MagicMock(MPV=mock_mpv_class)
         
-        # Create a fixture dictionary to store mocks
         mocks = {
             'mpv': mock_mpv,
             'mpv_class': mock_mpv_class,
             'pi': mock_pi,
+            'pigpio': mock_pigpio
         }
         
         yield mocks
