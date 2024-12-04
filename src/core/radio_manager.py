@@ -16,6 +16,9 @@ class RadioManager:
             button_press_callback=self._handle_button_press
         )
         
+        self.current_slot = None
+        self.is_playing = False
+        
     async def _handle_volume_change(self, change: int) -> None:
         """Handle volume change from rotary encoder."""
         current_volume = self._status.volume
@@ -58,3 +61,31 @@ class RadioManager:
     async def set_volume(self, volume: int) -> None:
         await self._player.set_volume(volume)
         self._status.volume = volume
+        
+    async def toggle_station(self, slot: int) -> bool:
+        """
+        Toggle play/pause for a specific station slot.
+        Returns True if the station is now playing, False if paused.
+        """
+        station = self.get_station(slot)
+        if not station:
+            raise ValueError(f"No station found in slot {slot}")
+
+        # If this slot is currently playing, pause it
+        if self.current_slot == slot and self.is_playing:
+            await self.stop_playback()
+            self.is_playing = False
+            self.current_slot = None
+            return False
+        
+        # If another slot is playing or this slot is paused, play this slot
+        else:
+            # Stop any currently playing station
+            if self.is_playing:
+                await self.stop_playback()
+            
+            # Play the requested station
+            await self.play_station(slot)
+            self.is_playing = True
+            self.current_slot = slot
+            return True

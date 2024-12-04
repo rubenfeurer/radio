@@ -75,25 +75,6 @@ radio/
 └── README.md      # This file
 ```
 
-## API Endpoints
-
-- `GET /`: Check if API is running
-  - Response: `{"status": "online", "message": "Internet Radio API is running"}`
-
-- `GET /health`: System health check
-  - Response: `{"status": "healthy"}`
-
-- `POST /stations/{slot}/play`: Play a specific radio station by slot
-  - Request: `{ "slot": 1 }`
-  - Response: `{ "message": "Playing station" }`
-
-- `GET /volume`: Get the current volume level
-  - Response: `{ "volume": 70 }`
-
-- `POST /volume`: Set the volume level
-  - Request: `{ "volume": 50 }`
-  - Response: `{ "message": "Volume set successfully" }`
-
 ## Configuration
 
 - **Hardware Pins**: Configurable in `config.py`
@@ -264,3 +245,63 @@ If hardware controls aren't working:
    - Verify pin numbers in config.py match physical connections
    - Check for loose wires or connections
    - Ensure proper grounding
+
+## Application Management
+
+The `manage_radio.sh` script provides easy control over the radio application. This script handles starting, stopping, restarting, and checking the status of the application.
+
+### Basic Usage
+
+```bash
+# Start the application
+./manage_radio.sh start
+
+# Stop the application
+./manage_radio.sh stop
+
+# Restart the application
+./manage_radio.sh restart
+
+# Check application status
+./manage_radio.sh status
+```
+
+### Features
+
+- **Automatic Port Management**: Checks and frees port 8000 if it's already in use
+- **GPIO Daemon Check**: Ensures the pigpiod service is running
+- **Process Management**: Properly handles process startup and shutdown
+- **Status Monitoring**: Shows recent logs and current process status
+- **Virtual Environment**: Automatically activates the Python virtual environment
+
+### Troubleshooting
+
+If the application fails to start:
+
+1. **Check the Logs**:
+   ```bash
+   tail -f logs/radio.log
+   ```
+
+2. **Verify Port Availability**:
+   ```bash
+   sudo lsof -i :8000
+   ```
+
+3. **Check GPIO Daemon**:
+   ```bash
+   sudo systemctl status pigpiod
+   ```
+
+4. **Force Restart**:
+   ```bash
+   ./manage_radio.sh stop
+   sleep 2
+   ./manage_radio.sh start
+   ```
+
+### Common Issues
+
+- If the application shows as "not running" but the port is in use, use the restart command
+- If you see "stale PID file found", the application may have crashed - check the logs and restart
+- If the GPIO controls aren't working, ensure pigpiod is running with the status command
