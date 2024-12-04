@@ -1,0 +1,88 @@
+# Internet Radio Project - Cursor AI Rules
+
+## Project Structure
+- /src/api: API Layer (HTTP/WebSocket communication)
+- /src/core: Core Layer (Business logic, state management)
+- /src/hardware: Hardware Abstraction Layer (GPIO, audio devices)
+- /src/system: System management
+- /src/utils: Shared utilities
+- /tests: Unit, integration, and e2e tests
+- /install: Installation scripts
+- /config: Configuration files
+
+## Key Technologies
+- FastAPI for web framework
+- Pydantic for data validation
+- pigpio for hardware control
+- MPV for audio playback
+- SQLite for local storage
+- WebSocket for real-time updates
+- Svelte/SvelteKit for web development
+- Flowbite for UI components
+
+## Coding Standards
+- Use FastAPI for all API endpoints
+- Implement WebSocket for real-time updates
+- Use Pydantic models for data validation and API models
+- Implement async programming where possible
+- Use SQLite with aiosqlite for async database operations
+- Follow PEP 8 style guide for Python code
+- Use Svelte for frontend development
+
+## Hardware Considerations
+- Ensure compatibility with Raspberry Pi 4b and Raspberry Pi Zero 2 WH
+- Implement rotary encoder for volume control
+- Use push buttons for slot control
+- Handle GPIO interrupts efficiently
+
+## Radio Functionality
+- Implement seamless internet radio playback
+- Manage three slots for radio stations
+- Support radio garden stream URLs
+- Implement volume control via web interface and physical knob
+- Ensure immediate audio response on station selection
+
+## WiFi and AP Mode
+- Implement WiFi network scanning and management
+- Support AP (Access Point) mode for initial setup
+- Provide easy switching between WiFi and AP mode
+- Ensure automatic reconnection after power loss
+
+## Web Interface
+- Create a responsive, mobile-friendly interface using Svelte and Flowbite
+- Implement real-time updates for physical control actions
+- Display current status of each slot (playing/stopped)
+- Show WiFi signal strength and connection status
+
+## Configuration
+- Use a single JSON file for radio station management
+- Implement configurable options for hardware pins, volume behavior, etc.
+- Support backup and restore of user settings
+
+## System Management
+- Implement automatic startup on power-on
+- Provide update mechanism with rollback capability
+- Include system health monitoring and logging
+
+## Security
+- Implement secure storage for WiFi passwords
+- Use JWT for authentication if required
+- Ensure secure update procedures
+
+## Performance
+- Optimize for quick startup and station switching
+- Minimize buffering and interruptions in audio playback
+- Ensure responsive web interface
+
+## Testing
+- Write unit tests for individual components
+- Implement integration tests for component interactions
+- Create e2e tests for full system functionality
+- Use pytest for all testing
+
+## Error Handling
+- Implement comprehensive error logging
+- Provide clear user feedback for errors
+- Include recovery procedures for common issues
+
+Remember to modularize code, use appropriate design patterns, and follow best practices for each technology used in the project.
