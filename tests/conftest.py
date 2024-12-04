@@ -2,59 +2,64 @@ import os
 import pytest
 from unittest.mock import MagicMock, PropertyMock
 
+# Create module level mocks
+mock_mpv_instance = None
+mock_pi_instance = None
+
 @pytest.fixture(autouse=True)
-def mock_hardware():
-    """Mock hardware components when MOCK_HARDWARE is set"""
+def mock_hardware(monkeypatch):
+    """Mock hardware components for testing"""
     if os.getenv("GITHUB_ACTIONS") or os.getenv("MOCK_HARDWARE") == "true":
-        # Mock MPV
+        global mock_mpv_instance, mock_pi_instance
+        
+        # Create fresh MPV mock
+        mock_mpv_instance = MagicMock()
+        mock_mpv_instance.play = MagicMock()
+        mock_mpv_instance.stop = MagicMock()
+        type(mock_mpv_instance).volume = PropertyMock(return_value=50)
+        
+        # Create MPV class mock
         mock_mpv = MagicMock()
-        mock_mpv.play = MagicMock()
-        mock_mpv.stop = MagicMock()
-        type(mock_mpv).volume = PropertyMock(return_value=50)
+        mock_mpv.MPV.return_value = mock_mpv_instance
         
-        # Mock MPV class
-        mock_mpv_class = MagicMock()
-        mock_mpv_class.return_value = mock_mpv
+        # Create fresh pigpio mock
+        mock_pi_instance = MagicMock()
+        mock_pi_instance.connected = True
+        mock_pi_instance.read = MagicMock(return_value=1)
+        mock_pi_instance.callback = MagicMock()
+        mock_pi_instance.set_mode = MagicMock()
+        mock_pi_instance.set_pull_up_down = MagicMock()
         
-        # Mock pigpio
-        mock_pi = MagicMock()
-        mock_pi.connected = True
-        mock_pi.INPUT = 0
-        mock_pi.OUTPUT = 1
-        mock_pi.PUD_UP = 2
-        mock_pi.FALLING_EDGE = 3
-        mock_pi.RISING_EDGE = 4
+        # Add required constants
+        mock_pi_instance.INPUT = 0
+        mock_pi_instance.OUTPUT = 1
+        mock_pi_instance.PUD_UP = 2
+        mock_pi_instance.FALLING_EDGE = 3
+        mock_pi_instance.RISING_EDGE = 4
         
-        # Create a mock callback class
-        class MockCallback:
-            def __init__(self, *args, **kwargs):
-                self.callback = None
-            def cancel(self):
-                pass
-        
-        mock_pi.callback = MockCallback
-        
-        # Mock pigpio module
+        # Create pigpio module mock
         mock_pigpio = MagicMock()
-        mock_pigpio.pi.return_value = mock_pi
-        for attr in ['INPUT', 'OUTPUT', 'PUD_UP', 'FALLING_EDGE', 'RISING_EDGE']:
-            setattr(mock_pigpio, attr, getattr(mock_pi, attr))
+        mock_pigpio.pi.return_value = mock_pi_instance
         
-        # Patch the imports
-        import sys
-        sys.modules['pigpio'] = mock_pigpio
-        sys.modules['mpv'] = MagicMock(MPV=mock_mpv_class)
+        # Patch both modules
+        monkeypatch.setattr('mpv.MPV', mock_mpv.MPV)
+        monkeypatch.setattr('pigpio.pi', mock_pigpio.pi)
         
-        mocks = {
-            'mpv': mock_mpv,
-            'mpv_class': mock_mpv_class,
-            'pi': mock_pi,
-            'pigpio': mock_pigpio
+        return {
+            'mpv': mock_mpv_instance,
+            'pi': mock_pi_instance
         }
-        
-        yield mocks
-    else:
-        yield None
+    return None
+
+# Add cleanup
+@pytest.fixture(autouse=True)
+def cleanup():
+    yield
+    global mock_mpv_instance, mock_pi_instance
+    if mock_mpv_instance:
+        mock_mpv_instance.reset_mock()
+    if mock_pi_instance:
+        mock_pi_instance.reset_mock()
 
 @pytest.fixture
 def mock_websocket():
