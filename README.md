@@ -338,13 +338,13 @@ After installing the required packages, you can run tests using:
 
 ```bash
 # Run all tests
-pytest tests/
+PYTHONPATH=. pytest -v --asyncio-mode=auto tests/
 
-# Run tests with verbose output
-pytest -v tests/
+# Run tests with hardware mocking (CI environment)
+PYTHONPATH=. MOCK_HARDWARE=true pytest -v --asyncio-mode=auto tests/
 
-# Run specific test file
-pytest tests/core/test_radio_manager.py
+# Run tests with coverage
+PYTHONPATH=. MOCK_HARDWARE=true pytest -v --asyncio-mode=auto tests/ --cov=src
 ```
 
 ### Test Structure

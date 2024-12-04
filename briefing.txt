@@ -169,6 +169,7 @@ Web Interface:
 • I want a simple, clean interface that's easy to use built with Svelte and the UI framework
 • I want to see the three slots and their assigned stations
 • I want to see the current status of each slot (playing/stopped)
+• I want to play/pause a slot by pressing a button on the slot
 • I want real-time updates when using physical controls
 • I want the interface to work well on mobile devices
 • I want to access the interface without installing apps
