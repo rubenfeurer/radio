@@ -1,7 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, Set
-from src.core.singleton_manager import SingletonRadioManager
-from src.core.models import SystemStatus
+from src.core.singleton_manager import RadioManagerSingleton
 import logging
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ async def broadcast_status_update(status: dict):
             active_connections.remove(connection)
 
 # Get the singleton instance
-radio_manager = SingletonRadioManager.get_instance(status_update_callback=broadcast_status_update)
+radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from src.api.models.requests import VolumeRequest
-from src.core.singleton_manager import SingletonRadioManager
+from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 
 router = APIRouter()
 
 # Get the singleton instance
-radio_manager = SingletonRadioManager.get_instance(status_update_callback=broadcast_status_update)
+radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 
 @router.get("/health")
 async def health_check():
