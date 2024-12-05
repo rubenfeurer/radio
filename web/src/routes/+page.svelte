@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Card, Button, Range, Badge } from 'flowbite-svelte';
+  import { goto } from '$app/navigation';
 
   // Types
   interface RadioStation {
@@ -122,12 +123,16 @@
       console.error("Failed to update volume:", error);
     }
   }
+
+  function chooseStation(slot: number) {
+    goto(`/stations?slot=${slot}`);
+  }
 </script>
 
 <div class="max-w-4xl mx-auto p-4">
   <!-- Connection Status -->
   <div class="mb-6 flex justify-between items-center">
-    <h1 class="text-2xl font-bold">Internet Radio</h1>
+    <h1 class="text-2xl font-bold">Radio</h1>
     <Badge color={wsConnected ? "green" : "red"}>
       {wsConnected ? "Connected" : "Disconnected"}
     </Badge>
@@ -145,13 +150,22 @@
             </Badge>
           </div>
           <p class="text-gray-700">{station.name || 'No station assigned'}</p>
-          <Button
-            color={currentPlayingSlot === station.slot ? "red" : "primary"}
-            class="w-full"
-            on:click={() => toggleStation(station.slot)}
-          >
-            {currentPlayingSlot === station.slot ? 'Stop' : 'Play'}
-          </Button>
+          <div class="flex flex-col gap-2">
+            <Button
+              color={currentPlayingSlot === station.slot ? "red" : "primary"}
+              class="w-full"
+              on:click={() => toggleStation(station.slot)}
+            >
+              {currentPlayingSlot === station.slot ? 'Stop' : 'Play'}
+            </Button>
+            <Button
+              color="alternative"
+              class="w-full"
+              on:click={() => chooseStation(station.slot)}
+            >
+              Choose Station
+            </Button>
+          </div>
         </div>
       </Card>
     {/each}
