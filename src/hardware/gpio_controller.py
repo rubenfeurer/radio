@@ -120,21 +120,40 @@ class GPIOController:
                 duration = current_time - self.press_start_time[gpio]
                 logger.debug(f"Button {button_number} released. Duration: {duration}")
                 
-                # Debounce: Ignore if last press was too recent
-                if gpio in self.last_press_time:
-                    time_since_last = current_time - self.last_press_time[gpio]
-                    if time_since_last < 0.5:  # 500ms debounce
-                        logger.debug(f"Ignoring button {button_number} - too soon after last press ({time_since_last}s)")
-                        return
-                
-                # Handle single press
-                if duration < settings.LONG_PRESS_DURATION:
-                    if self.button_press_callback and self.loop:
-                        logger.info(f"Single press detected on button {button_number}")
+                # Handle long press first
+                if duration >= settings.LONG_PRESS_DURATION:
+                    if self.long_press_callback and self.loop:
+                        logger.info(f"Long press detected on button {button_number}")
                         asyncio.run_coroutine_threadsafe(
-                            self.button_press_callback(button_number), 
+                            self.long_press_callback(button_number), 
                             self.loop
                         )
+                else:
+                    # Check for double press (ignore debounce for second press of double press)
+                    if gpio in self.last_press_time:
+                        time_since_last = current_time - self.last_press_time[gpio]
+                        if time_since_last < settings.DOUBLE_PRESS_INTERVAL:
+                            if self.double_press_callback and self.loop:
+                                logger.info(f"Double press detected on button {button_number}")
+                                asyncio.run_coroutine_threadsafe(
+                                    self.double_press_callback(button_number), 
+                                    self.loop
+                                )
+                                self.last_press_time[gpio] = current_time
+                                return
+                        # Only apply debounce for non-double-press events
+                        elif time_since_last < 0.5:  # 500ms debounce
+                            logger.debug(f"Ignoring button {button_number} - too soon after last press ({time_since_last}s)")
+                            return
+                    
+                    # Handle single press
+                    if duration < settings.LONG_PRESS_DURATION:
+                        if self.button_press_callback and self.loop:
+                            logger.info(f"Single press detected on button {button_number}")
+                            asyncio.run_coroutine_threadsafe(
+                                self.button_press_callback(button_number), 
+                                self.loop
+                            )
                 
                 self.last_press_time[gpio] = current_time
                 logger.debug(f"Updated last press time for button {button_number}")
@@ -161,3 +180,16 @@ class GPIOController:
         if hasattr(self, 'pi') and self.pi.connected:
             self.pi.stop()
             logger.info("GPIO cleanup completed")
+
+    async def _handle_button_press(self, button: int) -> None:
+        """Handle button press events."""
+        logger.debug(f"GPIOController received button press: {button}")
+        if button in [1, 2, 3]:
+            logger.info(f"Requesting toggle for station in slot {button}")
+            try:
+                response = requests.post(f"http://localhost:8000/api/v1/stations/{button}/toggle")
+                response.raise_for_status()
+            except requests.RequestException as e:
+                logger.error(f"Failed to toggle station {button}: {str(e)}")
+        else:
+            logger.warning(f"Invalid button number received: {button}")
