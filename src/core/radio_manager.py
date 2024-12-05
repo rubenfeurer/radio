@@ -47,9 +47,17 @@ class RadioManager:
     
     async def _handle_volume_change(self, change: int) -> None:
         """Handle volume change from rotary encoder."""
-        current_volume = self._status.volume
-        new_volume = max(0, min(100, current_volume + change))
-        await self.set_volume(new_volume)
+        try:
+            logger.debug(f"Received volume change request: {change}")
+            current_volume = self._status.volume
+            new_volume = max(0, min(100, current_volume + change))
+            logger.info(f"Adjusting volume from {current_volume} to {new_volume}")
+            
+            if new_volume != current_volume:
+                await self.set_volume(new_volume)
+                logger.info(f"Volume set to {new_volume}")
+        except Exception as e:
+            logger.error(f"Error in volume change handler: {e}")
     
     async def _handle_button_press(self, button: int) -> None:
         """Handle button press events."""
@@ -98,10 +106,17 @@ class RadioManager:
         return self._status
         
     async def set_volume(self, volume: int) -> None:
-        await self._player.set_volume(volume)
-        self._status.volume = volume
-        await self._broadcast_status()  # Broadcast volume changes too
-        
+        """Set system volume level."""
+        try:
+            logger.debug(f"Setting volume to {volume}")
+            await self._player.set_volume(volume)
+            self._status.volume = volume
+            logger.info(f"Volume set successfully to {volume}")
+            await self._broadcast_status()
+        except Exception as e:
+            logger.error(f"Error setting volume: {e}")
+            raise
+    
     async def toggle_station(self, slot: int) -> bool:
         """Toggle play/pause for a specific station slot."""
         async with self._lock:

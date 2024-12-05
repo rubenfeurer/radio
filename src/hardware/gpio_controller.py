@@ -79,18 +79,24 @@ class GPIOController:
             raise
 
     def _handle_rotation(self, gpio, level, tick):
-        logger.debug(f"Rotation detected on GPIO {gpio}")
-        if not self.volume_change_callback:
-            return
-            
-        dt_state = self.pi.read(self.rotary_dt)
-        volume_change = self.volume_step if dt_state else -self.volume_step
-        
-        if not settings.ROTARY_CLOCKWISE_INCREASES:
-            volume_change = -volume_change
-            
-        logger.info(f"Volume change: {volume_change}")
-        asyncio.create_task(self.volume_change_callback(volume_change))
+        """Handle rotary encoder rotation events."""
+        try:
+            logger.debug(f"Rotation detected on GPIO {gpio}")
+            if gpio == settings.ROTARY_CLK:
+                if level == 1:
+                    if self.pi.read(settings.ROTARY_DT) == 0:
+                        volume_change = self.volume_step if settings.ROTARY_CLOCKWISE_INCREASES else -self.volume_step
+                    else:
+                        volume_change = -self.volume_step if settings.ROTARY_CLOCKWISE_INCREASES else self.volume_step
+                    logger.info(f"Volume change: {volume_change}")
+                    
+                    if self.volume_change_callback and self.loop:
+                        asyncio.run_coroutine_threadsafe(
+                            self.volume_change_callback(volume_change),
+                            self.loop
+                        )
+        except Exception as e:
+            logger.error(f"Error handling rotation: {e}")
 
     def _handle_button(self, gpio, level, tick):
         """Handle button press/release events."""
@@ -135,6 +141,21 @@ class GPIOController:
                 
         except Exception as e:
             logger.error(f"Error handling button event: {e}")
+
+    def _handle_rotary_turn(self, way):
+        """Handle rotary encoder rotation events."""
+        try:
+            logger.debug(f"Rotary encoder turned: {way}")
+            if self.volume_change_callback and self.loop:
+                # Convert rotation to volume change
+                volume_change = 5 if way == 1 else -5
+                logger.info(f"Processing volume change: {volume_change}")
+                asyncio.run_coroutine_threadsafe(
+                    self.volume_change_callback(volume_change),
+                    self.loop
+                )
+        except Exception as e:
+            logger.error(f"Error handling rotary turn: {e}")
 
     def cleanup(self):
         if hasattr(self, 'pi') and self.pi.connected:
