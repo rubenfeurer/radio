@@ -146,7 +146,8 @@
           <p class="text-gray-700">Country: {station.country || 'N/A'}</p>
           <p class="text-gray-700">Location: {station.location || 'N/A'}</p>
           <Button 
-            class="mt-4 btn-black"
+            color="primary"
+            class="mt-4"
             on:click={() => assignStationToSlot(station)}
           >
             Select
