@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import stations, system, websocket
 from src.core.singleton_manager import RadioManagerSingleton
@@ -10,14 +12,19 @@ app = FastAPI(title="Internet Radio API")
 # Initialize the singleton RadioManager with WebSocket callback
 radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 
-# Get the hostname
-hostname = socket.gethostname()
-# Construct the allowed origin using the hostname
-allowed_origin = f"http://{hostname}:5173"
+# Get the hostname and add .local suffix for mDNS
+hostname = f"{socket.gethostname()}.local"
+
+# Construct the allowed origins
+allowed_origins = [
+    f"http://{hostname}:5173",  # Dev server
+    f"http://{hostname}",       # Root domain
+    "http://localhost:5173",    # Local development
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,4 +37,4 @@ app.include_router(websocket.router)
 
 @app.get("/")
 async def root():
-    return {"status": "online", "message": "Internet Radio API is running"}
+    return RedirectResponse(url=f"http://{hostname}:5173", status_code=307)
