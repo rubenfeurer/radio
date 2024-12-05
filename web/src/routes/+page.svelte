@@ -7,25 +7,52 @@
     name: string;
     url: string;
     slot: number;
-    isPlaying: boolean;
   }
 
-  // Mock data for now - will be replaced with WebSocket data
-  let stations: RadioStation[] = [
-    { name: "Station 1", url: "", slot: 1, isPlaying: false },
-    { name: "Station 2", url: "", slot: 2, isPlaying: false },
-    { name: "Station 3", url: "", slot: 3, isPlaying: false }
-  ];
+  let stations: RadioStation[] = [];
   let volume = 50;
   let wsConnected = false;
+  let currentPlayingSlot: number | null = null;
 
   // WebSocket setup
   let ws: WebSocket;
   
   onMount(() => {
+    loadInitialStations();
+    fetchVolume();
     connectWebSocket();
     return () => ws?.close();
   });
+
+  async function loadInitialStations() {
+    try {
+      // Load stations for slots 1, 2, and 3
+      const slots = [1, 2, 3];
+      for (const slot of slots) {
+        try {
+          const response = await fetch(`http://radiod.local:8000/api/v1/stations/${slot}`);
+          if (response.ok) {
+            const station = await response.json();
+            stations = [...stations, station];
+          }
+        } catch (error) {
+          console.error(`Failed to fetch station ${slot}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch stations:", error);
+    }
+  }
+
+  async function fetchVolume() {
+    try {
+      const response = await fetch('http://radiod.local:8000/api/v1/volume');
+      const data = await response.json();
+      volume = data.volume;
+    } catch (error) {
+      console.error("Failed to fetch volume:", error);
+    }
+  }
 
   function connectWebSocket() {
     ws = new WebSocket(`ws://radiod.local:8000/ws`);
@@ -52,25 +79,39 @@
 
   function updateStatus(data: any) {
     volume = data.volume;
-    stations = stations.map(station => ({
-      ...station,
-      isPlaying: station.slot === data.current_station
-    }));
+    currentPlayingSlot = data.current_station;
   }
 
-  function toggleStation(slot: number) {
-    ws?.send(JSON.stringify({
-      type: 'station_control',
-      data: { slot, action: 'toggle' }
-    }));
+  async function toggleStation(slot: number) {
+    try {
+      const response = await fetch(`http://radiod.local:8000/api/v1/stations/${slot}/toggle`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      if (data.status === 'playing') {
+        currentPlayingSlot = slot;
+      } else {
+        currentPlayingSlot = null;
+      }
+    } catch (error) {
+      console.error("Failed to toggle station:", error);
+    }
   }
 
-  function updateVolume(event: CustomEvent) {
+  async function updateVolume(event: CustomEvent) {
     const newVolume = event.detail;
-    ws?.send(JSON.stringify({
-      type: 'volume_control',
-      data: { volume: newVolume }
-    }));
+    try {
+      await fetch('http://radiod.local:8000/api/v1/volume', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ volume: newVolume })
+      });
+      volume = newVolume;
+    } catch (error) {
+      console.error("Failed to update volume:", error);
+    }
   }
 </script>
 
@@ -90,17 +131,17 @@
         <div class="flex flex-col gap-4">
           <div class="flex justify-between items-center">
             <h5 class="text-xl font-bold">Slot {station.slot}</h5>
-            <Badge color={station.isPlaying ? "green" : "gray"}>
-              {station.isPlaying ? "Playing" : "Stopped"}
+            <Badge color={currentPlayingSlot === station.slot ? "green" : "gray"}>
+              {currentPlayingSlot === station.slot ? "Playing" : "Stopped"}
             </Badge>
           </div>
           <p class="text-gray-700">{station.name || 'No station assigned'}</p>
           <Button
-            color={station.isPlaying ? "red" : "primary"}
+            color={currentPlayingSlot === station.slot ? "red" : "primary"}
             class="w-full"
             on:click={() => toggleStation(station.slot)}
           >
-            {station.isPlaying ? 'Stop' : 'Play'}
+            {currentPlayingSlot === station.slot ? 'Stop' : 'Play'}
           </Button>
         </div>
       </Card>
