@@ -5,26 +5,37 @@ from src.hardware.gpio_controller import GPIOController
 from config.config import settings
 from src.utils.station_loader import load_default_stations
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
 class RadioManager:
-    def __init__(self):
+    def __init__(self, status_update_callback=None):
+        logger.info("Initializing RadioManager")
         self._stations: Dict[int, RadioStation] = {}
         self._status = SystemStatus(volume=settings.DEFAULT_VOLUME)
         self._player = AudioPlayer()
+        self._status_update_callback = status_update_callback
         
         # Initialize with default stations
+        logger.info("Loading default stations")
         self._load_default_stations()
         
+        # Get the current event loop
+        self.loop = asyncio.get_event_loop()
+        
         # Initialize GPIO controller with callbacks
+        logger.info("Initializing GPIO controller")
         self._gpio = GPIOController(
             volume_change_callback=self._handle_volume_change,
-            button_press_callback=self._handle_button_press
+            button_press_callback=self._handle_button_press,
+            event_loop=self.loop  # Pass the event loop
         )
+        logger.info("GPIO controller initialized")
         
         self.current_slot = None
         self.is_playing = False
+        logger.info("RadioManager initialization complete")
         
     def _load_default_stations(self) -> None:
         """Load default stations into empty slots"""
@@ -46,8 +57,8 @@ class RadioManager:
         """Handle button press events."""
         logger.debug(f"RadioManager received button press: {button}")
         if button in [1, 2, 3]:
-            logger.info(f"Playing station in slot {button}")
-            await self.play_station(button)
+            logger.info(f"Toggling station in slot {button}")
+            await self.toggle_station(button)
         else:
             logger.warning(f"Invalid button number received: {button}")
     
@@ -84,12 +95,10 @@ class RadioManager:
     async def set_volume(self, volume: int) -> None:
         await self._player.set_volume(volume)
         self._status.volume = volume
+        await self._broadcast_status()  # Broadcast volume changes too
         
     async def toggle_station(self, slot: int) -> bool:
-        """
-        Toggle play/pause for a specific station slot.
-        Returns True if the station is now playing, False if paused.
-        """
+        """Toggle play/pause for a specific station slot."""
         station = self.get_station(slot)
         if not station:
             raise ValueError(f"No station found in slot {slot}")
@@ -99,16 +108,29 @@ class RadioManager:
             await self.stop_playback()
             self.is_playing = False
             self.current_slot = None
-            return False
-        
-        # If another slot is playing or this slot is paused, play this slot
+            logger.info(f"Stopped playing station in slot {slot}")
+            result = False
         else:
-            # Stop any currently playing station
+            # If another slot is playing, stop it first
             if self.is_playing:
                 await self.stop_playback()
-            
+                logger.info(f"Stopped playing station in slot {self.current_slot}")
+
             # Play the requested station
             await self.play_station(slot)
             self.is_playing = True
             self.current_slot = slot
-            return True
+            logger.info(f"Started playing station in slot {slot}")
+            result = True
+
+        # Broadcast the status update
+        await self._broadcast_status()
+        return result
+
+    async def _broadcast_status(self):
+        """Broadcast current status to all connected clients"""
+        if self._status_update_callback:
+            status_dict = self._status.model_dump()
+            status_dict["current_station"] = self.current_slot
+            status_dict["is_playing"] = self.is_playing
+            await self._status_update_callback(status_dict)

@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from src.core.models import RadioStation
 from src.core.radio_manager import RadioManager
+from src.api.routes.websocket import broadcast_status_update
 
 router = APIRouter()
-radio_manager = RadioManager()
+radio_manager = RadioManager(status_update_callback=broadcast_status_update)
 
 @router.post("/stations/")
 async def add_station(station: RadioStation):
@@ -49,21 +50,16 @@ async def play_station(slot: int):
 
 @router.post("/stations/{slot}/toggle")
 async def toggle_station(slot: int):
-    """
-    Toggle play/pause for the radio station in the specified slot.
-    
-    - If the station is currently playing: pauses it
-    - If the station is currently paused: starts playing it
-    - If another station is playing: stops it and plays this station
-    - Returns 404 error if no station exists in the specified slot
-    
-    Returns the current play state (playing/paused) after toggling.
-    """
+    """Toggle station playback"""
     try:
-        result = await radio_manager.toggle_station(slot)
+        if slot not in [1, 2, 3]:
+            raise HTTPException(status_code=400, detail="Invalid slot number")
+            
+        is_playing = await radio_manager.toggle_station(slot)
+        # RadioManager will broadcast status update via WebSocket
         return {
-            "message": f"Station in slot {slot} {'playing' if result else 'paused'}",
-            "status": "playing" if result else "paused"
+            "status": "playing" if is_playing else "stopped",
+            "slot": slot
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e)) 

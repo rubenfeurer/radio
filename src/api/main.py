@@ -12,7 +12,7 @@ allowed_origin = f"http://{hostname}:5173"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[allowed_origin],  # Allow your dev server
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
