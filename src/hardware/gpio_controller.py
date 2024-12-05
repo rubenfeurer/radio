@@ -93,47 +93,48 @@ class GPIOController:
         asyncio.create_task(self.volume_change_callback(volume_change))
 
     def _handle_button(self, gpio, level, tick):
-        logger.debug(f"Raw button event - GPIO: {gpio}, Level: {level}, Tick: {tick}")
-        if gpio in self.button_pins:
+        """Handle button press/release events."""
+        try:
+            # Only process if it's a button pin
+            if gpio not in self.button_pins:
+                return
+            
             button_number = self.button_pins[gpio]
             current_time = time.time()
             
-            logger.debug(f"Processing button {button_number} (GPIO {gpio})")
+            logger.debug(f"Raw button event - GPIO: {gpio}, Level: {level}, Tick: {tick}")
             
-            if level == 0:  # Button pressed down
+            # Button pressed (level = 0)
+            if level == 0:
                 self.press_start_time[gpio] = current_time
                 logger.debug(f"Button {button_number} pressed down at {current_time}")
-            elif level == 1:  # Button released
-                if gpio not in self.press_start_time:
-                    logger.warning(f"Button {button_number} released but no press start time found")
-                    return
-                    
-                press_duration = current_time - self.press_start_time[gpio]
-                logger.debug(f"Button {button_number} released. Duration: {press_duration}")
                 
-                if press_duration > settings.LONG_PRESS_DURATION:
-                    if self.long_press_callback:
-                        logger.info(f"Long press detected on button {button_number}")
+            # Button released (level = 1)
+            elif level == 1 and gpio in self.press_start_time:
+                duration = current_time - self.press_start_time[gpio]
+                logger.debug(f"Button {button_number} released. Duration: {duration}")
+                
+                # Debounce: Ignore if last press was too recent
+                if gpio in self.last_press_time:
+                    time_since_last = current_time - self.last_press_time[gpio]
+                    if time_since_last < 0.5:  # 500ms debounce
+                        logger.debug(f"Ignoring button {button_number} - too soon after last press ({time_since_last}s)")
+                        return
+                
+                # Handle single press
+                if duration < settings.LONG_PRESS_DURATION:
+                    if self.button_press_callback and self.loop:
+                        logger.info(f"Single press detected on button {button_number}")
                         asyncio.run_coroutine_threadsafe(
-                            self.long_press_callback(button_number), self.loop
+                            self.button_press_callback(button_number), 
+                            self.loop
                         )
-                else:
-                    last_press = self.last_press_time.get(gpio, 0)
-                    if current_time - last_press < settings.DOUBLE_PRESS_INTERVAL:
-                        if self.double_press_callback:
-                            logger.info(f"Double press detected on button {button_number}")
-                            asyncio.run_coroutine_threadsafe(
-                                self.double_press_callback(button_number), self.loop
-                            )
-                    else:
-                        if self.button_press_callback:
-                            logger.info(f"Single press detected on button {button_number}")
-                            asyncio.run_coroutine_threadsafe(
-                                self.button_press_callback(button_number), self.loop
-                            )
                 
                 self.last_press_time[gpio] = current_time
                 logger.debug(f"Updated last press time for button {button_number}")
+                
+        except Exception as e:
+            logger.error(f"Error handling button event: {e}")
 
     def cleanup(self):
         if hasattr(self, 'pi') and self.pi.connected:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, Set
-from src.core.radio_manager import RadioManager
+from src.core.singleton_manager import SingletonRadioManager
 from src.core.models import SystemStatus
 import logging
 
@@ -25,8 +25,8 @@ async def broadcast_status_update(status: dict):
             logger.error(f"Error broadcasting to client: {str(e)}")
             active_connections.remove(connection)
 
-# Initialize radio manager with broadcast callback after defining the function
-radio_manager = RadioManager(status_update_callback=broadcast_status_update)
+# Get the singleton instance
+radio_manager = SingletonRadioManager.get_instance(status_update_callback=broadcast_status_update)
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -38,8 +38,6 @@ async def websocket_endpoint(websocket: WebSocket):
         # Send initial status
         status = radio_manager.get_status()
         status_dict = status.model_dump()
-        status_dict["current_station"] = radio_manager.current_slot
-        status_dict["is_playing"] = radio_manager.is_playing
         
         await websocket.send_json({
             "type": "status_response",
@@ -51,8 +49,6 @@ async def websocket_endpoint(websocket: WebSocket):
             if data.get("type") == "status_request":
                 status = radio_manager.get_status()
                 status_dict = status.model_dump()
-                status_dict["current_station"] = radio_manager.current_slot
-                status_dict["is_playing"] = radio_manager.is_playing
                 await websocket.send_json({
                     "type": "status_response",
                     "data": status_dict
