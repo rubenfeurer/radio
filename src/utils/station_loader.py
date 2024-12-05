@@ -37,3 +37,25 @@ def load_default_stations() -> Dict[int, RadioStation]:
     except Exception as e:
         logger.error(f"Error loading default stations: {str(e)}")
         return {} 
+
+def load_all_stations() -> Dict[int, RadioStation]:
+    """Load all available radio stations from stations.json."""
+    try:
+        with open('config/stations.json', 'r') as f:
+            stations_data = json.load(f)
+            logger.info(f"Successfully loaded {len(stations_data)} stations from config/stations.json")
+            
+            # Convert the list of stations to RadioStation objects with auto-generated IDs
+            stations_dict = {}
+            for index, station in enumerate(stations_data, start=1):
+                # Add an id field to each station
+                station_with_id = {
+                    'id': index,
+                    **station  # Spread the rest of the station data
+                }
+                stations_dict[index] = RadioStation(**station_with_id)
+            
+            return stations_dict
+    except Exception as e:
+        logger.error(f"Error loading stations from config/stations.json: {str(e)}")
+        return {} 
