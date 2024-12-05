@@ -26,11 +26,10 @@
 
   async function loadInitialStations() {
     try {
-      // Load stations for slots 1, 2, and 3
       const slots = [1, 2, 3];
       for (const slot of slots) {
         try {
-          const response = await fetch(`http://radiod.local:8000/api/v1/stations/${slot}`);
+          const response = await fetch(`/api/stations/${slot}`);
           if (response.ok) {
             const station = await response.json();
             stations = [...stations, station];
@@ -46,7 +45,7 @@
 
   async function fetchVolume() {
     try {
-      const response = await fetch('http://radiod.local:8000/api/v1/volume');
+      const response = await fetch('/api/volume');
       const data = await response.json();
       volume = data.volume;
     } catch (error) {
@@ -55,7 +54,8 @@
   }
 
   function connectWebSocket() {
-    ws = new WebSocket(`ws://radiod.local:8000/ws`);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
     
     ws.onopen = () => {
       wsConnected = true;
@@ -84,7 +84,7 @@
 
   async function toggleStation(slot: number) {
     try {
-      const response = await fetch(`http://radiod.local:8000/api/v1/stations/${slot}/toggle`, {
+      const response = await fetch(`/api/v1/stations/${slot}/toggle`, {
         method: 'POST'
       });
       const data = await response.json();
@@ -103,7 +103,7 @@
     const newVolume = Math.round(Number(event.target.value));
     
     try {
-      const response = await fetch('http://radiod.local:8000/api/v1/volume', {
+      const response = await fetch('/api/v1/volume', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

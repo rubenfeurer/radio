@@ -34,7 +34,8 @@ start() {
     # Clear the log file
     echo "" > $LOG_FILE
     
-    nohup uvicorn src.api.main:app --host 0.0.0.0 --port $PORT --reload > $LOG_FILE 2>&1 &
+    # Add --log-level=debug for more detailed logging
+    nohup uvicorn src.api.main:app --host 0.0.0.0 --port $PORT --reload --log-level debug > $LOG_FILE 2>&1 &
     PID=$!
     echo $PID > $PID_FILE
     
@@ -44,6 +45,9 @@ start() {
     # Check if the process is still running
     if ps -p $PID > /dev/null; then
         echo "$APP_NAME started successfully with PID $PID"
+        # Print initial log entries
+        echo "Initial log entries:"
+        tail -n 10 $LOG_FILE
     else
         echo "Failed to start $APP_NAME. Check logs for details."
         cat $LOG_FILE

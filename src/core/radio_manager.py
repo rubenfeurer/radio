@@ -44,8 +44,12 @@ class RadioManager:
     
     async def _handle_button_press(self, button: int) -> None:
         """Handle button press events."""
+        logger.debug(f"RadioManager received button press: {button}")
         if button in [1, 2, 3]:
+            logger.info(f"Playing station in slot {button}")
             await self.play_station(button)
+        else:
+            logger.warning(f"Invalid button number received: {button}")
     
     def add_station(self, station: RadioStation) -> None:
         """Override existing station in slot"""

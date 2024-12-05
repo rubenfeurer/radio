@@ -1,5 +1,6 @@
 import pigpio
 from typing import Optional, Callable
+import asyncio
 from src.utils.logger import logger
 from config.config import settings
 import time
@@ -87,7 +88,7 @@ class GPIOController:
             volume_change = -volume_change
             
         logger.info(f"Volume change: {volume_change}")
-        self.volume_change_callback(volume_change)
+        asyncio.create_task(self.volume_change_callback(volume_change))
 
     def _handle_button(self, gpio, level, tick):
         logger.debug(f"Button press detected on GPIO {gpio}")
@@ -98,25 +99,28 @@ class GPIOController:
             # Long press detection
             if level == 0:  # Button pressed
                 self.press_start_time[gpio] = current_time
+                logger.debug(f"Button {button_number} pressed down")
             else:  # Button released
                 press_duration = current_time - self.press_start_time.get(gpio, current_time)
                 if press_duration > settings.LONG_PRESS_DURATION:
                     if self.long_press_callback:
                         logger.info(f"Long press detected on button {button_number}")
-                        self.long_press_callback(button_number)
+                        asyncio.create_task(self.long_press_callback(button_number))
                 else:
                     # Double press detection
                     last_press = self.last_press_time.get(gpio, 0)
                     if current_time - last_press < settings.DOUBLE_PRESS_INTERVAL:
                         if self.double_press_callback:
                             logger.info(f"Double press detected on button {button_number}")
-                            self.double_press_callback(button_number)
+                            asyncio.create_task(self.double_press_callback(button_number))
                     else:
                         if self.button_press_callback:
                             logger.info(f"Button {button_number} pressed (GPIO {gpio})")
-                            self.button_press_callback(button_number)
+                            # Create async task for button press callback
+                            asyncio.create_task(self.button_press_callback(button_number))
                 
                 self.last_press_time[gpio] = current_time
+                logger.debug(f"Button {button_number} released")
 
     def cleanup(self):
         if hasattr(self, 'pi') and self.pi.connected:
