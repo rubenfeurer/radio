@@ -84,9 +84,12 @@ class GPIOController:
             logger.debug(f"Rotation detected on GPIO {gpio}")
             if gpio == settings.ROTARY_CLK:
                 if level == 1:
+                    # Check the state of the other pin to determine direction
                     if self.pi.read(settings.ROTARY_DT) == 0:
+                        # Clockwise rotation
                         volume_change = self.volume_step if settings.ROTARY_CLOCKWISE_INCREASES else -self.volume_step
                     else:
+                        # Counter-clockwise rotation
                         volume_change = -self.volume_step if settings.ROTARY_CLOCKWISE_INCREASES else self.volume_step
                     logger.info(f"Volume change: {volume_change}")
                     
