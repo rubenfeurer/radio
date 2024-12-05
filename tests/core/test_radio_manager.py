@@ -153,11 +153,11 @@ async def test_station_switching():
     manager.add_station(station1)
     manager.add_station(station2)
     
-    # Use toggle_station instead of play_station to update current_slot
+    # Use toggle_station and check status
     await manager.toggle_station(1)
-    assert manager.current_slot == 1
+    assert manager.get_status().current_station == 1
     await manager.toggle_station(2)
-    assert manager.current_slot == 2
+    assert manager.get_status().current_station == 2
 
 @pytest.mark.asyncio
 async def test_volume_persistence():

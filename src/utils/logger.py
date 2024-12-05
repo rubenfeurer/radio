@@ -10,7 +10,7 @@ def setup_logger():
     
     # Configure logger
     logger = logging.getLogger("radio")
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     
     # Create rotating file handler (10 MB per file, keep 5 backup files)
     handler = logging.handlers.RotatingFileHandler(

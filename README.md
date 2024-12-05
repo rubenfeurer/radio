@@ -64,16 +64,70 @@ pip install -r requirements.txt
 radio/
 ├── config/         # Configuration files
 ├── install/        # Installation scripts
-├── src/           # Source code
-│   ├── api/       # API endpoints
-│   ├── core/      # Business logic
-│   ├── hardware/  # Hardware interfaces
-│   ├── system/    # System management
-│   └── utils/     # Utility functions
-├── tests/         # Test files
-├── venv/          # Virtual environment
-└── README.md      # This file
+├── src/            # Source code
+│   ├── api/        # API endpoints
+│   ├── core/       # Business logic
+│   ├── hardware/   # Hardware interfaces
+│   ├── system/     # System management
+│   └── utils/      # Utility functions
+├── tests/          # Test files
+├── web/            # Web Interface (SvelteKit)
+│   ├── src/        # SvelteKit source code
+│   ├── static/     # Static assets
+│   ├── package.json
+│   └── ...         # Other SvelteKit files
+├── venv/           # Virtual environment
+└── README.md       # This file
 ```
+
+## Web Interface Setup
+
+The web interface is built using SvelteKit and Flowbite-Svelte components.
+
+### Setup Instructions
+
+1. **Navigate to the web directory**:
+   ```bash
+   cd ~/radio/web
+   ```
+
+2. **Initialize a new SvelteKit project**:
+   ```bash
+   npx create-svelte@latest .
+   ```
+
+3. **Select the following options**:
+   - Template: Skeleton project
+   - TypeScript: Yes, using TypeScript syntax
+   - ESLint: Yes
+   - Prettier: Yes
+   - Playwright: Yes
+
+4. **Install dependencies**:
+   ```bash
+   npm install
+   npm install flowbite-svelte flowbite
+   npm install -D tailwindcss postcss autoprefixer @sveltejs/adapter-static
+   ```
+
+5. **Configure Tailwind CSS**:
+   - Create `tailwind.config.js` and `src/app.css` as described in the setup instructions.
+
+6. **Run the development server**:
+   ```bash
+   npm run dev -- --open
+   ```
+
+### Features
+
+- **Responsive Design**: Works on mobile, tablet, and desktop
+- **Real-time Updates**: WebSocket connection for immediate feedback
+- **Station Management**: Three configurable radio slots
+- **Volume Control**: Both web and physical control sync
+- **Status Indicators**: Clear visual feedback
+- **Mobile-First**: Touch-friendly interface
+- **No Installation**: Access via web browser
+- **Easy URL**: Access via `http://radio.local`
 
 ## Configuration
 
@@ -128,14 +182,32 @@ The application uses rotating log files to track events and errors. Logs are sto
 
 The `RadioManager` class handles the core functionality of the radio, including station management, playback control, and hardware interactions.
 
+### Singleton Implementation
+
+The application uses a singleton pattern to ensure only one instance of `RadioManager` exists throughout the application lifecycle. This is crucial for:
+- Preventing multiple GPIO controller initializations
+- Maintaining consistent state across all routes
+- Ensuring proper WebSocket callback handling
+
+```python
+# Using the singleton manager
+from src.core.singleton_manager import SingletonRadioManager
+from src.api.routes.websocket import broadcast_status_update
+
+# Get the singleton instance with WebSocket callback
+radio_manager = SingletonRadioManager.get_instance(status_update_callback=broadcast_status_update)
+```
+
+The singleton pattern is implemented in `src/core/singleton_manager.py` and should be used whenever accessing the `RadioManager` instead of creating new instances.
+
 ### Basic Usage
 
 ```python
-from src.core.radio_manager import RadioManager
+from src.core.singleton_manager import SingletonRadioManager
 from src.core.models import RadioStation
 
-# Initialize the radio manager
-radio = RadioManager()
+# Get the radio manager instance
+radio = SingletonRadioManager.get_instance()
 
 # Add a radio station
 station = RadioStation(
@@ -355,7 +427,7 @@ tests/
 │   ├── test_main.py
 │   └── test_routes.py
 ├── core/             # Core functionality tests
-│   ├── test_models.py
+��   ├── test_models.py
 │   └── test_radio_manager.py
 └── hardware/         # Hardware interface tests
     ├── test_audio_player.py
