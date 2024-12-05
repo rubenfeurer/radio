@@ -182,14 +182,32 @@ The application uses rotating log files to track events and errors. Logs are sto
 
 The `RadioManager` class handles the core functionality of the radio, including station management, playback control, and hardware interactions.
 
+### Singleton Implementation
+
+The application uses a singleton pattern to ensure only one instance of `RadioManager` exists throughout the application lifecycle. This is crucial for:
+- Preventing multiple GPIO controller initializations
+- Maintaining consistent state across all routes
+- Ensuring proper WebSocket callback handling
+
+```python
+# Using the singleton manager
+from src.core.singleton_manager import SingletonRadioManager
+from src.api.routes.websocket import broadcast_status_update
+
+# Get the singleton instance with WebSocket callback
+radio_manager = SingletonRadioManager.get_instance(status_update_callback=broadcast_status_update)
+```
+
+The singleton pattern is implemented in `src/core/singleton_manager.py` and should be used whenever accessing the `RadioManager` instead of creating new instances.
+
 ### Basic Usage
 
 ```python
-from src.core.radio_manager import RadioManager
+from src.core.singleton_manager import SingletonRadioManager
 from src.core.models import RadioStation
 
-# Initialize the radio manager
-radio = RadioManager()
+# Get the radio manager instance
+radio = SingletonRadioManager.get_instance()
 
 # Add a radio station
 station = RadioStation(
@@ -409,7 +427,7 @@ tests/
 │   ├── test_main.py
 │   └── test_routes.py
 ├── core/             # Core functionality tests
-│   ├── test_models.py
+��   ├── test_models.py
 │   └── test_radio_manager.py
 └── hardware/         # Hardware interface tests
     ├── test_audio_player.py
