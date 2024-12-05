@@ -99,15 +99,24 @@
   }
 
   async function updateVolume(event: CustomEvent) {
-    const newVolume = event.detail;
+    // Convert to integer since Range might send float
+    const newVolume = Math.round(Number(event.target.value));
+    
     try {
-      await fetch('http://radiod.local:8000/api/v1/volume', {
+      const response = await fetch('http://radiod.local:8000/api/v1/volume', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ volume: newVolume })
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Volume update failed:", error);
+        return;
+      }
+
       volume = newVolume;
     } catch (error) {
       console.error("Failed to update volume:", error);
