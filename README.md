@@ -395,6 +395,8 @@ The project uses pytest for unit testing. Tests are located in the `/tests` dire
    pip install pytest
    pip install pytest-asyncio
    pip install pytest-cov
+   pip install pytest-mock
+   pip install httpx
    ```
 
 3. **Add Test Dependencies to requirements.txt**:
@@ -402,6 +404,8 @@ The project uses pytest for unit testing. Tests are located in the `/tests` dire
    echo "pytest" >> requirements.txt
    echo "pytest-asyncio" >> requirements.txt
    echo "pytest-cov" >> requirements.txt
+   echo "pytest-mock" >> requirements.txt
+   echo "httpx" >> requirements.txt
    ```
 
 ### Running Tests
@@ -427,7 +431,7 @@ tests/
 │   ├── test_main.py
 │   └── test_routes.py
 ├── core/             # Core functionality tests
-��   ├── test_models.py
+│   ├── test_models.py
 │   └── test_radio_manager.py
 └── hardware/         # Hardware interface tests
     ├── test_audio_player.py
@@ -441,8 +445,9 @@ Tests are written using pytest and follow these conventions:
 - Test functions start with `test_`
 - Async tests use `@pytest.mark.asyncio` decorator
 - Fixtures are defined in `conftest.py` or test files
+- Use `pytest-mock` for mocking dependencies
 
-Example test:
+Example test with mocking:
 ```python
 import pytest
 from src.core.radio_manager import RadioManager

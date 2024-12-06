@@ -18,7 +18,7 @@ class WiFiNetwork(BaseModel):
     """Model for available WiFi networks"""
     ssid: str
     signal_strength: int
-    security: str
+    security: Optional[str] = None
     in_use: bool = False
 
 class WiFiStatus(BaseModel):

@@ -6,6 +6,7 @@ from src.api.routes import stations, system, websocket, wifi
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 import socket
+import logging
 
 app = FastAPI(title="Internet Radio API")
 
@@ -36,6 +37,8 @@ app.include_router(system.router, prefix="/api/v1")
 app.include_router(wifi.router, prefix="/api/v1")
 app.include_router(websocket.router)
 
+logger = logging.getLogger(__name__)
+
 @app.get("/")
 async def root():
     """
@@ -52,3 +55,11 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+@app.exception_handler(500)
+async def internal_error_handler(request, exc):
+    logger.error(f"Internal Server Error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error. Check server logs for details."}
+    )

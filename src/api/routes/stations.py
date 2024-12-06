@@ -3,14 +3,14 @@ from pydantic import BaseModel
 from src.core.models import RadioStation
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
-from src.utils.station_loader import load_all_stations
+from src.utils.station_loader import load_all_stations, load_default_stations
 from typing import List, Optional
 import logging
 import json
 import os
 from pathlib import Path
 
-router = APIRouter(tags=["Radio Stations"])
+router = APIRouter()
 radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,33 @@ def load_stations_from_file():
     ensure_stations_file()
     try:
         with open(STATIONS_FILE, "r") as f:
-            return json.load(f)
+            assigned_stations = json.load(f)
+            
+        # Check if we have any non-null stations
+        has_valid_stations = any(
+            station is not None 
+            for station in assigned_stations.values()
+        )
+        
+        if not has_valid_stations:
+            # If all stations are null, load defaults
+            logger.info("No valid stations in file, loading defaults")
+            default_stations = load_default_stations()
+            
+            # Convert to the same format as assigned stations
+            return {
+                str(slot): {
+                    "name": station.name,
+                    "url": station.url,
+                    "slot": slot,
+                    "country": station.country,
+                    "location": station.location
+                }
+                for slot, station in default_stations.items()
+            }
+            
+        return assigned_stations
+            
     except Exception as e:
         logger.error(f"Error loading stations from file: {e}")
         return {}
@@ -175,10 +201,33 @@ async def assign_station_to_slot(slot: int, request: AssignStationRequest):
         logger.error(f"Error assigning station: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/stations/assigned")
+@router.get("/assigned")
 async def get_assigned_stations():
-    """Get all assigned stations from file"""
+    """Get all assigned stations from file, falling back to defaults if empty"""
     try:
-        return load_stations_from_file()
+        # First try to load assigned stations
+        assigned_stations = load_stations_from_file()
+        
+        # If no assigned stations, load defaults
+        if not assigned_stations:
+            logger.info("No assigned stations found, loading defaults")
+            default_stations = load_default_stations()
+            
+            # Convert default stations to the same format as assigned stations
+            assigned_stations = {
+                str(slot): {
+                    "name": station.name,
+                    "url": station.url,
+                    "slot": slot,
+                    "country": station.country,
+                    "location": station.location
+                }
+                for slot, station in default_stations.items()
+            }
+            
+        logger.debug(f"Returning stations: {assigned_stations}")
+        return assigned_stations
+        
     except Exception as e:
+        logger.error(f"Error getting assigned stations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -3,17 +3,29 @@ from typing import List
 from src.core.wifi_manager import WiFiManager
 from src.core.models import WiFiStatus, WiFiNetwork
 from src.api.models.requests import WiFiConnectionRequest
+import logging
 
 router = APIRouter(prefix="/wifi", tags=["WiFi"])
 wifi_manager = WiFiManager()
+logger = logging.getLogger(__name__)
 
 @router.get("/status", response_model=WiFiStatus)
 async def get_wifi_status():
     """Get current WiFi status including connection state and available networks"""
     try:
-        return wifi_manager.get_current_status()
+        status = wifi_manager.get_current_status()
+        logger.debug(f"WiFi status: {status}")
+        return status
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in get_wifi_status: {e}")
+        # Return a safe default status instead of raising an error
+        return WiFiStatus(
+            ssid=None,
+            signal_strength=None,
+            is_connected=False,
+            has_internet=False,
+            available_networks=[]
+        )
 
 @router.get("/networks", response_model=List[WiFiNetwork])
 async def scan_networks():

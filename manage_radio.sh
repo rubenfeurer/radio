@@ -37,10 +37,27 @@ check_pigpiod() {
     fi
 }
 
+check_nmcli_permissions() {
+    # Create sudo rule for nmcli if it doesn't exist
+    SUDO_FILE="/etc/sudoers.d/radio-nmcli"
+    if [ ! -f "$SUDO_FILE" ]; then
+        echo "Setting up nmcli permissions..."
+        sudo tee $SUDO_FILE <<EOF
+# Allow radio user to run specific nmcli commands without password
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi list
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi rescan
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli networking connectivity check
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi connect *
+EOF
+        sudo chmod 440 $SUDO_FILE
+    fi
+}
+
 start() {
     echo "Starting $APP_NAME..."
     check_ports
     check_pigpiod
+    check_nmcli_permissions
     source $VENV_PATH/bin/activate
     echo "Virtual environment activated"
     

@@ -26,25 +26,36 @@ class WiFiManager:
     def get_current_status(self) -> WiFiStatus:
         """Get current WiFi status including available networks"""
         try:
+            logger.debug("Starting to get WiFi status...")
+            
             # Get available networks
+            logger.debug("Scanning for networks...")
             available_networks = self._scan_networks()
+            logger.debug(f"Found {len(available_networks)} networks")
             
             # Get current connection details
+            logger.debug("Getting current connection...")
             connection = self._get_current_connection()
+            logger.debug(f"Current connection: {connection}")
+            
             if connection:
-                return WiFiStatus(
+                status = WiFiStatus(
                     ssid=connection.ssid,
                     signal_strength=connection.signal_strength,
                     is_connected=True,
                     has_internet=self._check_internet_connection(),
                     available_networks=available_networks
                 )
+                logger.debug(f"Returning connected status: {status}")
+                return status
             
             # Return disconnected status with available networks
-            return WiFiStatus(available_networks=available_networks)
+            status = WiFiStatus(available_networks=available_networks)
+            logger.debug(f"Returning disconnected status: {status}")
+            return status
             
         except Exception as e:
-            logger.error(f"Error getting WiFi status: {e}")
+            logger.error(f"Error getting WiFi status: {str(e)}", exc_info=True)
             return WiFiStatus()
 
     def _scan_networks(self) -> List[WiFiNetwork]:
@@ -83,19 +94,20 @@ class WiFiManager:
     def _get_current_connection(self) -> Optional[WiFiNetwork]:
         """Get current WiFi connection details"""
         try:
-            output = self._run_command([
-                "nmcli", "-t", "-f",
-                "SSID,SIGNAL,SECURITY",
-                "device", "wifi", "list", "ifname", self._interface
-            ])
+            # Use iwconfig instead of nmcli for more reliable access
+            output = self._run_command(["iwconfig", self._interface])
             
-            for line in output.splitlines():
-                if ':' in line and '*' in line:  # Connected network
-                    ssid, signal, security = line.split(':')[:3]
+            if "ESSID:" in output:
+                ssid = output.split('ESSID:"')[1].split('"')[0]
+                if ssid:
+                    # Get signal strength using iwconfig
+                    quality = output.split("Quality=")[1].split(" ")[0]
+                    level = int(quality.split("/")[0]) / int(quality.split("/")[1]) * 100
+                    
                     return WiFiNetwork(
                         ssid=ssid,
-                        signal_strength=int(signal),
-                        security=security,
+                        signal_strength=int(level),
+                        security="WPA2",  # Assume WPA2 as default
                         in_use=True
                     )
             return None
@@ -107,16 +119,23 @@ class WiFiManager:
     def _check_internet_connection(self) -> bool:
         """Check if there's internet connectivity"""
         try:
+            # Try ping instead of nmcli connectivity check
             result = self._run_command([
-                "nmcli", "networking", "connectivity", "check"
+                "ping", "-c", "1", "-W", "2", "8.8.8.8"
             ])
-            return "full" in result.lower()
-        except Exception:
+            return result.returncode == 0
+        except Exception as e:
+            logger.warning(f"Internet check failed: {e}")
             return False
 
     def _run_command(self, command: list) -> str:
-        """Run system command and return output"""
+        """Run system command with sudo if needed"""
         try:
+            # Add sudo for nmcli commands
+            if command[0] == "nmcli":
+                command = ["sudo"] + command
+            
+            logger.debug(f"Running command: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=True,
@@ -126,12 +145,14 @@ class WiFiManager:
             if result.returncode != 0:
                 logger.error(f"Command failed: {result.stderr}")
                 raise RuntimeError(f"Command failed: {result.stderr}")
+            
+            logger.debug(f"Command output: {result.stdout.strip()}")
             return result.stdout.strip()
         except subprocess.TimeoutExpired:
             logger.error(f"Command timed out: {command}")
             raise
         except Exception as e:
-            logger.error(f"Error running command {command}: {e}")
+            logger.error(f"Error running command {command}: {str(e)}", exc_info=True)
             raise
 
     async def connect_to_network(self, ssid: str, password: str) -> bool:
