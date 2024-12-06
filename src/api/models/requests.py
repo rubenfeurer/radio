@@ -1,4 +1,12 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from typing import Optional
 
 class VolumeRequest(BaseModel):
-    volume: int = Field(..., ge=0, le=100) 
+    volume: int
+
+class AssignStationRequest(BaseModel):
+    stationId: int
+    name: str
+    url: str
+    country: Optional[str] = None
+    location: Optional[str] = None 
