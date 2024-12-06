@@ -42,7 +42,13 @@
   // WebSocket setup
   let ws: WebSocket;
   
+  let API_BASE = '';
+
   onMount(() => {
+    API_BASE = window.location.port === '5173' 
+        ? 'http://radiod.local' 
+        : '';
+        
     loadInitialStations();
     fetchVolume();
     fetchWiFiStatus();
@@ -52,9 +58,18 @@
 
   async function loadInitialStations() {
     try {
-        // First try to load assigned stations from file
-        const assignedResponse = await fetch('/api/v1/stations/assigned');
+        console.log("Fetching assigned stations...");
+        const assignedResponse = await fetch(`${API_BASE}/api/v1/stations/assigned`);
+        console.log("Response status:", assignedResponse.status);
+        
+        if (!assignedResponse.ok) {
+            const errorText = await assignedResponse.text();
+            console.error("Error response:", errorText);
+            throw new Error(`HTTP error! status: ${assignedResponse.status}`);
+        }
+        
         const assignedStations = await assignedResponse.json();
+        console.log("Assigned stations:", assignedStations);
         
         const slots = [1, 2, 3];
         stations = []; // Reset stations array before loading
@@ -69,7 +84,7 @@
                     }];
                 } else {
                     // Fall back to default station
-                    const response = await fetch(`/api/v1/stations/${slot}`);
+                    const response = await fetch(`${API_BASE}/api/v1/stations/${slot}`);
                     if (response.ok) {
                         const station = await response.json();
                         stations = [...stations, station];
@@ -85,7 +100,7 @@
         const slots = [1, 2, 3];
         for (const slot of slots) {
             try {
-                const response = await fetch(`/api/v1/stations/${slot}`);
+                const response = await fetch(`${API_BASE}/api/v1/stations/${slot}`);
                 if (response.ok) {
                     const station = await response.json();
                     stations = [...stations, station];
@@ -99,7 +114,7 @@
 
   async function fetchVolume() {
     try {
-      const response = await fetch('/api/volume');
+      const response = await fetch(`${API_BASE}/api/v1/volume`);
       const data = await response.json();
       volume = data.volume;
     } catch (error) {
@@ -109,7 +124,7 @@
 
   async function fetchWiFiStatus() {
     try {
-      const response = await fetch('/api/v1/wifi/status');
+      const response = await fetch(`${API_BASE}/api/v1/wifi/status`);
       if (!response.ok) {
         console.error('Failed to fetch WiFi status:', await response.text());
         return;
@@ -122,8 +137,11 @@
   }
 
   function connectWebSocket() {
+    if (typeof window === 'undefined') return; // Guard against SSR
+    
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const host = window.location.port === '5173' ? 'radiod.local' : window.location.host;
+    ws = new WebSocket(`${protocol}//${host}/ws`);
     
     ws.onopen = () => {
       wsConnected = true;
@@ -154,7 +172,7 @@
 
   async function toggleStation(slot: number) {
     try {
-      const response = await fetch(`/api/v1/stations/${slot}/toggle`, {
+      const response = await fetch(`${API_BASE}/api/v1/stations/${slot}/toggle`, {
         method: 'POST'
       });
       const data = await response.json();
@@ -173,7 +191,7 @@
     const newVolume = Math.round(Number(event.target.value));
     
     try {
-      const response = await fetch('/api/v1/volume', {
+      const response = await fetch(`${API_BASE}/api/v1/volume`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

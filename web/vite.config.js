@@ -6,7 +6,7 @@ export default defineConfig({
 	server: {
 		proxy: {
 			'/api': {
-				target: 'http://localhost:80',
+				target: 'http://radiod.local',
 				changeOrigin: true,
 				rewrite: (path) => {
 					if (!path.includes('/v1/')) {
@@ -27,7 +27,7 @@ export default defineConfig({
 				}
 			},
 			'/ws': {
-				target: 'ws://localhost:80',
+				target: 'ws://radiod.local',
 				ws: true
 			}
 		},

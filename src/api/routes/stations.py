@@ -105,6 +105,30 @@ async def add_station(station: RadioStation):
     radio_manager.add_station(station)
     return {"message": "Station added successfully"}
 
+@router.get("/stations/assigned")
+async def get_assigned_stations():
+    """Get all assigned stations from file, falling back to defaults if empty"""
+    try:
+        assigned_stations = load_stations_from_file()
+        if not assigned_stations:
+            logger.info("No assigned stations found, loading defaults")
+            default_stations = load_default_stations()
+            assigned_stations = {
+                str(slot): {
+                    "name": station.name,
+                    "url": station.url,
+                    "slot": slot,
+                    "country": station.country,
+                    "location": station.location
+                }
+                for slot, station in default_stations.items()
+            }
+        logger.debug(f"Returning stations: {assigned_stations}")
+        return assigned_stations
+    except Exception as e:
+        logger.error(f"Error getting assigned stations: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/stations/{slot}", response_model=RadioStation)
 async def get_station(slot: int):
     """
@@ -199,35 +223,4 @@ async def assign_station_to_slot(slot: int, request: AssignStationRequest):
         }
     except Exception as e:
         logger.error(f"Error assigning station: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/assigned")
-async def get_assigned_stations():
-    """Get all assigned stations from file, falling back to defaults if empty"""
-    try:
-        # First try to load assigned stations
-        assigned_stations = load_stations_from_file()
-        
-        # If no assigned stations, load defaults
-        if not assigned_stations:
-            logger.info("No assigned stations found, loading defaults")
-            default_stations = load_default_stations()
-            
-            # Convert default stations to the same format as assigned stations
-            assigned_stations = {
-                str(slot): {
-                    "name": station.name,
-                    "url": station.url,
-                    "slot": slot,
-                    "country": station.country,
-                    "location": station.location
-                }
-                for slot, station in default_stations.items()
-            }
-            
-        logger.debug(f"Returning stations: {assigned_stations}")
-        return assigned_stations
-        
-    except Exception as e:
-        logger.error(f"Error getting assigned stations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

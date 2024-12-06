@@ -64,14 +64,25 @@ start() {
     # Clear the log file
     echo "" > $LOG_FILE
     
-    # Start FastAPI server with sudo (needed for port 80)
+    # Start FastAPI server with sudo and preserve environment
     echo "Starting FastAPI server on port $API_PORT..."
-    sudo -E $VENV_PATH/bin/uvicorn src.api.main:app --host 0.0.0.0 --port $API_PORT --reload --log-level debug > $LOG_FILE 2>&1 &
+    sudo -E env "PATH=$PATH" "$VENV_PATH/bin/uvicorn" src.api.main:app \
+        --host 0.0.0.0 \
+        --port $API_PORT \
+        --reload \
+        --log-level debug > $LOG_FILE 2>&1 &
     API_PID=$!
     echo $API_PID > $PID_FILE
     
-    # Wait a moment before starting dev server
-    sleep 2
+    # Wait to ensure API server is up
+    sleep 5
+    
+    # Verify API server is running
+    if ! curl -s http://localhost:$API_PORT/api/v1/health > /dev/null; then
+        echo "Failed to start API server. Check logs:"
+        tail -n 20 $LOG_FILE
+        exit 1
+    fi
     
     # Start development server
     echo "Starting development server on port $DEV_PORT..."
@@ -93,6 +104,7 @@ start() {
         echo "Failed to start $APP_NAME. Check logs for details."
         cat $LOG_FILE
         rm -f $PID_FILE
+        exit 1
     fi
 }
 
