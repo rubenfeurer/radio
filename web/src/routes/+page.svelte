@@ -27,20 +27,48 @@
 
   async function loadInitialStations() {
     try {
-      const slots = [1, 2, 3];
-      for (const slot of slots) {
-        try {
-          const response = await fetch(`/api/stations/${slot}`);
-          if (response.ok) {
-            const station = await response.json();
-            stations = [...stations, station];
-          }
-        } catch (error) {
-          console.error(`Failed to fetch station ${slot}:`, error);
+        // First try to load assigned stations from file
+        const assignedResponse = await fetch('/api/v1/stations/assigned');
+        const assignedStations = await assignedResponse.json();
+        
+        const slots = [1, 2, 3];
+        stations = []; // Reset stations array before loading
+
+        for (const slot of slots) {
+            try {
+                if (assignedStations[slot] && assignedStations[slot] !== null) {
+                    // Use assigned station from file
+                    stations = [...stations, {
+                        ...assignedStations[slot],
+                        slot: parseInt(slot)
+                    }];
+                } else {
+                    // Fall back to default station
+                    const response = await fetch(`/api/stations/${slot}`);
+                    if (response.ok) {
+                        const station = await response.json();
+                        stations = [...stations, station];
+                    }
+                }
+            } catch (error) {
+                console.error(`Failed to fetch station ${slot}:`, error);
+            }
         }
-      }
     } catch (error) {
-      console.error("Failed to fetch stations:", error);
+        console.error("Failed to fetch stations:", error);
+        // Only fall back to default stations if loading assigned stations completely fails
+        const slots = [1, 2, 3];
+        for (const slot of slots) {
+            try {
+                const response = await fetch(`/api/stations/${slot}`);
+                if (response.ok) {
+                    const station = await response.json();
+                    stations = [...stations, station];
+                }
+            } catch (error) {
+                console.error(`Failed to fetch station ${slot}:`, error);
+            }
+        }
     }
   }
 

@@ -7,12 +7,9 @@ from src.api.models.requests import VolumeRequest
 client = TestClient(app)
 
 def test_root():
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "online", 
-        "message": "Internet Radio API is running"
-    }
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://radiod.local:5173"
 
 def test_health():
     response = client.get("/api/v1/health")
