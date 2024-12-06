@@ -5,14 +5,27 @@ VENV_PATH="/home/radio/radio/venv"
 APP_PATH="/home/radio/radio/src/api/main.py"
 LOG_FILE="/home/radio/radio/logs/radio.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
-PORT=8000
+API_PORT=80
+DEV_PORT=5173
 
-check_port() {
-    if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null ; then
-        echo "Port $PORT is already in use. Stopping existing process..."
-        sudo kill -9 $(sudo lsof -t -i:$PORT)
+check_ports() {
+    # Check and kill any existing processes on API_PORT
+    if sudo lsof -Pi :$API_PORT -sTCP:LISTEN -t >/dev/null ; then
+        echo "Port $API_PORT is already in use. Stopping existing process..."
+        sudo kill -9 $(sudo lsof -t -i:$API_PORT)
         sleep 2
     fi
+    
+    # Check and kill any existing processes on DEV_PORT
+    if lsof -Pi :$DEV_PORT -sTCP:LISTEN -t >/dev/null ; then
+        echo "Port $DEV_PORT is already in use. Stopping existing process..."
+        sudo kill -9 $(lsof -t -i:$DEV_PORT)
+        sleep 2
+    fi
+
+    # Additional check for any hanging processes
+    sudo pkill -f "uvicorn.*$APP_PATH" || true
+    pkill -f "npm run dev" || true
 }
 
 check_pigpiod() {
@@ -26,7 +39,7 @@ check_pigpiod() {
 
 start() {
     echo "Starting $APP_NAME..."
-    check_port
+    check_ports
     check_pigpiod
     source $VENV_PATH/bin/activate
     echo "Virtual environment activated"
@@ -34,18 +47,29 @@ start() {
     # Clear the log file
     echo "" > $LOG_FILE
     
-    # Add --log-level=debug for more detailed logging
-    nohup uvicorn src.api.main:app --host 0.0.0.0 --port $PORT --reload --log-level debug > $LOG_FILE 2>&1 &
-    PID=$!
-    echo $PID > $PID_FILE
+    # Start FastAPI server with sudo (needed for port 80)
+    echo "Starting FastAPI server on port $API_PORT..."
+    sudo -E $VENV_PATH/bin/uvicorn src.api.main:app --host 0.0.0.0 --port $API_PORT --reload --log-level debug > $LOG_FILE 2>&1 &
+    API_PID=$!
+    echo $API_PID > $PID_FILE
     
-    # Wait a moment to ensure the application starts
+    # Wait a moment before starting dev server
     sleep 2
     
-    # Check if the process is still running
-    if ps -p $PID > /dev/null; then
-        echo "$APP_NAME started successfully with PID $PID"
-        # Print initial log entries
+    # Start development server
+    echo "Starting development server on port $DEV_PORT..."
+    cd web && npm run dev -- --host 0.0.0.0 --port $DEV_PORT >> $LOG_FILE 2>&1 &
+    DEV_PID=$!
+    echo $DEV_PID >> $PID_FILE
+    
+    # Wait to ensure both servers start
+    sleep 3
+    
+    # Check if processes are running
+    if ps -p $API_PID > /dev/null && ps -p $DEV_PID > /dev/null; then
+        echo "$APP_NAME started successfully"
+        echo "FastAPI PID: $API_PID"
+        echo "Dev Server PID: $DEV_PID"
         echo "Initial log entries:"
         tail -n 10 $LOG_FILE
     else
@@ -57,23 +81,25 @@ start() {
 
 stop() {
     if [ -f $PID_FILE ]; then
-        PID=$(cat $PID_FILE)
-        echo "Stopping $APP_NAME with PID $PID..."
-        kill -15 $PID 2>/dev/null || true
-        sleep 2
-        # Force kill if still running
-        kill -9 $PID 2>/dev/null || true
+        while read PID; do
+            echo "Stopping process with PID $PID..."
+            sudo kill -15 $PID 2>/dev/null || true
+            sleep 2
+            # Force kill if still running
+            sudo kill -9 $PID 2>/dev/null || true
+        done < $PID_FILE
         rm -f $PID_FILE
         echo "$APP_NAME stopped."
         
-        # Kill any remaining uvicorn processes
-        pkill -f "uvicorn.*$APP_PATH"
+        # Kill any remaining processes
+        sudo pkill -f "uvicorn.*$APP_PATH"
+        pkill -f "npm run dev"
     else
         echo "$APP_NAME is not running."
     fi
     
-    # Double check port is free
-    check_port
+    # Double check ports are free
+    check_ports
 }
 
 restart() {

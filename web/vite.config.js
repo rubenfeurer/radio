@@ -6,10 +6,9 @@ export default defineConfig({
 	server: {
 		proxy: {
 			'/api': {
-				target: 'http://radiod.local:8000',
+				target: 'http://localhost:80',
 				changeOrigin: true,
 				rewrite: (path) => {
-					// Add /v1 to the path if it's not already there
 					if (!path.includes('/v1/')) {
 						return path.replace('/api/', '/api/v1/');
 					}
@@ -28,10 +27,12 @@ export default defineConfig({
 				}
 			},
 			'/ws': {
-				target: 'ws://radiod.local:8000',
+				target: 'ws://localhost:80',
 				ws: true
 			}
 		},
-		host: true
+		host: '0.0.0.0',
+		port: 5173,
+		strictPort: true
 	}
 });

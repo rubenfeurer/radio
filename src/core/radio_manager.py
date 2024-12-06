@@ -3,7 +3,8 @@ from src.core.models import RadioStation, SystemStatus
 from src.hardware.audio_player import AudioPlayer
 from src.hardware.gpio_controller import GPIOController
 from config.config import settings
-from src.utils.station_loader import load_default_stations
+from src.utils.station_loader import load_default_stations, load_assigned_stations
+from src.core.station_manager import StationManager
 import logging
 import asyncio
 
@@ -12,15 +13,11 @@ logger = logging.getLogger(__name__)
 class RadioManager:
     def __init__(self, status_update_callback=None):
         logger.info("Initializing RadioManager")
-        self._stations: Dict[int, RadioStation] = {}
+        self._station_manager = StationManager()
         self._status = SystemStatus(volume=settings.DEFAULT_VOLUME)
         self._player = AudioPlayer()
         self._status_update_callback = status_update_callback
         self._lock = asyncio.Lock()
-        
-        # Initialize with default stations
-        logger.info("Loading default stations")
-        self._load_default_stations()
         
         # Get the current event loop
         self.loop = asyncio.get_event_loop()
@@ -35,15 +32,11 @@ class RadioManager:
         logger.info("GPIO controller initialized")
         logger.info("RadioManager initialization complete")
         
-    def _load_default_stations(self) -> None:
-        """Load default stations into empty slots"""
-        default_stations = load_default_stations()
-        
-        # Add default stations to empty slots
-        for slot, station in default_stations.items():
-            if slot not in self._stations:
-                self._stations[slot] = station
-                logger.info(f"Added default station to slot {slot}: {station.name}")
+    def get_station(self, slot: int) -> Optional[RadioStation]:
+        return self._station_manager.get_station(slot)
+    
+    def add_station(self, station: RadioStation) -> None:
+        self._station_manager.save_station(station)
     
     async def _handle_volume_change(self, change: int) -> None:
         """Handle volume change from rotary encoder."""
@@ -74,29 +67,15 @@ class RadioManager:
         else:
             logger.warning(f"Invalid button number: {button}")
     
-    def add_station(self, station: RadioStation) -> None:
-        """Override existing station in slot"""
-        if station.slot is not None:
-            self._stations[station.slot] = station
-            logger.info(f"Updated station in slot {station.slot}: {station.name}")
-    
-    def remove_station(self, slot: int) -> None:
-        if slot in self._stations:
-            del self._stations[slot]
-            if self._status.current_station == slot:
-                self._status.current_station = None
-                self._status.is_playing = False
-                
-    def get_station(self, slot: int) -> Optional[RadioStation]:
-        return self._stations.get(slot)
-        
     async def play_station(self, slot: int) -> None:
-        if slot in self._stations:
-            station = self._stations[slot]
+        """Play a station and update status"""
+        if slot in self._station_manager.get_all_stations():
+            station = self._station_manager.get_all_stations()[slot]
             await self._player.play(station.url)
             self._status.current_station = slot
             self._status.is_playing = True
-            
+            await self._broadcast_status()
+    
     async def stop_playback(self) -> None:
         await self._player.stop()
         self._status.is_playing = False
