@@ -1,13 +1,53 @@
 from fastapi import APIRouter, HTTPException
-from src.core.wifi_manager import WiFiManager, WiFiStatus
+from typing import List
+from src.core.wifi_manager import WiFiManager
+from src.core.models import WiFiStatus, WiFiNetwork
+from src.api.models.requests import WiFiConnectionRequest
 
-router = APIRouter()
+router = APIRouter(prefix="/wifi", tags=["WiFi"])
 wifi_manager = WiFiManager()
 
 @router.get("/status", response_model=WiFiStatus)
 async def get_wifi_status():
-    """Get current WiFi connection status"""
+    """Get current WiFi status including connection state and available networks"""
     try:
         return wifi_manager.get_current_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/networks", response_model=List[WiFiNetwork])
+async def scan_networks():
+    """Scan for available WiFi networks"""
+    try:
+        status = wifi_manager.get_current_status()
+        return status.available_networks
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/connect")
+async def connect_to_network(request: WiFiConnectionRequest):
+    """Connect to a WiFi network"""
+    try:
+        success = await wifi_manager.connect_to_network(request.ssid, request.password)
+        if success:
+            return {"message": f"Successfully connected to {request.ssid}"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to connect to network")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/current")
+async def get_current_connection():
+    """Get details about the current WiFi connection"""
+    try:
+        status = wifi_manager.get_current_status()
+        if status.is_connected:
+            return {
+                "ssid": status.ssid,
+                "signal_strength": status.signal_strength,
+                "has_internet": status.has_internet
+            }
+        else:
+            return {"message": "Not connected to any network"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 

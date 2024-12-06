@@ -5,7 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["WebSocket"])
 active_connections: Set[WebSocket] = set()
 
 async def broadcast_status_update(status: dict):

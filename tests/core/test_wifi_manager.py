@@ -1,5 +1,6 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
+import unittest
 from src.core.wifi_manager import WiFiManager
 from src.core.models import WiFiStatus, WiFiNetwork
 
@@ -43,3 +44,90 @@ def test_network_manager_not_running():
         
         with pytest.raises(RuntimeError, match="NetworkManager is not running"):
             WiFiManager()
+
+@pytest.mark.asyncio
+async def test_connect_to_network(wifi_manager, mock_networkmanager):
+    """Test connecting to a WiFi network"""
+    # Reset mock to clear initialization calls
+    mock_networkmanager.reset_mock()
+    
+    # Mock successful connection with correct format matching _scan_networks method
+    mock_networkmanager.side_effect = [
+        # First call: network scan rescan
+        MagicMock(returncode=0, stdout=""),
+        # Second call: network list
+        MagicMock(
+            returncode=0,
+            stdout="TestNetwork:80:WPA2:*\nNetwork2:75:WPA2:no"
+        ),
+        # Third call: connection attempt
+        MagicMock(returncode=0, stdout="Success"),
+        # Fourth call: verification list
+        MagicMock(
+            returncode=0,
+            stdout="TestNetwork:80:WPA2:*"
+        )
+    ]
+    
+    success = await wifi_manager.connect_to_network("TestNetwork", "password123")
+    assert success is True
+
+    # Verify the correct sequence of commands
+    assert mock_networkmanager.call_args_list == [
+        # First: Rescan
+        call(
+            ['nmcli', 'device', 'wifi', 'rescan'],
+            capture_output=True, text=True, timeout=5
+        ),
+        # Second: List networks
+        call(
+            ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE', 'device', 'wifi', 'list'],
+            capture_output=True, text=True, timeout=5
+        ),
+        # Third: Connect
+        call(
+            ['nmcli', 'device', 'wifi', 'connect', 'TestNetwork', 
+             'password', 'password123', 'ifname', 'wlan0'],
+            capture_output=True, text=True, timeout=5
+        ),
+        # Fourth: Verify connection
+        call(
+            ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'device', 'wifi', 
+             'list', 'ifname', 'wlan0'],
+            capture_output=True, text=True, timeout=5
+        )
+    ]
+
+@pytest.mark.asyncio
+async def test_connect_to_nonexistent_network(wifi_manager, mock_networkmanager):
+    """Test connecting to a non-existent network"""
+    # Reset mock to clear initialization calls
+    mock_networkmanager.reset_mock()
+    
+    # Mock scan results without the target network
+    mock_networkmanager.side_effect = [
+        # First call: rescan
+        MagicMock(returncode=0, stdout=""),
+        # Second call: list networks
+        MagicMock(
+            returncode=0,
+            stdout="Network1:75:WPA2:no\nNetwork2:70:WPA2:no"
+        )
+    ]
+    
+    success = await wifi_manager.connect_to_network("NonExistentNetwork", "password123")
+    assert success is False
+
+    # Verify only scan commands were called
+    assert mock_networkmanager.call_args_list == [
+        # First: Rescan
+        call(
+            ['nmcli', 'device', 'wifi', 'rescan'],
+            capture_output=True, text=True, timeout=5
+        ),
+        # Second: List networks
+        call(
+            ['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE', 'device', 'wifi', 'list'],
+            capture_output=True, text=True, timeout=5
+        )
+    ]

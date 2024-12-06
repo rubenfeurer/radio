@@ -10,7 +10,7 @@ import json
 import os
 from pathlib import Path
 
-router = APIRouter()
+router = APIRouter(tags=["Radio Stations"])
 radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 logger = logging.getLogger(__name__)
 

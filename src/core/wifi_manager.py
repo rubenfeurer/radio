@@ -133,3 +133,30 @@ class WiFiManager:
         except Exception as e:
             logger.error(f"Error running command {command}: {e}")
             raise
+
+    async def connect_to_network(self, ssid: str, password: str) -> bool:
+        """Connect to a WiFi network using NetworkManager"""
+        try:
+            # Check if network exists in scan results
+            networks = self._scan_networks()
+            if not any(net.ssid == ssid for net in networks):
+                logger.error(f"Network {ssid} not found in scan results")
+                return False
+
+            # Attempt to connect
+            command = [
+                "nmcli", "device", "wifi",
+                "connect", ssid,
+                "password", password,
+                "ifname", self._interface
+            ]
+            
+            self._run_command(command)
+            
+            # Verify connection was successful
+            current = self._get_current_connection()
+            return current is not None and current.ssid == ssid
+            
+        except Exception as e:
+            logger.error(f"Error connecting to network {ssid}: {e}")
+            return False

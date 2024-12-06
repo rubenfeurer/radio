@@ -10,3 +10,7 @@ class AssignStationRequest(BaseModel):
     url: str
     country: Optional[str] = None
     location: Optional[str] = None 
+
+class WiFiConnectionRequest(BaseModel):
+    ssid: str
+    password: str 

@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.routes import stations, system, websocket
+from src.api.routes import stations, system, websocket, wifi
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 import socket
@@ -33,6 +33,7 @@ app.add_middleware(
 # Include routers
 app.include_router(stations.router, prefix="/api/v1")
 app.include_router(system.router, prefix="/api/v1")
+app.include_router(wifi.router, prefix="/api/v1")
 app.include_router(websocket.router)
 
 @app.get("/")

@@ -166,4 +166,4 @@ logs/
 *.log
 
 # User configurations
-data/assigned_stations.json
+data/
