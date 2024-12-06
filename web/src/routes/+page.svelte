@@ -44,7 +44,7 @@
                     }];
                 } else {
                     // Fall back to default station
-                    const response = await fetch(`/api/stations/${slot}`);
+                    const response = await fetch(`/api/v1/stations/${slot}`);
                     if (response.ok) {
                         const station = await response.json();
                         stations = [...stations, station];
@@ -60,7 +60,7 @@
         const slots = [1, 2, 3];
         for (const slot of slots) {
             try {
-                const response = await fetch(`/api/stations/${slot}`);
+                const response = await fetch(`/api/v1/stations/${slot}`);
                 if (response.ok) {
                     const station = await response.json();
                     stations = [...stations, station];

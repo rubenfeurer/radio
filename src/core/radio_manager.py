@@ -3,7 +3,7 @@ from src.core.models import RadioStation, SystemStatus
 from src.hardware.audio_player import AudioPlayer
 from src.hardware.gpio_controller import GPIOController
 from config.config import settings
-from src.utils.station_loader import load_default_stations
+from src.utils.station_loader import load_default_stations, load_assigned_stations
 import logging
 import asyncio
 
@@ -18,8 +18,12 @@ class RadioManager:
         self._status_update_callback = status_update_callback
         self._lock = asyncio.Lock()
         
-        # Initialize with default stations
-        logger.info("Loading default stations")
+        # First try to load assigned stations
+        logger.info("Loading assigned stations")
+        self._load_assigned_stations()
+        
+        # Only load defaults for empty slots
+        logger.info("Loading default stations for empty slots")
         self._load_default_stations()
         
         # Get the current event loop
@@ -35,15 +39,24 @@ class RadioManager:
         logger.info("GPIO controller initialized")
         logger.info("RadioManager initialization complete")
         
+    def _load_assigned_stations(self) -> None:
+        """Load assigned stations from JSON file"""
+        assigned_stations = load_assigned_stations()
+        
+        # Add assigned stations to slots
+        for slot, station in assigned_stations.items():
+            self._stations[slot] = station
+            logger.info(f"Loaded assigned station to slot {slot}: {station.name}")
+    
     def _load_default_stations(self) -> None:
-        """Load default stations into empty slots"""
+        """Load default stations into empty slots only"""
         default_stations = load_default_stations()
         
-        # Add default stations to empty slots
+        # Add default stations only to empty slots
         for slot, station in default_stations.items():
             if slot not in self._stations:
                 self._stations[slot] = station
-                logger.info(f"Added default station to slot {slot}: {station.name}")
+                logger.info(f"Added default station to empty slot {slot}: {station.name}")
     
     async def _handle_volume_change(self, change: int) -> None:
         """Handle volume change from rotary encoder."""
