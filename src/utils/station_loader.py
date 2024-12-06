@@ -59,3 +59,20 @@ def load_all_stations() -> Dict[int, RadioStation]:
     except Exception as e:
         logger.error(f"Error loading stations from config/stations.json: {str(e)}")
         return {} 
+
+def load_assigned_stations() -> Dict[int, RadioStation]:
+    """Load assigned stations from JSON file"""
+    try:
+        with open('data/assigned_stations.json', 'r') as f:
+            assigned_data = json.load(f)
+            assigned_stations: Dict[int, RadioStation] = {}
+            
+            for slot, station in assigned_data.items():
+                if station:  # Check if station exists
+                    assigned_stations[int(slot)] = RadioStation(**station)
+                    logger.info(f"Loaded assigned station for slot {slot}: {station['name']}")
+            
+            return assigned_stations
+    except Exception as e:
+        logger.error(f"Error loading assigned stations: {str(e)}")
+        return {} 

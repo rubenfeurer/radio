@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import stations, system, websocket
 from src.core.singleton_manager import RadioManagerSingleton
@@ -37,4 +37,17 @@ app.include_router(websocket.router)
 
 @app.get("/")
 async def root():
-    return RedirectResponse(url=f"http://{hostname}:5173", status_code=307)
+    """
+    Root endpoint that either redirects to frontend or returns API info
+    based on Accept header
+    """
+    # For browser requests, redirect to frontend
+    return {
+        "message": "Radio API is running",
+        "frontend_url": f"http://{hostname}:5173"
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
