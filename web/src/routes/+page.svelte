@@ -27,6 +27,34 @@
 
   async function loadInitialStations() {
     try {
+      // First try to load assigned stations from file
+      const assignedResponse = await fetch('/api/v1/stations/assigned');
+      const assignedStations = await assignedResponse.json();
+      
+      const slots = [1, 2, 3];
+      for (const slot of slots) {
+        try {
+          if (assignedStations[slot]) {
+            // Use assigned station from file
+            stations = [...stations, {
+              ...assignedStations[slot],
+              slot: parseInt(slot)
+            }];
+          } else {
+            // Fall back to default station
+            const response = await fetch(`/api/stations/${slot}`);
+            if (response.ok) {
+              const station = await response.json();
+              stations = [...stations, station];
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to fetch station ${slot}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch stations:", error);
+      // If loading assigned stations fails, fall back to default loading
       const slots = [1, 2, 3];
       for (const slot of slots) {
         try {
@@ -39,8 +67,6 @@
           console.error(`Failed to fetch station ${slot}:`, error);
         }
       }
-    } catch (error) {
-      console.error("Failed to fetch stations:", error);
     }
   }
 

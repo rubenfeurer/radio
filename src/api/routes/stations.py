@@ -6,10 +6,57 @@ from src.api.routes.websocket import broadcast_status_update
 from src.utils.station_loader import load_all_stations
 from typing import List, Optional
 import logging
+import json
+import os
+from pathlib import Path
 
 router = APIRouter()
 radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 logger = logging.getLogger(__name__)
+
+STATIONS_FILE = Path("data/assigned_stations.json")
+
+def ensure_stations_file():
+    """Ensure the stations file and directory exist"""
+    STATIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if not STATIONS_FILE.exists():
+        with open(STATIONS_FILE, "w") as f:
+            json.dump({}, f)
+
+def save_stations_to_file(slot: int, station: RadioStation):
+    """Save station assignment to JSON file"""
+    ensure_stations_file()
+    try:
+        # Load existing assignments
+        with open(STATIONS_FILE, "r") as f:
+            stations = json.load(f)
+        
+        # Update or add new station
+        stations[str(slot)] = {
+            "name": station.name,
+            "url": station.url,
+            "slot": slot,
+            "country": station.country,
+            "location": station.location
+        }
+        
+        # Save back to file
+        with open(STATIONS_FILE, "w") as f:
+            json.dump(stations, f, indent=2)
+            
+    except Exception as e:
+        logger.error(f"Error saving stations to file: {e}")
+        raise
+
+def load_stations_from_file():
+    """Load station assignments from JSON file"""
+    ensure_stations_file()
+    try:
+        with open(STATIONS_FILE, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading stations from file: {e}")
+        return {}
 
 class AssignStationRequest(BaseModel):
     stationId: int
@@ -112,10 +159,21 @@ async def assign_station_to_slot(slot: int, request: AssignStationRequest):
         logger.info(f"Adding station to radio manager: {new_station}")
         radio_manager.add_station(new_station)
         
+        # Save to JSON file
+        save_stations_to_file(slot, new_station)
+        
         return {
             "status": "success",
             "message": f"Station {station.name} assigned to slot {slot}"
         }
     except Exception as e:
         logger.error(f"Error assigning station: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/stations/assigned")
+async def get_assigned_stations():
+    """Get all assigned stations from file"""
+    try:
+        return load_stations_from_file()
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
