@@ -83,14 +83,19 @@ async def add_station(station: RadioStation):
 async def get_station(slot: int):
     """
     Retrieve information about a radio station in a specific slot.
-    
-    - Returns station details if found (name, URL, slot)
-    - Returns 404 error if no station exists in the specified slot
+    First checks radio manager, then falls back to assigned stations file.
     """
+    # First try to get station from radio manager
     station = radio_manager.get_station(slot)
-    if not station:
-        raise HTTPException(status_code=404, detail="Station not found")
-    return station
+    if station:
+        return station
+    
+    # If not in radio manager, try assigned stations file
+    assigned_stations = load_stations_from_file()
+    if str(slot) in assigned_stations and assigned_stations[str(slot)]:
+        return RadioStation(**assigned_stations[str(slot)])
+    
+    raise HTTPException(status_code=404, detail="Station not found")
 
 @router.post("/stations/{slot}/play")
 async def play_station(slot: int):
