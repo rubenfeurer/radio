@@ -3,22 +3,23 @@ from src.api.models.requests import VolumeRequest
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 
-router = APIRouter(tags=["System"])
+# Base router without tags
+router = APIRouter()
 
 # Get the singleton instance
 radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 
-@router.get("/health")
+@router.get("/health", tags=["System"])
 async def health_check():
     """Check if the API is running and healthy."""
     return {"status": "healthy"}
 
-@router.get("/volume", tags=["Volume Control"])
+@router.get("/volume", tags=["Volume"])
 async def get_volume():
     """Get the current volume level."""
     return {"volume": radio_manager.get_status().volume}
 
-@router.post("/volume", tags=["Volume Control"])
+@router.post("/volume", tags=["Volume"])
 async def set_volume(request: VolumeRequest):
     """Set the system volume level."""
     if not 0 <= request.volume <= 100:
