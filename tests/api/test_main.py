@@ -14,10 +14,9 @@ def mock_radio_manager_singleton(monkeypatch, mock_radio_manager):
 client = TestClient(app)
 
 def test_root():
-    response = client.get("/")
+    response = client.get("/api/v1/")
     assert response.status_code == 200
-    assert "message" in response.json()
-    assert "frontend_url" in response.json()
+    assert response.json() == {"message": "Radio API"}
 
 def test_health():
     response = client.get("/health")

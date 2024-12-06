@@ -9,53 +9,58 @@ logger = logging.getLogger(__name__)
 class WiFiManager:
     """Manages WiFi connections using NetworkManager"""
     
-    def __init__(self):
+    def __init__(self, skip_verify=False):
+        self.logger = logging.getLogger(__name__)
         self._interface = "wlan0"
-        self._verify_networkmanager()
+        if not skip_verify:
+            self._verify_networkmanager()
         
     def _verify_networkmanager(self) -> None:
-        """Verify NetworkManager is installed and running"""
+        """Verify NetworkManager is running and accessible"""
         try:
-            result = self._run_command(["systemctl", "is-active", "NetworkManager"])
-            if "active" not in result:
-                raise RuntimeError("NetworkManager is not running")
+            result = self._run_command(['systemctl', 'is-active', 'NetworkManager'])
+            if result.returncode != 0 or 'active' not in result.stdout:
+                raise RuntimeError("NetworkManager service is not active")
         except Exception as e:
-            logger.error(f"NetworkManager check failed: {e}")
+            self.logger.error(f"NetworkManager verification failed: {e}")
             raise RuntimeError("NetworkManager is not running") from e
 
     def get_current_status(self) -> WiFiStatus:
-        """Get current WiFi status including available networks"""
+        """Get current WiFi status"""
         try:
-            logger.debug("Starting to get WiFi status...")
+            result = self._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
+                'device', 'wifi', 'list'
+            ], capture_output=True, text=True, timeout=5)
             
-            # Get available networks
-            logger.debug("Scanning for networks...")
-            available_networks = self._scan_networks()
-            logger.debug(f"Found {len(available_networks)} networks")
+            if result.returncode != 0:
+                self.logger.error(f"Failed to get WiFi status: {result.stderr}")
+                return WiFiStatus()
+
+            networks = self._parse_network_list(result.stdout)
+            current_network = next(
+                (net for net in networks if net.in_use), 
+                None
+            )
             
-            # Get current connection details
-            logger.debug("Getting current connection...")
-            connection = self._get_current_connection()
-            logger.debug(f"Current connection: {connection}")
-            
-            if connection:
-                status = WiFiStatus(
-                    ssid=connection.ssid,
-                    signal_strength=connection.signal_strength,
-                    is_connected=True,
-                    has_internet=self._check_internet_connection(),
-                    available_networks=available_networks
-                )
-                logger.debug(f"Returning connected status: {status}")
-                return status
-            
-            # Return disconnected status with available networks
-            status = WiFiStatus(available_networks=available_networks)
-            logger.debug(f"Returning disconnected status: {status}")
-            return status
+            # Check internet connectivity if we have a connection
+            has_internet = False
+            if current_network:
+                internet_check = self._run_command([
+                    'sudo', 'nmcli', 'networking', 'connectivity', 'check'
+                ], capture_output=True, text=True, timeout=5)
+                has_internet = internet_check.stdout.strip() == 'full'
+
+            return WiFiStatus(
+                ssid=current_network.ssid if current_network else None,
+                signal_strength=current_network.signal_strength if current_network else None,
+                is_connected=bool(current_network),
+                has_internet=has_internet,
+                available_networks=networks
+            )
             
         except Exception as e:
-            logger.error(f"Error getting WiFi status: {str(e)}", exc_info=True)
+            self.logger.error(f"Error getting current connection: {e}")
             return WiFiStatus()
 
     def _scan_networks(self) -> List[WiFiNetwork]:
@@ -128,56 +133,114 @@ class WiFiManager:
             logger.warning(f"Internet check failed: {e}")
             return False
 
-    def _run_command(self, command: list) -> str:
-        """Run system command with sudo if needed"""
+    def _run_command(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
+        """Run a shell command and return the result"""
+        default_kwargs = {
+            'capture_output': True,
+            'text': True,
+            'timeout': 5
+        }
+        kwargs = {**default_kwargs, **kwargs}
         try:
-            # Add sudo for nmcli commands
-            if command[0] == "nmcli":
-                command = ["sudo"] + command
-            
-            logger.debug(f"Running command: {' '.join(command)}")
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode != 0:
-                logger.error(f"Command failed: {result.stderr}")
-                raise RuntimeError(f"Command failed: {result.stderr}")
-            
-            logger.debug(f"Command output: {result.stdout.strip()}")
-            return result.stdout.strip()
+            return subprocess.run(command, **kwargs)
         except subprocess.TimeoutExpired:
-            logger.error(f"Command timed out: {command}")
-            raise
+            self.logger.error(f"Command timed out: {' '.join(command)}")
+            return subprocess.CompletedProcess(
+                args=command,
+                returncode=1,
+                stdout='',
+                stderr='Command timed out'
+            )
         except Exception as e:
-            logger.error(f"Error running command {command}: {str(e)}", exc_info=True)
-            raise
+            self.logger.error(f"Command failed: {' '.join(command)} - {e}")
+            return subprocess.CompletedProcess(
+                args=command,
+                returncode=1,
+                stdout='',
+                stderr=str(e)
+            )
 
     async def connect_to_network(self, ssid: str, password: str) -> bool:
-        """Connect to a WiFi network using NetworkManager"""
+        """Connect to a WiFi network"""
         try:
-            # Check if network exists in scan results
-            networks = self._scan_networks()
-            if not any(net.ssid == ssid for net in networks):
-                logger.error(f"Network {ssid} not found in scan results")
+            # Force a rescan
+            result = self._run_command([
+                'sudo', 'nmcli', 'device', 'wifi', 'rescan'
+            ], capture_output=True, text=True, timeout=5)
+            
+            if result.returncode != 0:
+                self.logger.error(f"Network rescan failed: {result.stderr}")
                 return False
 
-            # Attempt to connect
-            command = [
-                "nmcli", "device", "wifi",
-                "connect", ssid,
-                "password", password,
-                "ifname", self._interface
-            ]
+            # Check if network is available
+            result = self._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
+                'device', 'wifi', 'list'
+            ], capture_output=True, text=True, timeout=5)
             
-            self._run_command(command)
+            networks = self._parse_network_list(result.stdout)
+            if not any(n.ssid == ssid for n in networks):
+                self.logger.error(f"Network {ssid} not found in scan results")
+                return False
             
-            # Verify connection was successful
-            current = self._get_current_connection()
-            return current is not None and current.ssid == ssid
+            # Attempt connection
+            result = self._run_command([
+                'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
+                'password', password
+            ], capture_output=True, text=True, timeout=30)  # Longer timeout for connection
+            
+            if result.returncode != 0:
+                self.logger.error(f"Failed to connect to network: {result.stderr}")
+                return False
+            
+            # Verify connection
+            status = self.get_current_status()
+            return status.ssid == ssid and status.is_connected
             
         except Exception as e:
-            logger.error(f"Error connecting to network {ssid}: {e}")
+            self.logger.error(f"Error connecting to network: {e}")
             return False
+
+    def _parse_network_list(self, output: str) -> List[WiFiNetwork]:
+        """Parse nmcli output into WiFiNetwork objects"""
+        networks = []
+        for line in output.strip().split('\n'):
+            if not line:
+                continue
+            try:
+                ssid, signal, security, in_use = line.split(':')
+                networks.append(WiFiNetwork(
+                    ssid=ssid,
+                    signal_strength=int(signal),
+                    security=security if security != '' else None,
+                    in_use=(in_use == '*')
+                ))
+            except Exception as e:
+                self.logger.error(f"Error parsing network: {line} - {e}")
+        return networks
+
+    async def _rescan_networks(self) -> None:
+        """Force a rescan of available networks"""
+        try:
+            result = self._run_command([
+                'sudo', 'nmcli', 'device', 'wifi', 'rescan'
+            ])
+            if result.returncode != 0:
+                self.logger.error(f"Network rescan failed: {result.stderr}")
+        except Exception as e:
+            self.logger.error(f"Error during network rescan: {e}")
+
+    async def _scan_networks(self) -> List[WiFiNetwork]:
+        """Scan for available networks"""
+        try:
+            result = self._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
+                'device', 'wifi', 'list'
+            ])
+            if result.returncode != 0:
+                self.logger.error(f"Network scan failed: {result.stderr}")
+                return []
+            return self._parse_network_list(result.stdout)
+        except Exception as e:
+            self.logger.error(f"Error scanning networks: {e}")
+            return []

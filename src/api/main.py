@@ -58,3 +58,7 @@ async def internal_error_handler(request, exc):
         status_code=500,
         content={"detail": "Internal Server Error. Check server logs for details."}
     )
+
+@app.get("/api/v1/")
+async def root():
+    return {"message": "Radio API"}
