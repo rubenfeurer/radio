@@ -10,7 +10,7 @@ import json
 import os
 from pathlib import Path
 
-router = APIRouter()
+router = APIRouter(tags=["Radio Stations"])
 radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class AssignStationRequest(BaseModel):
     country: Optional[str] = None
     location: Optional[str] = None
 
-@router.post("/stations/")
+@router.post("/stations/", tags=["Station Management"])
 async def add_station(station: RadioStation):
     """
     Add or update a radio station in a specific slot.
@@ -105,7 +105,7 @@ async def add_station(station: RadioStation):
     radio_manager.add_station(station)
     return {"message": "Station added successfully"}
 
-@router.get("/stations/assigned")
+@router.get("/stations/assigned", tags=["Station Management"])
 async def get_assigned_stations():
     """Get all assigned stations from file, falling back to defaults if empty"""
     try:
@@ -129,7 +129,7 @@ async def get_assigned_stations():
         logger.error(f"Error getting assigned stations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/stations/{slot}", response_model=RadioStation)
+@router.get("/stations/{slot}", response_model=RadioStation, tags=["Station Info"])
 async def get_station(slot: int):
     """
     Retrieve information about a radio station in a specific slot.
@@ -147,7 +147,7 @@ async def get_station(slot: int):
     
     raise HTTPException(status_code=404, detail="Station not found")
 
-@router.post("/stations/{slot}/play")
+@router.post("/stations/{slot}/play", tags=["Playback Control"])
 async def play_station(slot: int):
     """
     Start playing the radio station in the specified slot.
@@ -162,7 +162,7 @@ async def play_station(slot: int):
     await radio_manager.play_station(slot)
     return {"message": "Playing station"}
 
-@router.post("/stations/{slot}/toggle")
+@router.post("/stations/{slot}/toggle", tags=["Playback Control"])
 async def toggle_station(slot: int):
     """Toggle station playback"""
     try:
@@ -178,14 +178,14 @@ async def toggle_station(slot: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/stations", response_model=List[RadioStation])
+@router.get("/stations", response_model=List[RadioStation], tags=["Station Info"])
 async def get_all_stations():
     """Get a list of all available radio stations."""
     stations_dict = load_all_stations()
     # Convert dictionary to list for frontend consumption
     return list(stations_dict.values())
 
-@router.post("/stations/{slot}/assign")
+@router.post("/stations/{slot}/assign", tags=["Station Management"])
 async def assign_station_to_slot(slot: int, request: AssignStationRequest):
     """Assign a station to a specific slot."""
     try:

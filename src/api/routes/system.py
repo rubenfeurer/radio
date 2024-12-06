@@ -13,12 +13,12 @@ async def health_check():
     """Check if the API is running and healthy."""
     return {"status": "healthy"}
 
-@router.get("/volume")
+@router.get("/volume", tags=["Volume Control"])
 async def get_volume():
     """Get the current volume level."""
     return {"volume": radio_manager.get_status().volume}
 
-@router.post("/volume")
+@router.post("/volume", tags=["Volume Control"])
 async def set_volume(request: VolumeRequest):
     """Set the system volume level."""
     if not 0 <= request.volume <= 100:
