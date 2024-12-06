@@ -42,14 +42,9 @@ logger = logging.getLogger(__name__)
 @app.get("/")
 async def root():
     """
-    Root endpoint that either redirects to frontend or returns API info
-    based on Accept header
+    Root endpoint that redirects to frontend
     """
-    # For browser requests, redirect to frontend
-    return {
-        "message": "Radio API is running",
-        "frontend_url": f"http://{hostname}:5173"
-    }
+    return RedirectResponse(url=f"http://{hostname}:5173")
 
 @app.get("/health")
 async def health_check():
