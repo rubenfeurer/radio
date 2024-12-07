@@ -10,7 +10,7 @@ class RadioStation(BaseModel):
     location: Optional[str] = None
     
 class SystemStatus(BaseModel):
-    current_station: Optional[int] = None
+    current_station: Optional[dict] = None
     volume: int = 70
     is_playing: bool = False
 

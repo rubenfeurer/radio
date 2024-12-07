@@ -3,6 +3,8 @@ from fastapi.testclient import TestClient
 from src.api.main import app
 from src.core.models import RadioStation
 from src.api.models.requests import VolumeRequest, AssignStationRequest
+from fastapi import WebSocket
+from starlette.testclient import TestClient
 
 # Add mock fixture for RadioManager
 @pytest.fixture(autouse=True)
@@ -26,10 +28,18 @@ def test_health():
 def test_websocket():
     """Test WebSocket connection and status request/response"""
     with client.websocket_connect("/ws") as websocket:
+        # Send status request
         websocket.send_json({"type": "status_request"})
+        
+        # Get response
         data = websocket.receive_json()
+        
+        # Verify response structure
         assert data["type"] == "status_response"
+        assert "data" in data
         assert isinstance(data["data"], dict)
+        assert "volume" in data["data"]
+        assert "is_playing" in data["data"]
 
 def test_add_station():
     """Test adding a station"""

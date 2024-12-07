@@ -7,6 +7,8 @@ from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 import socket
 import logging
+from fastapi import WebSocket, WebSocketDisconnect
+from src.core.models import SystemStatus
 
 app = FastAPI(title="Internet Radio API")
 
@@ -73,6 +75,29 @@ async def internal_error_handler(request, exc):
 @app.get("/api/v1/")
 async def root():
     return {"message": "Radio API"}
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_json()
+            if data.get("type") == "status_request":
+                status = radio_manager.get_status()
+                status_dict = SystemStatus(
+                    current_station=status.current_station.model_dump() if status.current_station else None,
+                    volume=status.volume,
+                    is_playing=status.is_playing
+                ).model_dump()
+                
+                await websocket.send_json({
+                    "type": "status_response",
+                    "data": status_dict
+                })
+            elif data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        pass
 
 if __name__ == "__main__":
     import uvicorn
