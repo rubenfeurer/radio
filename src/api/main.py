@@ -18,14 +18,15 @@ hostname = f"{socket.gethostname()}.local"
 
 # Construct the allowed origins
 allowed_origins = [
-    f"http://{hostname}:5173",  # Dev server
-    f"http://{hostname}",       # Root domain
-    "http://localhost:5173",    # Local development
+    f"http://{hostname}:5173",    # Dev server
+    f"http://{hostname}",         # Production
+    "http://localhost:5173",      # Local development
+    "http://192.168.1.16:5173",  # Direct IP access
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=allowed_origins,  # More restrictive than "*"
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,3 +63,7 @@ async def internal_error_handler(request, exc):
 @app.get("/api/v1/")
 async def root():
     return {"message": "Radio API"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { Card, Button, Range, Badge } from 'flowbite-svelte';
   import { goto } from '$app/navigation';
+  import { browser } from '$app/environment';
 
   // Types
   interface RadioStation {
@@ -42,13 +43,17 @@
   // WebSocket setup
   let ws: WebSocket;
   
-  let API_BASE = '';
+  // Get the current hostname (IP or domain)
+  const currentHost = browser ? window.location.hostname : '';
+  
+  // Determine API base URL
+  const API_BASE = browser 
+    ? (window.location.port === '5173' 
+      ? `http://${currentHost}:80`  // Changed from 5000 to 80
+      : '')
+    : '';
 
   onMount(() => {
-    API_BASE = window.location.port === '5173' 
-        ? 'http://radiod.local' 
-        : '';
-        
     loadInitialStations();
     fetchVolume();
     fetchWiFiStatus();
@@ -137,11 +142,13 @@
   }
 
   function connectWebSocket() {
-    if (typeof window === 'undefined') return; // Guard against SSR
+    if (!browser) return;
     
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.port === '5173' ? 'radiod.local' : window.location.host;
-    ws = new WebSocket(`${protocol}//${host}/ws`);
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = currentHost;
+    const wsPort = '80';  // Changed from 5000 to 80
+    
+    ws = new WebSocket(`${wsProtocol}//${wsHost}:${wsPort}/ws`);
     
     ws.onopen = () => {
       wsConnected = true;

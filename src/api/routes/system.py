@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from src.api.models.requests import VolumeRequest
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
+import socket
 
 # Base router without tags
 router = APIRouter()
@@ -26,4 +27,9 @@ async def set_volume(request: VolumeRequest):
         raise HTTPException(status_code=400, detail="Volume must be between 0 and 100")
     
     await radio_manager.set_volume(request.volume)
-    return {"message": "Volume set successfully"} 
+    return {"message": "Volume set successfully"}
+
+@router.get("/hostname")
+async def get_hostname():
+    hostname = socket.gethostname()
+    return {"hostname": f"{hostname}.local"} 

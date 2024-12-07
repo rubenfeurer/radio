@@ -1,7 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Card, Button, Badge, Input } from 'flowbite-svelte';
+  import { Card, Button, Badge, Input, Skeleton } from 'flowbite-svelte';
   import { goto } from '$app/navigation';
+  import { browser } from '$app/environment';
+
+  // Get the current hostname (IP or domain)
+  const currentHost = browser ? window.location.hostname : '';
+  
+  // Determine API base URL
+  const API_BASE = browser 
+    ? (window.location.port === '5173' 
+      ? `http://${currentHost}:80`
+      : '')
+    : '';
 
   // SVG icons
   const Icons = {
@@ -16,22 +27,73 @@
     </svg>`
   };
 
+  interface WiFiNetwork {
+    ssid: string;
+    security: string | null;
+    signal_strength: number;
+    in_use: boolean;
+    saved: boolean;
+  }
+
+  interface CurrentConnection {
+    ssid: string | null;
+    is_connected: boolean;
+  }
+
   let networks: WiFiNetwork[] = [];
+  let savedNetworks: WiFiNetwork[] = [];
+  let otherNetworks: WiFiNetwork[] = [];
+  let currentConnection: CurrentConnection | null = null;
   let selectedNetwork: WiFiNetwork | null = null;
   let password = '';
   let connecting = false;
+  let loading = true;
 
   onMount(async () => {
-    await fetchNetworks();
+    await Promise.all([
+      fetchNetworks(),
+      fetchCurrentConnection()
+    ]);
   });
 
-  async function fetchNetworks() {
+  async function fetchCurrentConnection() {
     try {
-      const response = await fetch('/api/v1/wifi/networks');
+      const response = await fetch(`${API_BASE}/api/v1/wifi/current`);
+      if (!response.ok) throw new Error('Failed to fetch current connection');
+      currentConnection = await response.json();
+    } catch (error) {
+      console.error('Error fetching current connection:', error);
+    }
+  }
+
+  async function fetchNetworks() {
+    loading = true;
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/wifi/networks`);
       if (!response.ok) throw new Error('Failed to fetch networks');
-      networks = await response.json();
+      const rawNetworks = await response.json();
+      
+      // Filter out networks with empty SSIDs
+      networks = rawNetworks.filter(network => 
+        network.ssid && network.ssid.trim() !== ''
+      );
+      
+      // Mark current network as in_use and saved
+      if (currentConnection?.ssid) {
+        networks = networks.map(network => ({
+          ...network,
+          in_use: network.ssid === currentConnection.ssid,
+          saved: network.ssid === currentConnection.ssid || network.saved
+        }));
+      }
+      
+      // Split networks into saved and other
+      savedNetworks = networks.filter(n => n.saved || n.in_use);
+      otherNetworks = networks.filter(n => !n.saved && !n.in_use);
     } catch (error) {
       console.error('Error fetching networks:', error);
+    } finally {
+      loading = false;
     }
   }
 
@@ -47,7 +109,7 @@
   async function attemptConnection(ssid: string, password: string) {
     connecting = true;
     try {
-      const response = await fetch('/api/v1/wifi/connect', {
+      const response = await fetch(`${API_BASE}/api/v1/wifi/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ssid, password })
@@ -55,8 +117,15 @@
 
       if (!response.ok) throw new Error('Failed to connect');
       
-      // Success - go back to main page
-      goto('/');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      const hostnameResponse = await fetch(`${API_BASE}/api/v1/system/hostname`);
+      if (hostnameResponse.ok) {
+        const { hostname } = await hostnameResponse.json();
+        window.location.href = `http://${hostname}`;
+      } else {
+        goto('/');
+      }
     } catch (error) {
       console.error('Connection error:', error);
       alert('Failed to connect to network');
@@ -97,23 +166,83 @@
       </form>
     </Card>
   {:else}
-    <div class="grid gap-4 w-full">
-      {#each networks as network}
-        <Card class="w-full">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              {@html Icons.wifi}
-              <span class="font-semibold">{network.ssid}</span>
-              {#if network.security}
-                {@html Icons.lock}
-              {/if}
+    <div class="grid gap-6 w-full">
+      {#if loading}
+        <div class="grid gap-4">
+          {#each Array(3) as _}
+            <Card class="w-full">
+              <div class="flex items-center justify-between p-1">
+                <div class="flex items-center gap-3">
+                  <div class="w-4 h-4 bg-gray-200 rounded animate-pulse" />
+                  <div class="h-5 bg-gray-200 rounded w-40 animate-pulse" />
+                  <div class="w-4 h-4 bg-gray-200 rounded animate-pulse" />
+                </div>
+              </div>
+            </Card>
+          {/each}
+        </div>
+      {:else}
+        <!-- Saved Networks Section -->
+        {#if savedNetworks.length > 0}
+          <div>
+            <h2 class="text-lg font-semibold mb-3">Saved Networks</h2>
+            <div class="grid gap-4">
+              {#each savedNetworks as network}
+                <Card 
+                  class="w-full cursor-pointer hover:bg-gray-50 transition-colors"
+                  on:click={() => connectToNetwork(network)}
+                >
+                  <div class="flex items-center justify-between p-1">
+                    <div class="flex items-center gap-3">
+                      {@html Icons.wifi}
+                      <span class="font-semibold">{network.ssid}</span>
+                      {#if network.security}
+                        {@html Icons.lock}
+                      {/if}
+                      {#if network.in_use}
+                        <Badge color="green">Connected</Badge>
+                      {/if}
+                    </div>
+                    <div class="text-gray-400">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
+                </Card>
+              {/each}
             </div>
-            <Button on:click={() => connectToNetwork(network)}>
-              Connect
-            </Button>
           </div>
-        </Card>
-      {/each}
+        {/if}
+
+        <!-- Other Networks Section -->
+        <div>
+          <h2 class="text-lg font-semibold mb-3">Available Networks</h2>
+          <div class="grid gap-4">
+            {#each otherNetworks as network}
+              <Card 
+                class="w-full cursor-pointer hover:bg-gray-50 transition-colors"
+                on:click={() => connectToNetwork(network)}
+              >
+                <div class="flex items-center justify-between p-1">
+                  <div class="flex items-center gap-3">
+                    {@html Icons.wifi}
+                    <span class="font-semibold">{network.ssid}</span>
+                    {#if network.security}
+                      {@html Icons.lock}
+                    {/if}
+                  </div>
+                  <div class="text-gray-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </Card>
+            {/each}
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 </div> 
