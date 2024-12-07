@@ -3,6 +3,7 @@
   import { Card, Button, Range, Badge } from 'flowbite-svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
+  import { wsStore } from '$lib/stores/websocket';
 
   // Types
   interface RadioStation {
