@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List, Dict, Any
 
 class RadioStation(BaseModel):
     name: str
@@ -10,9 +10,19 @@ class RadioStation(BaseModel):
     location: Optional[str] = None
     
 class SystemStatus(BaseModel):
-    current_station: Optional[dict] = None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    
+    current_station: Optional[Dict[str, Any]] = None
     volume: int = 70
     is_playing: bool = False
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Custom serialization to handle nested objects"""
+        return {
+            "current_station": self.current_station,
+            "volume": self.volume,
+            "is_playing": self.is_playing
+        }
 
 class WiFiNetwork(BaseModel):
     """Model for available WiFi networks"""
