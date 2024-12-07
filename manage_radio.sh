@@ -53,6 +53,31 @@ EOF
     fi
 }
 
+open_monitor() {
+    echo "Opening monitor website..."
+    # Wait for services to be fully up
+    sleep 5
+    
+    # Check if Chromium is already running with monitor page
+    if ! pgrep -f "chromium.*monitor" > /dev/null; then
+        # Kill any existing Chromium instances first
+        pkill chromium 2>/dev/null || true
+        sleep 1
+        
+        # Open Chromium with proper flags
+        DISPLAY=:0 chromium-browser \
+            --kiosk \
+            --start-fullscreen \
+            --disable-restore-session-state \
+            --noerrdialogs \
+            --disable-session-crashed-bubble \
+            --no-first-run \
+            "http://localhost:5173/monitor" > /dev/null 2>&1 &
+    else
+        echo "Monitor already open in browser"
+    fi
+}
+
 start() {
     echo "Starting $APP_NAME..."
     check_ports
@@ -100,6 +125,9 @@ start() {
         echo "Dev Server PID: $DEV_PID"
         echo "Initial log entries:"
         tail -n 10 $LOG_FILE
+        
+        # Open monitor website
+        open_monitor
     else
         echo "Failed to start $APP_NAME. Check logs for details."
         cat $LOG_FILE

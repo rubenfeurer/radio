@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { Card, Button, Badge, Table, TableBody, TableBodyRow, TableBodyCell, TableHead, TableHeadCell } from 'flowbite-svelte';
+  import { Card, Button, Badge, Table, TableBody, TableBodyRow, TableBodyCell, TableHead, TableHeadCell, Alert } from 'flowbite-svelte';
 
   // State for system info and processes
   let systemInfo = {
@@ -127,6 +127,14 @@
 </script>
 
 <div class="max-w-4xl mx-auto p-4">
+  <!-- Temperature Warning Alert -->
+  {#if parseFloat(systemInfo.temperature) > 70}
+    <Alert color="red" class="mb-6">
+      <span class="font-medium">Warning!</span>
+      System temperature is {systemInfo.temperature} - This is above safe operating levels. Please check system cooling.
+    </Alert>
+  {/if}
+
   <!-- Header with Back Button and Connection Status -->
   <div class="mb-6 flex justify-between items-center">
     <div class="flex items-center gap-4">
@@ -142,58 +150,67 @@
     </div>
   </div>
 
-  <!-- System Info Card -->
-  <Card class="mb-6">
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-      <div>
-        <h3 class="text-sm font-medium text-gray-500">Hostname</h3>
-        <p class="mt-1">{systemInfo.hostname}</p>
-      </div>
-      <div>
-        <h3 class="text-sm font-medium text-gray-500">IP Address</h3>
-        <p class="mt-1">{systemInfo.ip}</p>
-      </div>
-      <div>
-        <h3 class="text-sm font-medium text-gray-500">CPU Usage</h3>
-        <p class="mt-1">{systemInfo.cpuUsage}</p>
-      </div>
-      <div>
-        <h3 class="text-sm font-medium text-gray-500">Disk Space</h3>
-        <p class="mt-1">{systemInfo.diskSpace}</p>
-      </div>
-      <div>
-        <h3 class="text-sm font-medium text-gray-500">Temperature</h3>
-        <p class="mt-1">{systemInfo.temperature}</p>
-      </div>
-    </div>
-  </Card>
+  <!-- System Info Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+    <!-- Hostname Card -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">Hostname</h3>
+      <p class="mt-1 text-lg">{systemInfo.hostname}</p>
+    </Card>
+
+    <!-- IP Address Card -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">IP Address</h3>
+      <p class="mt-1 text-lg">{systemInfo.ip}</p>
+    </Card>
+
+    <!-- CPU Usage Card -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">CPU Usage</h3>
+      <p class="mt-1 text-lg">{systemInfo.cpuUsage}</p>
+    </Card>
+
+    <!-- Disk Space Card -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">Disk Space</h3>
+      <p class="mt-1 text-lg">{systemInfo.diskSpace}</p>
+    </Card>
+
+    <!-- Temperature Card -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">Temperature</h3>
+      <p class="mt-1 text-lg">
+        <span class={
+          parseFloat(systemInfo.temperature) > 80 ? 'text-red-600' :
+          parseFloat(systemInfo.temperature) > 70 ? 'text-orange-500' :
+          parseFloat(systemInfo.temperature) > 60 ? 'text-yellow-500' :
+          'text-green-600'
+        }>
+          {systemInfo.temperature}
+        </span>
+      </p>
+    </Card>
+  </div>
 
   <!-- Processes Table -->
-  <Card {cardClass}>
-    <Table>
-      <TableHead {tableHeadClass}>
+  <Card class="w-full">
+    <Table class="w-full">
+      <TableHead>
         <TableHeadCell>Process</TableHeadCell>
         <TableHeadCell>Status</TableHeadCell>
-        <TableHeadCell>Memory</TableHeadCell>
-        <TableHeadCell>CPU</TableHeadCell>
-        <TableHeadCell>Uptime</TableHeadCell>
       </TableHead>
       
-      <TableBody {tableBodyClass}>
+      <TableBody>
         {#each services as service}
           <TableBodyRow>
-            <TableBodyCell {tableCellClass}>{service.name}</TableBodyCell>
+            <TableBodyCell>{service.name}</TableBodyCell>
             <TableBodyCell>
               <Badge
-                {badgeClass}
-                color={service.status === 'running' ? 'green' : 'red'}
+                color={service.status === 'active' || service.status === 'running' ? 'green' : 'red'}
               >
                 {service.status}
               </Badge>
             </TableBodyCell>
-            <TableBodyCell>{service.memory}</TableBodyCell>
-            <TableBodyCell>{service.cpu}%</TableBodyCell>
-            <TableBodyCell>{service.uptime}</TableBodyCell>
           </TableBodyRow>
         {/each}
       </TableBody>

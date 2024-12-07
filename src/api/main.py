@@ -51,8 +51,15 @@ async def root():
     return RedirectResponse(url=f"http://{hostname}:5173")
 
 @app.get("/health")
+@app.head("/health")
 async def health_check():
     """Health check endpoint"""
+    return {"status": "healthy"}
+
+@app.get("/api/v1/health")
+@app.head("/api/v1/health")
+async def api_health_check():
+    """API Health check endpoint"""
     return {"status": "healthy"}
 
 @app.exception_handler(500)
