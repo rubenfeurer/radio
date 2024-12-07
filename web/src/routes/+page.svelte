@@ -146,9 +146,13 @@
     
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsHost = currentHost;
-    const wsPort = '80';  // Changed from 5000 to 80
+    const wsPort = window.location.port === '5173' ? '80' : window.location.port;
     
-    ws = new WebSocket(`${wsProtocol}//${wsHost}:${wsPort}/ws`);
+    // Fix WebSocket URL to match backend route
+    const wsUrl = `${wsProtocol}//${wsHost}${wsPort ? ':' + wsPort : ''}/api/v1/ws`;
+    console.log('Connecting to WebSocket:', wsUrl);
+    
+    ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
       wsConnected = true;
@@ -321,6 +325,18 @@
       <a href="/wifi" class="w-full">
         <Button color="alternative" class="w-full mt-2">
           Settings
+        </Button>
+      </a>
+    </div>
+  </Card>
+
+  <!-- Monitor Card -->
+  <Card class="mt-4">
+    <div class="flex flex-col gap-2">
+      <h3 class="text-lg font-semibold">System Monitor</h3>
+      <a href="/monitor" class="w-full">
+        <Button color="alternative" class="w-full">
+          Open Monitor
         </Button>
       </a>
     </div>

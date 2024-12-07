@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 class VolumeRequest(BaseModel):
     volume: int
@@ -14,3 +14,26 @@ class AssignStationRequest(BaseModel):
 class WiFiConnectionRequest(BaseModel):
     ssid: str
     password: str 
+
+class SystemInfo(BaseModel):
+    hostname: str
+    ip: str
+    cpuUsage: str
+    diskSpace: str
+    temperature: str
+
+class ServiceStatus(BaseModel):
+    name: str
+    active: bool
+    status: str
+
+class WebAccess(BaseModel):
+    api: bool
+    ui: bool
+
+class MonitorUpdate(BaseModel):
+    type: str = "monitor_update"
+    systemInfo: SystemInfo
+    services: List[ServiceStatus]
+    webAccess: WebAccess
+    logs: List[str]

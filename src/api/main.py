@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.routes import stations, system, websocket, wifi
+from src.api.routes import stations, system, websocket, wifi, monitor
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 import socket
@@ -20,13 +20,15 @@ hostname = f"{socket.gethostname()}.local"
 allowed_origins = [
     f"http://{hostname}:5173",    # Dev server
     f"http://{hostname}",         # Production
+    f"ws://{hostname}",          # WebSocket production
+    f"ws://{hostname}:80",       # WebSocket explicit port
     "http://localhost:5173",      # Local development
-    "http://192.168.1.16:5173",  # Direct IP access
+    "ws://localhost:80",         # Local WebSocket
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,  # More restrictive than "*"
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,7 +38,8 @@ app.add_middleware(
 app.include_router(stations.router, prefix="/api/v1")
 app.include_router(system.router, prefix="/api/v1")
 app.include_router(wifi.router, prefix="/api/v1")
-app.include_router(websocket.router)
+app.include_router(websocket.router, prefix="/api/v1")
+app.include_router(monitor.router, prefix="/api/v1")
 
 logger = logging.getLogger(__name__)
 
