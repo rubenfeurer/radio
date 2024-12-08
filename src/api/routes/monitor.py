@@ -81,7 +81,7 @@ async def check_web_access():
     }
 
 # Add a REST endpoint for single status check
-@router.get("/status")
+@router.get("/status", tags=["Monitor"])
 async def get_status():
     """
     Get current system status including services, system info, and web access

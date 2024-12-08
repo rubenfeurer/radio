@@ -52,14 +52,14 @@ async def root():
     """
     return RedirectResponse(url=f"http://{hostname}:5173")
 
-@app.get("/health")
-@app.head("/health")
+@app.get("/health", tags=["Health"])
+@app.head("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
 
-@app.get("/api/v1/health")
-@app.head("/api/v1/health")
+@app.get("/api/v1/health", tags=["Health"])
+@app.head("/api/v1/health", tags=["Health"])
 async def api_health_check():
     """API Health check endpoint"""
     return {"status": "healthy"}
@@ -72,8 +72,9 @@ async def internal_error_handler(request, exc):
         content={"detail": "Internal Server Error. Check server logs for details."}
     )
 
-@app.get("/api/v1/")
+@app.get("/api/v1/", tags=["System"])
 async def root():
+    """Root API endpoint"""
     return {"message": "Radio API"}
 
 @app.websocket("/ws")

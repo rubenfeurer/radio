@@ -33,13 +33,14 @@ def test_get_wifi_status(mock_get_status):
 @patch('src.core.wifi_manager.WiFiManager.get_current_status')
 def test_scan_networks(mock_get_status):
     mock_get_status.return_value = mock_status
-    response = client.get("/api/v1/wifi/networks")
+    response = client.get("/api/v1/wifi/status")
     assert response.status_code == 200
-    networks = response.json()
-    assert isinstance(networks, list)
-    assert len(networks) == 2
-    assert networks[0]["ssid"] == "Network1"
-    assert networks[0]["security"] == "WPA2"
+    data = response.json()
+    assert data["ssid"] == "TestNetwork"
+    assert "signal_strength" in data
+    assert "is_connected" in data
+    assert "has_internet" in data
+    assert "available_networks" in data
 
 @patch('src.core.wifi_manager.WiFiManager.connect_to_network')
 def test_connect_to_network(mock_connect):
