@@ -30,6 +30,7 @@ class WiFiNetwork(BaseModel):
     signal_strength: int
     security: Optional[str] = None
     in_use: bool = False
+    saved: bool = False
 
 class WiFiStatus(BaseModel):
     """Model for WiFi connection status"""

@@ -188,10 +188,7 @@
             <h2 class="text-lg font-semibold mb-3">Saved Networks</h2>
             <div class="grid gap-4">
               {#each savedNetworks as network}
-                <Card 
-                  class="w-full cursor-pointer hover:bg-gray-50 transition-colors"
-                  on:click={() => connectToNetwork(network)}
-                >
+                <Card class="w-full hover:bg-gray-50 transition-colors">
                   <div class="flex items-center justify-between p-1">
                     <div class="flex items-center gap-3">
                       {@html Icons.wifi}
@@ -203,10 +200,16 @@
                         <Badge color="green">Connected</Badge>
                       {/if}
                     </div>
-                    <div class="text-gray-400">
-                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                      </svg>
+                    <div class="flex items-center gap-2">
+                      {#if !network.in_use}
+                        <Button 
+                          size="xs"
+                          on:click={() => attemptConnection(network.ssid, '')}
+                          disabled={connecting}
+                        >
+                          {connecting ? 'Connecting...' : 'Connect'}
+                        </Button>
+                      {/if}
                     </div>
                   </div>
                 </Card>

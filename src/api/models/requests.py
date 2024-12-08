@@ -13,7 +13,7 @@ class AssignStationRequest(BaseModel):
 
 class WiFiConnectionRequest(BaseModel):
     ssid: str
-    password: str 
+    password: Optional[str] = None 
 
 class SystemInfo(BaseModel):
     hostname: str

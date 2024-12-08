@@ -160,7 +160,7 @@ class WiFiManager:
                 stderr=str(e)
             )
 
-    async def connect_to_network(self, ssid: str, password: str) -> bool:
+    async def connect_to_network(self, ssid: str, password: Optional[str] = None) -> bool:
         """Connect to a WiFi network"""
         try:
             # Force a rescan
@@ -172,22 +172,26 @@ class WiFiManager:
                 self.logger.error(f"Network rescan failed: {result.stderr}")
                 return False
 
-            # Check if network is available
-            result = self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
-                'device', 'wifi', 'list'
-            ], capture_output=True, text=True, timeout=5)
-            
-            networks = self._parse_network_list(result.stdout)
-            if not any(n.ssid == ssid for n in networks):
-                self.logger.error(f"Network {ssid} not found in scan results")
-                return False
-            
-            # Attempt connection
-            result = self._run_command([
-                'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
-                'password', password
-            ], capture_output=True, text=True, timeout=30)  # Longer timeout for connection
+            # Check if network is saved
+            saved_result = self._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'NAME', 'connection', 'show'
+            ], capture_output=True, text=True)
+            is_saved = saved_result.returncode == 0 and ssid in saved_result.stdout
+
+            # Connect command varies based on whether network is saved
+            if is_saved:
+                result = self._run_command([
+                    'sudo', 'nmcli', 'connection', 'up', ssid
+                ], capture_output=True, text=True, timeout=30)
+            else:
+                if not password:
+                    self.logger.error("Password required for unsaved network")
+                    return False
+                    
+                result = self._run_command([
+                    'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
+                    'password', password
+                ], capture_output=True, text=True, timeout=30)
             
             if result.returncode != 0:
                 self.logger.error(f"Failed to connect to network: {result.stderr}")
@@ -204,6 +208,15 @@ class WiFiManager:
     def _parse_network_list(self, output: str) -> List[WiFiNetwork]:
         """Parse nmcli output into WiFiNetwork objects"""
         networks = []
+        
+        # Get saved networks first
+        saved_networks = set()
+        saved_result = self._run_command([
+            'sudo', 'nmcli', '-t', '-f', 'NAME', 'connection', 'show'
+        ], capture_output=True, text=True)
+        if saved_result.returncode == 0:
+            saved_networks = set(saved_result.stdout.strip().split('\n'))
+
         for line in output.strip().split('\n'):
             if not line:
                 continue
@@ -213,7 +226,8 @@ class WiFiManager:
                     ssid=ssid,
                     signal_strength=int(signal),
                     security=security if security != '' else None,
-                    in_use=(in_use == '*')
+                    in_use=(in_use == '*'),
+                    saved=(ssid in saved_networks)  # Add saved status
                 ))
             except Exception as e:
                 self.logger.error(f"Error parsing network: {line} - {e}")
