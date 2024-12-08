@@ -28,10 +28,21 @@ export default defineConfig({
 			},
 			'/ws': {
 				target: 'ws://radiod.local',
-				ws: true
+				ws: true,
+				changeOrigin: true
 			}
 		},
-		host: '0.0.0.0',
+		host: true,
+		port: 5173,
+		strictPort: true,
+		hmr: {
+			host: 'radiod.local',
+			protocol: 'ws',
+			clientPort: 5173
+		}
+	},
+	preview: {
+		host: true,
 		port: 5173,
 		strictPort: true
 	}

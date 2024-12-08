@@ -89,9 +89,9 @@ start() {
     # Clear the log file
     echo "" > $LOG_FILE
     
-    # Start FastAPI server with sudo and preserve environment
+    # Start FastAPI server with nohup
     echo "Starting FastAPI server on port $API_PORT..."
-    sudo -E env "PATH=$PATH" "$VENV_PATH/bin/uvicorn" src.api.main:app \
+    nohup sudo -E env "PATH=$PATH" "$VENV_PATH/bin/uvicorn" src.api.main:app \
         --host 0.0.0.0 \
         --port $API_PORT \
         --reload \
@@ -102,16 +102,12 @@ start() {
     # Wait to ensure API server is up
     sleep 5
     
-    # Verify API server is running
-    if ! curl -s http://localhost:$API_PORT/api/v1/health > /dev/null; then
-        echo "Failed to start API server. Check logs:"
-        tail -n 20 $LOG_FILE
-        exit 1
-    fi
-    
-    # Start development server
+    # Start development server with nohup
     echo "Starting development server on port $DEV_PORT..."
-    cd web && npm run dev -- --host 0.0.0.0 --port $DEV_PORT >> $LOG_FILE 2>&1 &
+    cd web && nohup npm run dev -- \
+        --host 0.0.0.0 \
+        --port $DEV_PORT \
+        >> $LOG_FILE 2>&1 &
     DEV_PID=$!
     echo $DEV_PID >> $PID_FILE
     
