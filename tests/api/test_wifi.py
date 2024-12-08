@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, AsyncMock
 from src.api.main import app
 from src.core.models import WiFiStatus, WiFiNetwork
 
@@ -43,12 +43,19 @@ def test_scan_networks(mock_get_status):
     assert "available_networks" in data
 
 @patch('src.core.wifi_manager.WiFiManager.connect_to_network')
-def test_connect_to_network(mock_connect):
-    mock_connect.return_value = True
-    response = client.post("/api/v1/wifi/connect", 
+async def test_connect_to_network(mock_connect):
+    """Test successful network connection"""
+    # Mock successful connection response
+    mock_connect.return_value = {
+        "status": "connected",
+        "ssid": "TestNetwork"
+    }
+    
+    response = client.post("/api/v1/wifi/connect",
         json={"ssid": "TestNetwork", "password": "TestPassword"})
+    
     assert response.status_code == 200
-    assert response.json()["message"] == "Successfully connected to TestNetwork"
+    assert response.json() == {"message": "Successfully connected to TestNetwork"}
 
 @patch('src.core.wifi_manager.WiFiManager.get_current_status')
 def test_get_current_connection(mock_get_status):
@@ -61,15 +68,31 @@ def test_get_current_connection(mock_get_status):
     assert "has_internet" in data
 
 @patch('src.core.wifi_manager.WiFiManager.connect_to_network')
-def test_connect_invalid_request(mock_connect):
-    mock_connect.return_value = False
-    response = client.post("/api/v1/wifi/connect", 
+async def test_connect_invalid_request(mock_connect):
+    """Test connection with invalid request"""
+    # Mock failed connection response
+    mock_connect.return_value = {
+        "status": "error",
+        "message": "Invalid network parameters"
+    }
+    
+    response = client.post("/api/v1/wifi/connect",
         json={"ssid": "", "password": ""})
+    
     assert response.status_code == 400
+    assert "detail" in response.json()
 
 @patch('src.core.wifi_manager.WiFiManager.connect_to_network')
-def test_connect_network_not_found(mock_connect):
-    mock_connect.return_value = False
-    response = client.post("/api/v1/wifi/connect", 
+async def test_connect_network_not_found(mock_connect):
+    """Test connection to non-existent network"""
+    # Mock network not found response
+    mock_connect.return_value = {
+        "status": "error",
+        "message": "Network NonExistentNetwork not found in available networks"
+    }
+    
+    response = client.post("/api/v1/wifi/connect",
         json={"ssid": "NonExistentNetwork", "password": "TestPassword"})
+    
     assert response.status_code == 400
+    assert "detail" in response.json()

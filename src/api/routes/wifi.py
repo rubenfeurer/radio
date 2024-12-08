@@ -39,10 +39,25 @@ async def connect_to_network(request: WiFiConnectionRequest):
     """Connect to a WiFi network"""
     try:
         result = await wifi_manager.connect_to_network(request.ssid, request.password)
+        
+        # Check if result is a success response
+        if isinstance(result, dict) and result.get("status") == "connected":
+            return {"message": f"Successfully connected to {request.ssid}"}
+        
+        # If result indicates an error
         if isinstance(result, dict) and result.get("status") == "error":
-            raise HTTPException(status_code=400, detail=result["message"])
-        return result
+            raise HTTPException(status_code=400, detail=result.get("message", "Failed to connect"))
+            
+        # Handle boolean responses (legacy support)
+        if isinstance(result, bool):
+            if result:
+                return {"message": f"Successfully connected to {request.ssid}"}
+            raise HTTPException(status_code=400, detail="Failed to connect to network")
+            
+        raise HTTPException(status_code=400, detail="Unexpected response from WiFi manager")
+        
     except Exception as e:
+        logger.error(f"Error connecting to network: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/current", tags=["WiFi"])
