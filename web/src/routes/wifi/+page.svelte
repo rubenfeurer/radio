@@ -19,13 +19,30 @@
     arrowLeft: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
     </svg>`,
-    wifi: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-    </svg>`,
     lock: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+    </svg>`,
+    wifiStrong: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+    </svg>`,
+    wifiGood: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0" />
+    </svg>`,
+    wifiFair: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01" />
+    </svg>`,
+    wifiWeak: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20h.01" />
     </svg>`
   };
+
+  // Add a helper function to get the appropriate WiFi icon
+  function getWifiIcon(signal_strength: number): string {
+    if (signal_strength >= 80) return Icons.wifiStrong;
+    if (signal_strength >= 60) return Icons.wifiGood;
+    if (signal_strength >= 40) return Icons.wifiFair;
+    return Icons.wifiWeak;
+  }
 
   interface WiFiNetwork {
     ssid: string;
@@ -86,6 +103,9 @@
           saved: network.ssid === currentConnection.ssid || network.saved
         }));
       }
+      
+      // Sort networks by signal strength (highest first)
+      networks.sort((a, b) => b.signal_strength - a.signal_strength);
       
       // Split networks into saved and other
       savedNetworks = networks.filter(n => n.saved || n.in_use);
@@ -191,7 +211,7 @@
                 <Card class="w-full hover:bg-gray-50 transition-colors">
                   <div class="flex items-center justify-between p-1">
                     <div class="flex items-center gap-3">
-                      {@html Icons.wifi}
+                      {@html getWifiIcon(network.signal_strength)}
                       <span class="font-semibold">{network.ssid}</span>
                       {#if network.security}
                         {@html Icons.lock}
@@ -229,7 +249,7 @@
               >
                 <div class="flex items-center justify-between p-1">
                   <div class="flex items-center gap-3">
-                    {@html Icons.wifi}
+                    {@html getWifiIcon(network.signal_strength)}
                     <span class="font-semibold">{network.ssid}</span>
                     {#if network.security}
                       {@html Icons.lock}
