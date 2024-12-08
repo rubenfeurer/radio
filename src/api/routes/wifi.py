@@ -62,4 +62,32 @@ async def get_current_connection():
         else:
             return {"message": "Not connected to any network"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/debug", tags=["WiFi"])
+async def debug_wifi():
+    """Debug endpoint to check WiFi status with detailed logging"""
+    wifi = WiFiManager()
+    # Set debug logging for this request
+    wifi.logger.setLevel(logging.DEBUG)
+    # Get handlers if they don't exist
+    if not wifi.logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter('DEBUG: %(message)s'))
+        wifi.logger.addHandler(handler)
+    
+    status = wifi.get_current_status()
+    
+    # Return both status and debug info
+    return {
+        "status": status,
+        "debug_info": {
+            "saved_networks_command": wifi._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE,UUID', 'connection', 'show'
+            ], capture_output=True, text=True).stdout,
+            "wifi_list_command": wifi._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
+                'device', 'wifi', 'list'
+            ], capture_output=True, text=True).stdout,
+        }
+    } 

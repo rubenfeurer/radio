@@ -28,13 +28,27 @@ class WiFiManager:
     def get_current_status(self) -> WiFiStatus:
         """Get current WiFi status"""
         try:
-            # Get list of saved networks first
+            # Get list of saved connections with basic info first
             saved_result = self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'NAME', 'connection', 'show'
+                'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'
             ], capture_output=True, text=True)
+            
+            self.logger.debug("\n=== Start Debug Output ===")
+            self.logger.debug("1. Getting saved connections:")
+            self.logger.debug(f"Command output: {saved_result.stdout}")
+            
+            # Track saved networks
             saved_networks = set()
-            if saved_result.returncode == 0 and saved_result.stdout.strip():
-                saved_networks = set(saved_result.stdout.strip().split('\n'))
+            if saved_result.returncode == 0:
+                for line in saved_result.stdout.strip().split('\n'):
+                    parts = line.split(':')
+                    # Check for both 'wifi' and '802-11-wireless' in type field
+                    if len(parts) >= 2 and ('wifi' in parts[1].lower() or '802-11-wireless' in parts[1].lower()):
+                        conn_name = parts[0].strip()
+                        saved_networks.add(conn_name)
+                        self.logger.debug(f"Added saved connection: {conn_name}")
+
+            self.logger.debug(f"\n2. Final saved_networks set: {saved_networks}")
 
             # Get current networks
             result = self._run_command([
@@ -46,13 +60,50 @@ class WiFiManager:
                 self.logger.error(f"Failed to get WiFi status: {result.stderr}")
                 return WiFiStatus()
 
-            networks = self._parse_network_list(result.stdout, saved_networks)
+            self.logger.debug("\n3. Getting available networks:")
+            self.logger.debug(f"Command output: {result.stdout}")
+            
+            networks = []
+            for line in result.stdout.strip().split('\n'):
+                if not line:
+                    continue
+                try:
+                    ssid, signal, security, in_use = line.split(':')
+                    if ssid:  # Skip empty SSIDs
+                        is_saved = (
+                            ssid in saved_networks or 
+                            ssid.replace(" ", "") in saved_networks or
+                            in_use == '*'  # Always mark currently connected network as saved
+                        )
+                        
+                        self.logger.debug(f"\nProcessing network: {ssid}")
+                        self.logger.debug(f"  - In saved_networks: {ssid in saved_networks}")
+                        self.logger.debug(f"  - Without spaces: {ssid.replace(' ', '') in saved_networks}")
+                        self.logger.debug(f"  - In use: {in_use == '*'}")
+                        self.logger.debug(f"  - Final saved status: {is_saved}")
+                        
+                        networks.append(WiFiNetwork(
+                            ssid=ssid,
+                            signal_strength=int(signal),
+                            security=security if security != '' else None,
+                            in_use=(in_use == '*'),
+                            saved=is_saved
+                        ))
+                except Exception as e:
+                    self.logger.error(f"Error parsing network: {line} - {e}")
+
+            self.logger.debug("\n=== End Debug Output ===")
+
+            # Sort networks by signal strength
+            networks.sort(key=lambda x: x.signal_strength, reverse=True)
+
+            # Get current network
             current_network = next(
                 (net for net in networks if net.in_use), 
                 None
             )
 
-            # Check internet connectivity if we have a connection
+            # Check internet connectivity
             has_internet = False
             if current_network:
                 internet_check = self._run_command([
@@ -69,7 +120,7 @@ class WiFiManager:
             )
 
         except Exception as e:
-            self.logger.error(f"Error getting current connection: {e}")
+            self.logger.error(f"Error getting WiFi status: {str(e)}", exc_info=True)
             return WiFiStatus()
 
     async def _scan_networks(self) -> List[WiFiNetwork]:
