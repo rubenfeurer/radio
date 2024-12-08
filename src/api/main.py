@@ -76,7 +76,6 @@ async def internal_error_handler(request, exc):
 async def root():
     """Root API endpoint"""
     return {"message": "Radio API"}
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
