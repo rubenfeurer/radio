@@ -161,3 +161,46 @@ def test_get_current_status_with_saved_networks(wifi_manager):
     assert networks["Salt_5GHz_D8261F"].saved is True  # Should be saved because it's in use
     assert networks["Salt_5GHz_D8261F"].in_use is True
     assert networks["Salt_2GHz_D8261F"].in_use is False
+
+@pytest.mark.asyncio
+async def test_failed_connection_gets_removed(wifi_manager):
+    """Test that failed connection attempts are removed from saved networks"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        MagicMock(returncode=0, stdout=""),  # rescan
+        MagicMock(returncode=0, stdout=""),  # check saved networks
+        MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
+        MagicMock(returncode=1, stdout="", stderr="Invalid password"),  # connect command fails
+        MagicMock(returncode=0, stdout="")  # remove connection
+    ]
+    
+    success = await wifi_manager.connect_to_network("TestNetwork", "wrong_password")
+    assert success is False
+    
+    # Verify that remove_connection was called
+    expected_calls = [
+        call(['sudo', 'nmcli', 'connection', 'delete', 'TestNetwork'])
+    ]
+    assert any(call in wifi_manager._run_command.call_args_list for call in expected_calls)
+
+@pytest.mark.asyncio
+async def test_verification_failure_removes_connection(wifi_manager):
+    """Test that connections are removed if verification fails"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        MagicMock(returncode=0, stdout=""),  # rescan
+        MagicMock(returncode=0, stdout=""),  # check saved networks
+        MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
+        MagicMock(returncode=0, stdout=""),  # connect command succeeds
+        MagicMock(returncode=0, stdout="GENERAL.STATE:20 (unavailable)"),  # verification fails
+        MagicMock(returncode=0, stdout="")  # remove connection
+    ]
+    
+    success = await wifi_manager.connect_to_network("TestNetwork", "password123")
+    assert success is False
+    
+    # Verify that remove_connection was called
+    expected_calls = [
+        call(['sudo', 'nmcli', 'connection', 'delete', 'TestNetwork'])
+    ]
+    assert any(call in wifi_manager._run_command.call_args_list for call in expected_calls)

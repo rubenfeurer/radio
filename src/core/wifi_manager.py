@@ -244,6 +244,9 @@ class WiFiManager:
             
             if result.returncode != 0:
                 self.logger.error(f"Failed to connect to network: {result.stderr}")
+                # Remove the failed connection if it was newly added
+                if not is_saved:
+                    self._remove_connection(ssid)
                 return False
             
             # Verify connection was successful
@@ -253,11 +256,28 @@ class WiFiManager:
             
             success = verify_result.returncode == 0 and '100 (connected)' in verify_result.stdout
             self.logger.debug(f"Connection verification result: {success}")
+            
+            # If verification failed, remove the connection
+            if not success and not is_saved:
+                self._remove_connection(ssid)
+            
             return success
             
         except Exception as e:
             self.logger.error(f"Error connecting to network: {str(e)}", exc_info=True)
             return False
+
+    def _remove_connection(self, ssid: str) -> None:
+        """Remove a saved connection"""
+        try:
+            self.logger.debug(f"Removing failed connection: {ssid}")
+            result = self._run_command([
+                'sudo', 'nmcli', 'connection', 'delete', ssid
+            ], capture_output=True, text=True)
+            if result.returncode != 0:
+                self.logger.error(f"Failed to remove connection: {result.stderr}")
+        except Exception as e:
+            self.logger.error(f"Error removing connection: {e}")
 
     def _parse_network_list(self, output: str, saved_networks: Optional[set] = None) -> List[WiFiNetwork]:
         """Parse nmcli output into WiFiNetwork objects"""
