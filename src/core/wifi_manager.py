@@ -30,14 +30,14 @@ class WiFiManager:
         try:
             # Get list of saved connections with basic info first
             saved_result = self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'
+                'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE,FILENAME', 'connection', 'show'
             ], capture_output=True, text=True)
             
             self.logger.debug("\n=== Start Debug Output ===")
             self.logger.debug("1. Getting saved connections:")
             self.logger.debug(f"Command output: {saved_result.stdout}")
             
-            # Track saved networks
+            # Track saved networks and their configuration files
             saved_networks = set()
             if saved_result.returncode == 0:
                 for line in saved_result.stdout.strip().split('\n'):
@@ -46,6 +46,23 @@ class WiFiManager:
                     if len(parts) >= 2 and ('wifi' in parts[1].lower() or '802-11-wireless' in parts[1].lower()):
                         conn_name = parts[0].strip()
                         saved_networks.add(conn_name)
+                        
+                        # If it's a preconfigured connection, get the SSID from the config file
+                        if conn_name == 'preconfigured' and len(parts) >= 3:
+                            try:
+                                config_file = parts[2].strip()
+                                config_result = self._run_command([
+                                    'sudo', 'cat', config_file
+                                ], capture_output=True, text=True)
+                                if config_result.returncode == 0:
+                                    for config_line in config_result.stdout.split('\n'):
+                                        if 'ssid=' in config_line.lower():
+                                            ssid = config_line.split('=')[1].strip()
+                                            saved_networks.add(ssid)
+                                            self.logger.debug(f"Added preconfigured SSID: {ssid}")
+                            except Exception as e:
+                                self.logger.error(f"Error reading preconfigured network: {e}")
+                        
                         self.logger.debug(f"Added saved connection: {conn_name}")
 
             self.logger.debug(f"\n2. Final saved_networks set: {saved_networks}")
