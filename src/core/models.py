@@ -39,3 +39,4 @@ class WiFiStatus(BaseModel):
     is_connected: bool = False
     has_internet: bool = False
     available_networks: List[WiFiNetwork] = []
+    preconfigured_ssid: Optional[str] = None

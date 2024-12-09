@@ -48,6 +48,9 @@ radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi list
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi rescan
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli networking connectivity check
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi connect *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection up *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection delete *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
 EOF
         sudo chmod 440 $SUDO_FILE
     fi

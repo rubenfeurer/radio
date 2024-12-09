@@ -131,6 +131,29 @@ class WiFiManager:
                 ], capture_output=True, text=True, timeout=5)
                 has_internet = internet_check.returncode == 0 and internet_check.stdout.strip() == 'full'
 
+            # Create a mapping of SSIDs to connection names
+            ssid_to_conn_name = {}
+            if saved_result.returncode == 0:
+                for line in saved_result.stdout.strip().split('\n'):
+                    parts = line.split(':')
+                    if len(parts) >= 2 and ('wifi' in parts[1].lower() or '802-11-wireless' in parts[1].lower()):
+                        conn_name = parts[0].strip()
+                        ssid_to_conn_name[conn_name] = conn_name
+                        if conn_name == 'preconfigured' and len(parts) >= 3:
+                            try:
+                                config_file = parts[2].strip()
+                                config_result = self._run_command([
+                                    'sudo', 'cat', config_file
+                                ], capture_output=True, text=True)
+                                if config_result.returncode == 0:
+                                    for config_line in config_result.stdout.split('\n'):
+                                        if 'ssid=' in config_line.lower():
+                                            ssid = config_line.split('=')[1].strip()
+                                            ssid_to_conn_name[ssid] = conn_name
+                                            self.logger.debug(f"Mapped SSID {ssid} to connection name {conn_name}")
+                            except Exception as e:
+                                self.logger.error(f"Error reading preconfigured network: {e}")
+
             return WiFiStatus(
                 ssid=current_network.ssid if current_network else None,
                 signal_strength=current_network.signal_strength if current_network else None,
@@ -225,46 +248,45 @@ class WiFiManager:
     async def connect_to_network(self, ssid: str, password: Optional[str] = None) -> bool:
         """Connect to a WiFi network"""
         try:
-            self.logger.debug(f"Attempting to connect to network: {ssid}")
+            self.logger.debug(f"Received connection request for SSID: {ssid} with password: {'***' if password else '(none)'}")
             
-            # Force a rescan first
-            await self._rescan_networks()
+            # Get current status which includes saved networks and preconfigured SSID
+            status = self.get_current_status()
             
             # Check if network is saved
-            saved_result = self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'NAME', 'connection', 'show'
-            ], capture_output=True, text=True)
-            is_saved = saved_result.returncode == 0 and ssid in saved_result.stdout
-            self.logger.debug(f"Network is saved: {is_saved}")
-
-            # Get available networks to verify the network exists
-            networks = await self._scan_networks()
-            self.logger.debug(f"Found networks: {[net.ssid for net in networks]}")
+            saved_networks = {
+                network.ssid for network in status.available_networks 
+                if network.saved
+            }
+            is_saved = ssid in saved_networks
             
-            if not any(net.ssid == ssid for net in networks):
-                self.logger.error(f"Network {ssid} not found")
-                return False
-
-            # Connect command varies based on whether network is saved
-            if is_saved:
-                self.logger.debug("Using saved network connection")
+            # Check if this is the preconfigured network
+            preconfigured_ssid = self.get_preconfigured_ssid()
+            if preconfigured_ssid and ssid == preconfigured_ssid:
+                self.logger.debug(f"Using preconfigured connection for {ssid}")
                 result = self._run_command([
-                    'sudo', 'nmcli', 'connection', 'up', ssid
+                    'sudo', 'nmcli', 'connection', 'up', 'preconfigured'
                 ], capture_output=True, text=True, timeout=30)
             else:
-                self.logger.debug("Creating new network connection")
-                if not password:
-                    self.logger.error("Password required for unsaved network")
-                    return False
-                    
-                result = self._run_command([
-                    'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
-                    'password', password
-                ], capture_output=True, text=True, timeout=30)
+                # Handle other networks as before
+                if is_saved:
+                    self.logger.debug(f"Using saved network connection for {ssid}")
+                    result = self._run_command([
+                        'sudo', 'nmcli', 'connection', 'up', ssid
+                    ], capture_output=True, text=True, timeout=30)
+                else:
+                    self.logger.debug(f"Creating new network connection for {ssid}")
+                    if not password:
+                        self.logger.error("Password required for unsaved network")
+                        return False
+                        
+                    result = self._run_command([
+                        'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
+                        'password', password
+                    ], capture_output=True, text=True, timeout=30)
             
             if result.returncode != 0:
                 self.logger.error(f"Failed to connect to network: {result.stderr}")
-                # Remove the failed connection if it was newly added
                 if not is_saved:
                     self._remove_connection(ssid)
                 return False
@@ -277,7 +299,6 @@ class WiFiManager:
             success = verify_result.returncode == 0 and '100 (connected)' in verify_result.stdout
             self.logger.debug(f"Connection verification result: {success}")
             
-            # If verification failed, remove the connection
             if not success and not is_saved:
                 self._remove_connection(ssid)
             
@@ -354,3 +375,21 @@ class WiFiManager:
                     aggregated[network.ssid] = network
         
         return list(aggregated.values())
+
+    def get_preconfigured_ssid(self) -> Optional[str]:
+        """Get the SSID for the preconfigured connection"""
+        try:
+            config_file = '/etc/NetworkManager/system-connections/preconfigured.nmconnection'
+            config_result = self._run_command([
+                'sudo', 'cat', config_file
+            ], capture_output=True, text=True)
+            
+            if config_result.returncode == 0:
+                for line in config_result.stdout.split('\n'):
+                    if 'ssid=' in line.lower():
+                        ssid = line.split('=')[1].strip()
+                        self.logger.debug(f"Preconfigured SSID: {ssid}")
+                        return ssid
+        except Exception as e:
+            self.logger.error(f"Error reading preconfigured network: {e}")
+        return None

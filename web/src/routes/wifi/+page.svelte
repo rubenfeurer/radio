@@ -65,6 +65,7 @@
   let password = '';
   let connecting = false;
   let loading = true;
+  let preconfiguredSSID: string | null = null;
 
   onMount(async () => {
     await Promise.all([
@@ -90,6 +91,13 @@
       if (!response.ok) throw new Error('Failed to fetch networks');
       const rawNetworks = await response.json();
       
+      // Fetch preconfigured SSID
+      const statusResponse = await fetch(`${API_BASE}/api/v1/wifi/status`);
+      if (statusResponse.ok) {
+        const status = await statusResponse.json();
+        preconfiguredSSID = status.preconfigured_ssid;
+      }
+
       // Filter out networks with empty SSIDs
       networks = rawNetworks.filter(network => 
         network.ssid && network.ssid.trim() !== ''
@@ -118,17 +126,51 @@
   }
 
   async function connectToNetwork(network: WiFiNetwork) {
-    if (!network.security) {
-      // Connect without password
-      await attemptConnection(network.ssid, '');
+    if (network.ssid === preconfiguredSSID) {
+        // Use the dedicated preconfigured endpoint
+        connecting = true;
+        try {
+            const response = await fetch(`${API_BASE}/api/v1/wifi/connect/preconfigured`, {
+                method: 'POST'
+            });
+
+            if (!response.ok) throw new Error('Failed to connect');
+            
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            const hostnameResponse = await fetch(`${API_BASE}/api/v1/system/hostname`);
+            if (hostnameResponse.ok) {
+                const { hostname } = await hostnameResponse.json();
+                window.location.href = `http://${hostname}`;
+            } else {
+                goto('/');
+            }
+        } catch (error) {
+            console.error('Connection error:', error);
+            alert('Failed to connect to preconfigured network');
+        } finally {
+            connecting = false;
+        }
+    } else if (!network.security) {
+        // Connect without password
+        await attemptConnection(network.ssid, '');
     } else {
-      selectedNetwork = network;
+        selectedNetwork = network;
     }
   }
 
   async function attemptConnection(ssid: string, password: string) {
     connecting = true;
     try {
+      const statusResponse = await fetch(`${API_BASE}/api/v1/wifi/status`);
+      if (statusResponse.ok) {
+        const status = await statusResponse.json();
+        // If the SSID matches the preconfigured one, use 'preconfigured' instead
+        if (status.preconfigured_ssid && ssid === status.preconfigured_ssid) {
+          ssid = 'preconfigured';
+        }
+      }
+
       const response = await fetch(`${API_BASE}/api/v1/wifi/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,6 +193,32 @@
       alert('Failed to connect to network');
     } finally {
       connecting = false;
+    }
+  }
+
+  async function connectToPreconfigured() {
+    connecting = true;
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/wifi/connect/preconfigured`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) throw new Error('Failed to connect');
+        
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+        const hostnameResponse = await fetch(`${API_BASE}/api/v1/system/hostname`);
+        if (hostnameResponse.ok) {
+            const { hostname } = await hostnameResponse.json();
+            window.location.href = `http://${hostname}`;
+        } else {
+            goto('/');
+        }
+    } catch (error) {
+        console.error('Connection error:', error);
+        alert('Failed to connect to preconfigured network');
+    } finally {
+        connecting = false;
     }
   }
 </script>
@@ -219,12 +287,17 @@
                       {#if network.in_use}
                         <Badge color="green">Connected</Badge>
                       {/if}
+                      {#if network.ssid === preconfiguredSSID}
+                        <Badge color="blue">Preconfigured</Badge>
+                      {/if}
                     </div>
                     <div class="flex items-center gap-2">
                       {#if !network.in_use}
                         <Button 
                           size="xs"
-                          on:click={() => attemptConnection(network.ssid, '')}
+                          on:click={() => network.ssid === preconfiguredSSID 
+                              ? connectToPreconfigured() 
+                              : attemptConnection(network.ssid, '')}
                           disabled={connecting}
                         >
                           {connecting ? 'Connecting...' : 'Connect'}
@@ -253,6 +326,9 @@
                     <span class="font-semibold">{network.ssid}</span>
                     {#if network.security}
                       {@html Icons.lock}
+                    {/if}
+                    {#if network.ssid === preconfiguredSSID}
+                      <Badge color="blue">Preconfigured</Badge>
                     {/if}
                   </div>
                   <div class="text-gray-400">
