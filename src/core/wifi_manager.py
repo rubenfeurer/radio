@@ -94,12 +94,15 @@ class WiFiManager:
 
             self.logger.debug("\n=== End Debug Output ===")
 
+            # Aggregate networks with same SSID
+            aggregated_networks = self._aggregate_networks(networks)
+            
             # Sort networks by signal strength
-            networks.sort(key=lambda x: x.signal_strength, reverse=True)
+            aggregated_networks.sort(key=lambda x: x.signal_strength, reverse=True)
 
-            # Get current network
+            # Get current network from aggregated list
             current_network = next(
-                (net for net in networks if net.in_use), 
+                (net for net in aggregated_networks if net.in_use), 
                 None
             )
 
@@ -116,7 +119,7 @@ class WiFiManager:
                 signal_strength=current_network.signal_strength if current_network else None,
                 is_connected=bool(current_network),
                 has_internet=has_internet,
-                available_networks=networks
+                available_networks=aggregated_networks
             )
 
         except Exception as e:
@@ -319,3 +322,18 @@ class WiFiManager:
                 self.logger.error(f"Network rescan failed: {result.stderr}")
         except Exception as e:
             self.logger.error(f"Error during network rescan: {e}")
+
+    def _aggregate_networks(self, networks: List[WiFiNetwork]) -> List[WiFiNetwork]:
+        """Aggregate networks with the same SSID, keeping the strongest signal"""
+        aggregated = {}
+        for network in networks:
+            if network.ssid not in aggregated:
+                aggregated[network.ssid] = network
+            else:
+                # Update if signal is stronger or if current network is in use/saved
+                existing = aggregated[network.ssid]
+                if (network.signal_strength > existing.signal_strength or 
+                    network.in_use or network.saved):
+                    aggregated[network.ssid] = network
+        
+        return list(aggregated.values())

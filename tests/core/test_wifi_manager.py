@@ -15,26 +15,30 @@ def test_get_current_status_connected(wifi_manager):
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.return_value = MagicMock(
         returncode=0,
-        stdout="MyNetwork:90:WPA2:*\nOtherNetwork:85:WPA2:no"
+        stdout="MyNetwork:90:WPA2:*\nMyNetwork:85:WPA2:no\nOtherNetwork:85:WPA2:no"
     )
     
     status = wifi_manager.get_current_status()
     assert status.ssid == "MyNetwork"
     assert status.is_connected is True
+    # Expect only one entry per SSID
     assert len(status.available_networks) == 2
+    assert any(net.ssid == "MyNetwork" and net.signal_strength == 90 for net in status.available_networks)
 
 def test_get_current_status_disconnected(wifi_manager):
     """Test WiFi status when not connected"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.return_value = MagicMock(
         returncode=0,
-        stdout="Network1:80:WPA2:no\nNetwork2:75:WPA2:no"
+        stdout="Network1:80:WPA2:no\nNetwork1:75:WPA2:no\nNetwork2:75:WPA2:no"
     )
     
     status = wifi_manager.get_current_status()
     assert status.ssid is None
     assert status.is_connected is False
+    # Expect only one entry per SSID
     assert len(status.available_networks) == 2
+    assert any(net.ssid == "Network1" and net.signal_strength == 80 for net in status.available_networks)
 
 @pytest.mark.asyncio
 async def test_connect_to_network(wifi_manager):
@@ -170,18 +174,19 @@ async def test_failed_connection_gets_removed(wifi_manager):
         MagicMock(returncode=0, stdout=""),  # rescan
         MagicMock(returncode=0, stdout=""),  # check saved networks
         MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
+        MagicMock(returncode=0, stdout=""),  # check saved networks again
         MagicMock(returncode=1, stdout="", stderr="Invalid password"),  # connect command fails
+        MagicMock(returncode=0, stdout="GENERAL.STATE:20 (unavailable)"),  # verification check
         MagicMock(returncode=0, stdout="")  # remove connection
     ]
     
     success = await wifi_manager.connect_to_network("TestNetwork", "wrong_password")
     assert success is False
     
-    # Verify that remove_connection was called
-    expected_calls = [
-        call(['sudo', 'nmcli', 'connection', 'delete', 'TestNetwork'])
-    ]
-    assert any(call in wifi_manager._run_command.call_args_list for call in expected_calls)
+    # Verify that remove_connection was called with the correct arguments
+    expected_call = call(['sudo', 'nmcli', 'connection', 'delete', 'TestNetwork'], 
+                        capture_output=True, text=True)
+    assert expected_call in wifi_manager._run_command.call_args_list
 
 @pytest.mark.asyncio
 async def test_verification_failure_removes_connection(wifi_manager):
@@ -191,6 +196,7 @@ async def test_verification_failure_removes_connection(wifi_manager):
         MagicMock(returncode=0, stdout=""),  # rescan
         MagicMock(returncode=0, stdout=""),  # check saved networks
         MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
+        MagicMock(returncode=0, stdout=""),  # check saved networks again
         MagicMock(returncode=0, stdout=""),  # connect command succeeds
         MagicMock(returncode=0, stdout="GENERAL.STATE:20 (unavailable)"),  # verification fails
         MagicMock(returncode=0, stdout="")  # remove connection
@@ -199,8 +205,7 @@ async def test_verification_failure_removes_connection(wifi_manager):
     success = await wifi_manager.connect_to_network("TestNetwork", "password123")
     assert success is False
     
-    # Verify that remove_connection was called
-    expected_calls = [
-        call(['sudo', 'nmcli', 'connection', 'delete', 'TestNetwork'])
-    ]
-    assert any(call in wifi_manager._run_command.call_args_list for call in expected_calls)
+    # Verify that remove_connection was called with the correct arguments
+    expected_call = call(['sudo', 'nmcli', 'connection', 'delete', 'TestNetwork'], 
+                        capture_output=True, text=True)
+    assert expected_call in wifi_manager._run_command.call_args_list
