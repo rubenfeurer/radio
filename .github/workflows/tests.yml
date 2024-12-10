@@ -24,15 +24,22 @@ jobs:
         # Install MPV and development files
         sudo apt-get install -y python3-dev python3-setuptools gcc make \
           mpv libmpv-dev \
-          python3-pip python3-venv
+          python3-pip python3-venv \
+          libasound2-dev  # Add this for audio support
+        
         # Download and build pigpio
         wget https://github.com/joan2937/pigpio/archive/master.zip
         unzip master.zip
         cd pigpio-master
         make
         sudo make install
-        # Start pigpio daemon
-        sudo systemctl start pigpiod || sudo pigpiod
+        
+        # Create required directories and set permissions
+        sudo mkdir -p /var/run/pigpio
+        sudo chmod 777 /var/run/pigpio
+        
+        # Start pigpio daemon with explicit options
+        sudo pigpiod -l -t 0 || true
         
     - name: Install Python dependencies
       run: |
@@ -44,8 +51,12 @@ jobs:
       env:
         MOCK_HARDWARE: "true"
         PYTHONPATH: .
+        # Add environment variables for test configuration
+        TEST_MODE: "CI"
+        DISABLE_HARDWARE: "true"
       run: |
-        pytest -v tests/ --cov=src
+        # Run pytest with detailed output
+        pytest -v tests/ --cov=src --capture=no --log-cli-level=DEBUG
         
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
