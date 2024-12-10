@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List
 from src.core.wifi_manager import WiFiManager
-from src.core.models import WiFiStatus, WiFiNetwork
+from src.core.models import WiFiStatus, WiFiNetwork, NetworkMode, NetworkModeStatus
 from src.api.models.requests import WiFiConnectionRequest
 import logging
 

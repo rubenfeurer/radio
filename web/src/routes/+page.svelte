@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Card, Button, Range, Badge, Alert } from 'flowbite-svelte';
+  import { Card, Button, Range, Badge, Alert, Toggle } from 'flowbite-svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { wsStore } from '$lib/stores/websocket';
@@ -64,10 +64,13 @@
   async function fetchNetworkMode() {
     try {
       const response = await fetch(`${API_BASE}/api/v1/wifi/mode`);
-      if (response.ok) {
-        const data = await response.json();
-        networkMode = data;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to fetch network mode:', errorText);
+        return;
       }
+      const data = await response.json();
+      networkMode = data;
     } catch (error) {
       console.error('Error fetching network mode:', error);
     }
@@ -249,6 +252,28 @@
     goto(`/stations?slot=${slot}`);
   }
 
+  async function handleApModeToggle() {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/wifi/mode/toggle`, {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to toggle AP mode');
+        return;
+      }
+      
+      const data = await response.json();
+      networkMode = data;
+      
+      // Refresh WiFi status after mode change
+      await fetchWiFiStatus();
+      
+    } catch (error) {
+      console.error('Error toggling AP mode:', error);
+    }
+  }
+
   // Simple SVG icons instead of flowbite-svelte-icons
   const WifiIcon = {
     on: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -380,4 +405,27 @@
       </a>
     </div>
   </Card>
+    
+  <!-- AP Mode Toggle -->
+  <Card class="mt-4">
+    <div class="flex flex-col gap-2">
+      <h3 class="text-lg font-semibold">Network Mode</h3>
+      <div class="flex items-center justify-between">
+        <span class="text-sm text-gray-500">
+          {networkMode.mode === 'ap' ? 'Access Point Mode' : 'Normal Mode'}
+        </span>
+        <Toggle
+          checked={networkMode.mode === 'ap'}
+          on:change={handleApModeToggle}
+        >
+          <span slot="on">AP Mode</span>
+          <span slot="off">Normal</span>
+        </Toggle>
+      </div>
+      {#if networkMode.ip_address}
+        <span class="text-xs text-gray-500">IP: {networkMode.ip_address}</span>
+      {/if}
+    </div>
+  </Card>
+    
 </div>

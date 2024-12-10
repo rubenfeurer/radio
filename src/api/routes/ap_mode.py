@@ -14,8 +14,11 @@ logger = logging.getLogger(__name__)
 async def get_network_mode():
     """Get current network mode (AP or client mode)"""
     try:
-        return wifi_manager.get_operation_mode()
+        mode = wifi_manager.get_operation_mode()
+        logger.debug(f"Current network mode: {mode}")
+        return mode
     except Exception as e:
+        logger.error(f"Error getting network mode: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get network mode: {str(e)}"
@@ -25,14 +28,17 @@ async def toggle_ap_mode():
     """Toggle between AP and client mode"""
     try:
         current_mode = wifi_manager.get_operation_mode()
+        logger.debug(f"Current mode before toggle: {current_mode}")
         
         if current_mode.mode == NetworkMode.AP:
             # Switch to client mode
+            logger.info("Switching to client mode")
             result = wifi_manager.disable_ap_mode()
             if not result:
                 raise HTTPException(status_code=500, detail="Failed to disable AP mode")
         else:
             # Switch to AP mode
+            logger.info("Switching to AP mode")
             result = wifi_manager.enable_ap_mode(
                 ssid=settings.HOSTNAME,
                 password=settings.AP_PASSWORD,
@@ -44,6 +50,7 @@ async def toggle_ap_mode():
         
         # Get new mode after toggle
         new_mode = wifi_manager.get_operation_mode()
+        logger.debug(f"New mode after toggle: {new_mode}")
         return new_mode
         
     except Exception as e:

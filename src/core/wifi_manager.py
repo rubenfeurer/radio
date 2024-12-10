@@ -2,7 +2,7 @@ import asyncio
 from typing import List, Optional
 import subprocess
 import logging
-from .models import WiFiStatus, WiFiNetwork
+from .models import WiFiStatus, WiFiNetwork, NetworkModeStatus, NetworkMode
 import os
 from src.utils.logger import setup_logger
 
@@ -409,3 +409,70 @@ class WiFiManager:
         except Exception as e:
             self.logger.error(f"Error reading preconfigured network: {e}")
         return None
+
+    def get_operation_mode(self) -> NetworkModeStatus:
+        """Get current network mode status"""
+        try:
+            # Check if AP mode is active by checking hostapd service
+            ap_active = self._check_ap_mode_active()
+            ip_address = self.get_ip_address()
+            
+            return NetworkModeStatus(
+                mode=NetworkMode.AP if ap_active else NetworkMode.DEFAULT,
+                ip_address=ip_address
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting operation mode: {str(e)}")
+            raise
+
+    def _check_ap_mode_active(self) -> bool:
+        """Check if AP mode is currently active"""
+        try:
+            result = self._run_command([
+                'sudo', 'systemctl', 'is-active', 'hostapd'
+            ], capture_output=True, text=True)
+            return result.returncode == 0
+        except Exception as e:
+            self.logger.error(f"Error checking AP mode: {str(e)}")
+            return False
+
+    def get_ip_address(self) -> Optional[str]:
+        """Get current IP address of wlan0"""
+        try:
+            result = self._run_command([
+                'ip', '-4', 'addr', 'show', 'wlan0'
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                import re
+                match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', result.stdout)
+                if match:
+                    return match.group(1)
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting IP address: {str(e)}")
+            return None
+
+    def enable_ap_mode(self, ssid: str, password: str, channel: int = 1, ip: str = "192.168.4.1") -> bool:
+        """Enable AP mode"""
+        try:
+            # Configure hostapd
+            result = self._run_command([
+                'sudo', 'systemctl', 'start', 'hostapd'
+            ])
+            return result.returncode == 0
+        except Exception as e:
+            self.logger.error(f"Error enabling AP mode: {str(e)}")
+            return False
+
+    def disable_ap_mode(self) -> bool:
+        """Disable AP mode"""
+        try:
+            # Stop hostapd
+            result = self._run_command([
+                'sudo', 'systemctl', 'stop', 'hostapd'
+            ])
+            return result.returncode == 0
+        except Exception as e:
+            self.logger.error(f"Error disabling AP mode: {str(e)}")
+            return False
