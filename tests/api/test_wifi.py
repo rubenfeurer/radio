@@ -45,17 +45,17 @@ def test_scan_networks(mock_get_status):
 @patch('src.core.wifi_manager.WiFiManager.connect_to_network')
 async def test_connect_to_network(mock_connect):
     """Test successful network connection"""
-    # Mock successful connection response
-    mock_connect.return_value = {
-        "status": "connected",
-        "ssid": "TestNetwork"
-    }
+    # Mock successful connection
+    mock_connect.return_value = True  # WiFiManager returns bool, not dict
     
     response = client.post("/api/v1/wifi/connect",
         json={"ssid": "TestNetwork", "password": "TestPassword"})
     
     assert response.status_code == 200
-    assert response.json() == {"message": "Successfully connected to TestNetwork"}
+    assert response.json() == {"status": "success"}
+    
+    # Verify mock was called with correct parameters
+    mock_connect.assert_called_once_with("TestNetwork", "TestPassword")
 
 @patch('src.core.wifi_manager.WiFiManager.get_current_status')
 def test_get_current_connection(mock_get_status):
@@ -70,11 +70,7 @@ def test_get_current_connection(mock_get_status):
 @patch('src.core.wifi_manager.WiFiManager.connect_to_network')
 async def test_connect_invalid_request(mock_connect):
     """Test connection with invalid request"""
-    # Mock failed connection response
-    mock_connect.return_value = {
-        "status": "error",
-        "message": "Invalid network parameters"
-    }
+    mock_connect.return_value = False
     
     response = client.post("/api/v1/wifi/connect",
         json={"ssid": "", "password": ""})
@@ -85,11 +81,7 @@ async def test_connect_invalid_request(mock_connect):
 @patch('src.core.wifi_manager.WiFiManager.connect_to_network')
 async def test_connect_network_not_found(mock_connect):
     """Test connection to non-existent network"""
-    # Mock network not found response
-    mock_connect.return_value = {
-        "status": "error",
-        "message": "Network NonExistentNetwork not found in available networks"
-    }
+    mock_connect.return_value = False
     
     response = client.post("/api/v1/wifi/connect",
         json={"ssid": "NonExistentNetwork", "password": "TestPassword"})

@@ -41,23 +41,13 @@ async def get_wifi_status():
 async def connect_to_network(request: WiFiConnectionRequest):
     """Connect to a WiFi network"""
     try:
-        # Log the incoming connection request
-        logger.debug(f"Attempting to connect to SSID: {request.ssid} with password: {'***' if request.password else '(none)'}")
-
-        # Check if the requested SSID is the preconfigured one
-        preconfigured_ssid = wifi_manager.get_preconfigured_ssid()
-        if preconfigured_ssid and request.ssid == preconfigured_ssid:
-            logger.debug(f"Using preconfigured connection for SSID: {request.ssid}")
-            request.ssid = 'preconfigured'
+        logger.debug(f"Attempting to connect to SSID: {request.ssid}")
         
         result = await wifi_manager.connect_to_network(request.ssid, request.password)
         
-        if isinstance(result, bool):
-            if result:
-                return {"message": f"Successfully connected to {request.ssid}"}
-            raise HTTPException(status_code=400, detail="Failed to connect to network")
-        
-        raise HTTPException(status_code=400, detail="Unexpected response from WiFi manager")
+        if result:
+            return {"status": "success"}
+        raise HTTPException(status_code=400, detail="Failed to connect to network")
         
     except Exception as e:
         logger.error(f"Error connecting to network: {str(e)}")

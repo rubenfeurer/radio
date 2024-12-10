@@ -248,48 +248,57 @@ class WiFiManager:
     async def connect_to_network(self, ssid: str, password: Optional[str] = None) -> bool:
         """Connect to a WiFi network"""
         try:
-            self.logger.debug(f"Received connection request for SSID: {ssid} with password: {'***' if password else '(none)'}")
+            self.logger.debug(f"Received connection request for SSID: {ssid} with password: {'(none)' if password is None else '****'}")
             
-            # Get current status which includes saved networks and preconfigured SSID
-            status = self.get_current_status()
+            # Force a rescan to ensure network list is up to date
+            await self._rescan_networks()
             
             # Check if network is saved
-            saved_networks = {
-                network.ssid for network in status.available_networks 
-                if network.saved
-            }
-            is_saved = ssid in saved_networks
+            saved_result = self._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'
+            ], capture_output=True, text=True)
             
-            # Check if this is the preconfigured network
-            preconfigured_ssid = self.get_preconfigured_ssid()
-            if preconfigured_ssid and ssid == preconfigured_ssid:
-                self.logger.debug(f"Using preconfigured connection for {ssid}")
+            is_saved = False
+            if saved_result.returncode == 0:
+                for line in saved_result.stdout.strip().split('\n'):
+                    parts = line.split(':')
+                    if len(parts) >= 2 and parts[0].strip() == ssid:
+                        is_saved = True
+                        break
+
+            # Verify network exists
+            scan_result = self._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
+                'device', 'wifi', 'list'
+            ], capture_output=True, text=True)
+            
+            network_exists = False
+            if scan_result.returncode == 0:
+                for line in scan_result.stdout.strip().split('\n'):
+                    if line.startswith(f"{ssid}:"):
+                        network_exists = True
+                        break
+            
+            if not network_exists:
+                self.logger.error(f"Network {ssid} not found in scan results")
+                return False
+
+            # Connect to network
+            if is_saved:
+                self.logger.debug(f"Using saved connection for {ssid}")
                 result = self._run_command([
-                    'sudo', 'nmcli', 'connection', 'up', 'preconfigured'
+                    'sudo', 'nmcli', 'connection', 'up', ssid
                 ], capture_output=True, text=True, timeout=30)
             else:
-                # Handle other networks as before
-                if is_saved:
-                    self.logger.debug(f"Using saved network connection for {ssid}")
-                    result = self._run_command([
-                        'sudo', 'nmcli', 'connection', 'up', ssid
-                    ], capture_output=True, text=True, timeout=30)
-                else:
-                    self.logger.debug(f"Creating new network connection for {ssid}")
-                    if not password:
-                        self.logger.error("Password required for unsaved network")
-                        return False
-                        
-                    result = self._run_command([
-                        'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
-                        'password', password
-                    ], capture_output=True, text=True, timeout=30)
-            
-            if result.returncode != 0:
-                self.logger.error(f"Failed to connect to network: {result.stderr}")
-                if not is_saved:
-                    self._remove_connection(ssid)
-                return False
+                if not password:
+                    self.logger.error("Password required for unsaved network")
+                    return False
+                
+                self.logger.debug(f"Creating new connection for {ssid}")
+                result = self._run_command([
+                    'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
+                    'password', password
+                ], capture_output=True, text=True, timeout=30)
             
             # Verify connection was successful
             verify_result = self._run_command([

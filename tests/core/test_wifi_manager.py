@@ -48,9 +48,8 @@ async def test_connect_to_network(wifi_manager):
         MagicMock(returncode=0, stdout=""),  # rescan
         MagicMock(returncode=0, stdout=""),  # check saved networks
         MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
-        MagicMock(returncode=0, stdout=""),  # check saved networks again
         MagicMock(returncode=0, stdout=""),  # connect command
-        MagicMock(returncode=0, stdout="GENERAL.STATE:100 (connected)")  # verify connection
+        MagicMock(returncode=0, stdout="GENERAL.STATE:100 (connected)\n")  # verify connection
     ]
     
     wifi_manager.logger.setLevel(logging.DEBUG)
@@ -79,14 +78,12 @@ async def test_connect_to_saved_network(wifi_manager):
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
         MagicMock(returncode=0, stdout=""),  # rescan
-        MagicMock(returncode=0, stdout="SavedNetwork\n"),  # check saved networks
+        MagicMock(returncode=0, stdout="SavedNetwork:wifi:/etc/NetworkManager/system-connections/saved.nmconnection\n"),  # check saved networks
         MagicMock(returncode=0, stdout="SavedNetwork:80:WPA2:no\n"),  # scan networks
-        MagicMock(returncode=0, stdout="SavedNetwork\n"),  # check saved networks again
         MagicMock(returncode=0, stdout=""),  # connect command
-        MagicMock(returncode=0, stdout="GENERAL.STATE:100 (connected)")  # verify connection
+        MagicMock(returncode=0, stdout="GENERAL.STATE:100 (connected)\n")  # verify connection
     ]
     
-    wifi_manager.logger.setLevel(logging.DEBUG)
     success = await wifi_manager.connect_to_network("SavedNetwork")
     assert success is True
 
@@ -106,25 +103,27 @@ def test_get_current_status_with_preconfigured_network(wifi_manager):
     """Test WiFi status with preconfigured network"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
-        # First call - get saved connections with ALL info
+        # First call - list saved connections
         MagicMock(
             returncode=0,
-            stdout=(
-                "preconfigured:wifi:254c1f53-e84c-4273-b230-88b4935d5702:Salt_5GHz_D8261F\n"
-                "Salt_2GHz_D8261F:wifi:f5471def-712c-4237-adbb-3a93df04cc93:Salt_2GHz_D8261F\n"
-                "Wired connection 1:ethernet:0b9c02ee-fe6e-3a6d-9ba6-e614798bcaa6:"
-            )
+            stdout="NAME:TYPE:FILENAME\n"
+                   "preconfigured:wifi:/etc/NetworkManager/system-connections/preconfigured.nmconnection\n"
+                   "Salt_2GHz_D8261F:wifi:/etc/NetworkManager/system-connections/salt2g.nmconnection\n"
         ),
-        # Second call - get current networks list
+        # Second call - list available networks
         MagicMock(
             returncode=0,
-            stdout=(
-                "Salt_2GHz_D8261F:82:WPA2:no\n"
-                "Salt_5GHz_D8261F:82:WPA2:*"
-            )
+            stdout="Salt_2GHz_D8261F:82:WPA2:no\n"
+                   "Salt_5GHz_D8261F:82:WPA2:*\n"
         ),
-        # Third call - connectivity check
-        MagicMock(returncode=0, stdout="full")
+        # Third call - get network list for verification
+        MagicMock(
+            returncode=0,
+            stdout="Salt_2GHz_D8261F:82:WPA2:no\n"
+                   "Salt_5GHz_D8261F:82:WPA2:*\n"
+        ),
+        # Internet check
+        MagicMock(returncode=0, stdout="")
     ]
     
     wifi_manager.logger.setLevel(logging.DEBUG)
@@ -139,30 +138,35 @@ def test_get_current_status_with_saved_networks(wifi_manager):
     """Test WiFi status with saved networks"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
-        # First call - get saved networks
+        # First call - list saved connections
         MagicMock(
             returncode=0,
-            stdout="preconfigured:wifi:254c1f53-e84c-4273-b230-88b4935d5702\n"
-                   "Salt_2GHz_D8261F:wifi:f5471def-712c-4237-adbb-3a93df04cc93\n"
-                   "Wired connection 1:ethernet:0b9c02ee-fe6e-3a6d-9ba6-e614798bcaa6"
+            stdout="NAME:TYPE:FILENAME\n"
+                   "preconfigured:wifi:/etc/NetworkManager/system-connections/preconfigured.nmconnection\n"
+                   "Salt_2GHz_D8261F:wifi:/etc/NetworkManager/system-connections/salt2g.nmconnection\n"
         ),
-        # Second call - get current networks
+        # Second call - list available networks
         MagicMock(
             returncode=0,
             stdout="Salt_2GHz_D8261F:84:WPA2:no\n"
-                   "Salt_5GHz_D8261F:67:WPA2:*"
+                   "Salt_5GHz_D8261F:67:WPA2:*\n"
         ),
-        # Third call - connectivity check
-        MagicMock(returncode=0, stdout="full")
+        # Third call - get network list for verification
+        MagicMock(
+            returncode=0,
+            stdout="Salt_2GHz_D8261F:84:WPA2:no\n"
+                   "Salt_5GHz_D8261F:67:WPA2:*\n"
+        ),
+        # Internet check
+        MagicMock(returncode=0, stdout="")
     ]
     
     wifi_manager.logger.setLevel(logging.DEBUG)
     status = wifi_manager.get_current_status()
     
-    # Verify networks are correctly marked
     networks = {net.ssid: net for net in status.available_networks}
     assert networks["Salt_2GHz_D8261F"].saved is True
-    assert networks["Salt_5GHz_D8261F"].saved is True  # Should be saved because it's in use
+    assert networks["Salt_5GHz_D8261F"].saved is True
     assert networks["Salt_5GHz_D8261F"].in_use is True
     assert networks["Salt_2GHz_D8261F"].in_use is False
 
