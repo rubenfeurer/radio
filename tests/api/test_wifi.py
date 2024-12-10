@@ -88,3 +88,24 @@ async def test_connect_network_not_found(mock_connect):
     
     assert response.status_code == 400
     assert "detail" in response.json()
+
+@patch('src.core.wifi_manager.WiFiManager._remove_connection')
+async def test_forget_network(mock_remove):
+    """Test successful network removal"""
+    mock_remove.return_value = True
+    
+    response = client.delete("/api/v1/wifi/forget/TestNetwork")
+    assert response.status_code == 200
+    assert response.json() == {"status": "success"}
+    
+    # Verify mock was called with correct parameters
+    mock_remove.assert_called_once_with("TestNetwork")
+
+@patch('src.core.wifi_manager.WiFiManager._remove_connection')
+async def test_forget_network_failure(mock_remove):
+    """Test failed network removal"""
+    mock_remove.return_value = False
+    
+    response = client.delete("/api/v1/wifi/forget/TestNetwork")
+    assert response.status_code == 400
+    assert "detail" in response.json()

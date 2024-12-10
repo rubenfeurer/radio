@@ -317,17 +317,20 @@ class WiFiManager:
             self.logger.error(f"Error connecting to network: {str(e)}", exc_info=True)
             return False
 
-    def _remove_connection(self, ssid: str) -> None:
+    def _remove_connection(self, ssid: str) -> bool:
         """Remove a saved connection"""
         try:
-            self.logger.debug(f"Removing failed connection: {ssid}")
+            self.logger.debug(f"Removing connection: {ssid}")
             result = self._run_command([
                 'sudo', 'nmcli', 'connection', 'delete', ssid
             ], capture_output=True, text=True)
-            if result.returncode != 0:
+            success = result.returncode == 0
+            if not success:
                 self.logger.error(f"Failed to remove connection: {result.stderr}")
+            return success
         except Exception as e:
             self.logger.error(f"Error removing connection: {e}")
+            return False
 
     def _parse_network_list(self, output: str, saved_networks: Optional[set] = None) -> List[WiFiNetwork]:
         """Parse nmcli output into WiFiNetwork objects"""

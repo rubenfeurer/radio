@@ -140,3 +140,16 @@ async def connect_to_preconfigured():
     except Exception as e:
         logger.error(f"Error connecting to preconfigured network: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e)) 
+
+@router.delete("/forget/{ssid}", tags=["WiFi"])
+async def forget_network(ssid: str):
+    """Remove a saved network"""
+    try:
+        logger.debug(f"Attempting to forget network: {ssid}")
+        result = wifi_manager._remove_connection(ssid)
+        if result:
+            return {"status": "success"}
+        raise HTTPException(status_code=400, detail="Failed to remove network")
+    except Exception as e:
+        logger.error(f"Error removing network: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e)) 

@@ -213,3 +213,33 @@ async def test_verification_failure_removes_connection(wifi_manager):
     expected_call = call(['sudo', 'nmcli', 'connection', 'delete', 'TestNetwork'], 
                         capture_output=True, text=True)
     assert expected_call in wifi_manager._run_command.call_args_list
+
+@pytest.mark.asyncio
+async def test_forget_network(wifi_manager):
+    """Test forgetting a saved network"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # Delete connection command
+        MagicMock(returncode=0, stdout="")
+    ]
+    
+    result = wifi_manager._remove_connection("SavedNetwork")
+    assert result is True
+    
+    # Verify correct command was called
+    expected_call = call([
+        'sudo', 'nmcli', 'connection', 'delete', 'SavedNetwork'
+    ], capture_output=True, text=True)
+    assert wifi_manager._run_command.call_args == expected_call
+
+@pytest.mark.asyncio
+async def test_forget_nonexistent_network(wifi_manager):
+    """Test forgetting a non-existent network"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # Delete connection command fails
+        MagicMock(returncode=1, stdout="", stderr="No such connection profile")
+    ]
+    
+    result = wifi_manager._remove_connection("NonExistentNetwork")
+    assert result is False

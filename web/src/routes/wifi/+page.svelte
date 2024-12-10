@@ -292,12 +292,41 @@
                       {/if}
                     </div>
                     <div class="flex items-center gap-2">
+                      {#if !network.in_use && network.saved}
+                        <Button 
+                          size="xs"
+                          color="red"
+                          on:click={() => {
+                            if (confirm(`Are you sure you want to forget "${network.ssid}"?`)) {
+                              try {
+                                fetch(
+                                  `${API_BASE}/api/v1/wifi/forget/${encodeURIComponent(network.ssid)}`, 
+                                  { method: 'DELETE' }
+                                )
+                                .then(response => {
+                                  if (!response.ok) throw new Error('Failed to forget network');
+                                  return fetchNetworks(); // Refresh the networks list
+                                })
+                                .catch(error => {
+                                  console.error('Error forgetting network:', error);
+                                  alert('Failed to forget network');
+                                });
+                              } catch (error) {
+                                console.error('Error forgetting network:', error);
+                                alert('Failed to forget network');
+                              }
+                            }
+                          }}
+                        >
+                          Forget
+                        </Button>
+                      {/if}
                       {#if !network.in_use}
                         <Button 
                           size="xs"
                           on:click={() => network.ssid === preconfiguredSSID 
-                              ? connectToPreconfigured() 
-                              : attemptConnection(network.ssid, '')}
+                            ? connectToPreconfigured() 
+                            : attemptConnection(network.ssid, '')}
                           disabled={connecting}
                         >
                           {connecting ? 'Connecting...' : 'Connect'}
