@@ -16,6 +16,12 @@
   let ws: WebSocket;
   let wsConnected = false;
 
+  // Add new state for network mode
+  let networkMode = {
+    mode: 'Loading...',
+    ip_address: 'Loading...'
+  };
+
   // Get the current hostname (IP or domain)
   const currentHost = browser ? window.location.hostname : '';
   
@@ -92,12 +98,30 @@
     }
   }
 
+  // Add function to fetch network mode
+  async function fetchNetworkMode() {
+    try {
+      const response = await fetch(`/api/v1/wifi/mode`);
+      if (response.ok) {
+        const data = await response.json();
+        networkMode = data;
+      } else {
+        console.error('Failed to fetch network mode');
+      }
+    } catch (error) {
+      console.error('Error fetching network mode:', error);
+    }
+  }
+
   onMount(() => {
     if (browser) {
       console.log('Component mounted, initializing WebSocket');
       const ws = connectWebSocket();
       
-      // Set up periodic monitor requests
+      // Initial network mode fetch
+      fetchNetworkMode();
+      
+      // Set up periodic monitor requests and network mode fetch
       const interval = setInterval(() => {
         if (ws && ws.readyState === WebSocket.OPEN) {
           console.log('Sending periodic monitor request');
@@ -105,6 +129,8 @@
             type: "monitor_request",
             data: { requestType: "update" }
           }));
+          // Fetch network mode periodically
+          fetchNetworkMode();
         }
       }, 5000);
 
@@ -188,6 +214,19 @@
         }>
           {systemInfo.temperature}
         </span>
+      </p>
+    </Card>
+
+    <!-- Network Mode Card -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">Network Mode</h3>
+      <p class="mt-1 text-lg flex items-center gap-2">
+        <Badge
+          color={networkMode.mode === 'ap' ? 'purple' : 'blue'}
+        >
+          {networkMode.mode === 'ap' ? 'Access Point' : 'Client'}
+        </Badge>
+        <span class="text-sm text-gray-500">{networkMode.ip_address}</span>
       </p>
     </Card>
   </div>
