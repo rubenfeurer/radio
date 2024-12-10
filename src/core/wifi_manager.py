@@ -3,26 +3,30 @@ from typing import List, Optional
 import subprocess
 import logging
 from .models import WiFiStatus, WiFiNetwork
+import os
+from src.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger()
 
 class WiFiManager:
     """Manages WiFi connections using NetworkManager"""
     
-    def __init__(self, skip_verify=False):
-        self.logger = logging.getLogger(__name__)
-        self._interface = "wlan0"
-        if not skip_verify:
+    def __init__(self, skip_verify: bool = False):
+        """Initialize WiFi manager"""
+        self.logger = logger
+        # Check both environment variable and skip_verify parameter
+        if not os.getenv('SKIP_NM_CHECK') and not skip_verify:
             self._verify_networkmanager()
+        self._interface = "wlan0"
         
     def _verify_networkmanager(self) -> None:
-        """Verify NetworkManager is running and accessible"""
+        """Verify NetworkManager is running"""
         try:
             result = self._run_command(['systemctl', 'is-active', 'NetworkManager'])
-            if result.returncode != 0 or 'active' not in result.stdout:
+            if result.returncode != 0:
                 raise RuntimeError("NetworkManager service is not active")
         except Exception as e:
-            self.logger.error(f"NetworkManager verification failed: {e}")
+            self.logger.error("NetworkManager verification failed: %s", str(e))
             raise RuntimeError("NetworkManager is not running") from e
 
     def get_current_status(self) -> WiFiStatus:
