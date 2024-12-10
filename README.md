@@ -691,7 +691,7 @@ radio/
 │   │   │   ├── monitor.py    # Monitor endpoints
 │   │   │   └── stations.py   # Station management endpoints
 │   │   ├── models/     # API models and schemas
-│   │   │   └── requests.py   # Request/Response models
+│   │   ��   └── requests.py   # Request/Response models
 │   │   └── main.py    # FastAPI application setup
 │   └── lib/           # Shared libraries
 │       └── stores/    # Svelte stores
@@ -846,3 +846,66 @@ Common WebSocket message types:
 - Keep WebSocket connections alive with periodic status checks
 - Handle reconnection gracefully
 - Clean up WebSocket connections when components unmount
+
+## WiFi Management
+
+### Features
+- Network scanning and connection
+- Saved network management
+- Access Point (AP) mode support
+- Real-time status updates via WebSocket
+- Signal strength monitoring
+- Automatic reconnection
+
+### WiFi API Endpoints
+
+1. **Get Available Networks**
+   ```bash
+   GET /api/v1/wifi/networks
+   ```
+   Returns list of available WiFi networks with signal strength and saved status.
+
+2. **Connect to Network**
+   ```bash
+   POST /api/v1/wifi/connect
+   {
+     "ssid": "NetworkName",
+     "password": "NetworkPassword"
+   }
+   ```
+
+3. **Forget Network**
+   ```bash
+   DELETE /api/v1/wifi/forget/{ssid}
+   ```
+   Removes a saved network from the system.
+
+4. **Get Current Status**
+   ```bash
+   GET /api/v1/wifi/status
+   ```
+   Returns current WiFi connection status.
+
+### WiFi Manager
+
+The `WiFiManager` class handles all WiFi-related operations:
+```python
+from src.core.wifi_manager import WiFiManager
+
+# Get WiFi status
+status = wifi_manager.get_current_status()
+
+# Connect to network
+success = await wifi_manager.connect_to_network("SSID", "password")
+
+# Remove saved network
+success = wifi_manager._remove_connection("SSID")
+```
+
+### Web Interface Features
+- Display available networks with signal strength
+- Show saved networks separately
+- Connect to new networks
+- Forget saved networks
+- Real-time connection status
+- Signal strength indicator
