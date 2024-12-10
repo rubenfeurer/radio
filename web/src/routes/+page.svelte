@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Card, Button, Range, Badge } from 'flowbite-svelte';
+  import { Card, Button, Range, Badge, Alert } from 'flowbite-svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { wsStore } from '$lib/stores/websocket';
@@ -54,10 +54,30 @@
       : '')
     : '';
 
+  // Add network mode state
+  let networkMode = {
+    mode: 'default',
+    ip_address: null
+  };
+
+  // Add function to fetch network mode
+  async function fetchNetworkMode() {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/wifi/mode`);
+      if (response.ok) {
+        const data = await response.json();
+        networkMode = data;
+      }
+    } catch (error) {
+      console.error('Error fetching network mode:', error);
+    }
+  }
+
   onMount(() => {
     loadInitialStations();
     fetchVolume();
     fetchWiFiStatus();
+    fetchNetworkMode();  // Add initial network mode fetch
     connectWebSocket();
     return () => ws?.close();
   });
@@ -167,6 +187,8 @@
         updateStatus(data.data);
       } else if (data.type === 'wifi_status') {
         wifiStatus = data.data;
+        // Refresh network mode when WiFi status changes
+        fetchNetworkMode();
       }
     };
 
@@ -243,6 +265,22 @@
 </script>
 
 <div class="max-w-4xl mx-auto p-4">
+  <!-- AP Mode Alert -->
+  {#if networkMode.mode === 'ap'}
+    <Alert color="red" class="mb-4">
+      <span class="font-medium">Access Point Mode Active!</span>
+      <p class="mt-1">
+        Your device is currently in Access Point mode with IP: {networkMode.ip_address}. 
+        Connect to a WiFi network for normal operation.
+      </p>
+      <div class="mt-2">
+        <a href="/wifi">
+          <Button size="xs" color="red">Configure WiFi</Button>
+        </a>
+      </div>
+    </Alert>
+  {/if}
+
   <!-- Connection Status -->
   <div class="mb-6 flex justify-between items-center">
     <h1 class="text-2xl font-bold">Radio</h1>
