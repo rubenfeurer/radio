@@ -1,6 +1,16 @@
 import os
+import sys
+from pathlib import Path
+
+# Add project root to Python path BEFORE imports
+project_root = str(Path(__file__).parent.parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import pytest
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
+from src.core.wifi_manager import WiFiManager
+from src.utils.logger import setup_logger
 
 # Create module level mocks
 mock_mpv_instance = None
@@ -79,3 +89,64 @@ def mock_radio_manager():
         "is_playing": False
     }
     return mock_manager
+
+@pytest.fixture
+def mock_wifi_process():
+    """Create a basic WiFi process mock with success status"""
+    process = MagicMock()
+    process.returncode = 0
+    process.stderr = ""
+    process.stdout = "active"  # Default response
+    return process
+
+@pytest.fixture
+def mock_networkmanager(mock_wifi_process):
+    """Mock NetworkManager for WiFi testing"""
+    def command_response(*args, **kwargs):
+        command = args[0]
+        process = MagicMock()
+        process.returncode = 0
+        process.stderr = ""
+        
+        if "is-active" in command:
+            process.stdout = "active"
+        elif "wifi" in command and "rescan" in command:
+            process.stdout = ""
+        elif "wifi" in command and "list" in command:
+            if "ifname" in command:  # Current connection check
+                process.stdout = "MyNetwork:90:WPA2:*:yes"
+            else:  # Network scan
+                process.stdout = (
+                    "MyNetwork:90:WPA2:*:yes\n"
+                    "OtherNetwork:85:WPA2::no\n"
+                    "ThirdNetwork:70:WPA1::no"
+                )
+        elif "connectivity" in command:
+            process.stdout = "full"
+        else:
+            process.stdout = ""
+            
+        return process
+    
+    with patch('subprocess.run', side_effect=command_response) as mock_run:
+        yield mock_run
+
+@pytest.fixture(autouse=True)
+def mock_logger(monkeypatch):
+    """Mock logger for all tests"""
+    mock_logger = MagicMock()
+    mock_logger.debug = MagicMock()
+    mock_logger.info = MagicMock()
+    mock_logger.warning = MagicMock()
+    mock_logger.error = MagicMock()
+    
+    def mock_setup_logger(*args, **kwargs):
+        return mock_logger
+    
+    monkeypatch.setattr('src.utils.logger.setup_logger', mock_setup_logger)
+    return mock_logger
+
+@pytest.fixture
+def wifi_manager(mock_logger):
+    """Create a WiFiManager instance for testing"""
+    return WiFiManager(skip_verify=True)

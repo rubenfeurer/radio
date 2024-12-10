@@ -30,6 +30,5 @@ def setup_logger():
     logger.addHandler(handler)
     
     return logger
-
 # Create logger instance
 logger = setup_logger() 

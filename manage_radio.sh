@@ -37,28 +37,80 @@ check_pigpiod() {
     fi
 }
 
+check_nmcli_permissions() {
+    # Create sudo rule for nmcli if it doesn't exist
+    SUDO_FILE="/etc/sudoers.d/radio-nmcli"
+    if [ ! -f "$SUDO_FILE" ]; then
+        echo "Setting up nmcli permissions..."
+        sudo tee $SUDO_FILE <<EOF
+# Allow radio user to run specific nmcli commands without password
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi list
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi rescan
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli networking connectivity check
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi connect *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection up *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection delete *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
+EOF
+        sudo chmod 440 $SUDO_FILE
+    fi
+}
+
+open_monitor() {
+    echo "Opening monitor website..."
+    # Wait for services to be fully up
+    sleep 5
+    
+    # Check if Chromium is already running with monitor page
+    if ! pgrep -f "chromium.*monitor" > /dev/null; then
+        # Kill any existing Chromium instances first
+        pkill chromium 2>/dev/null || true
+        sleep 1
+        
+        # Open Chromium with proper flags
+        DISPLAY=:0 chromium-browser \
+            --kiosk \
+            --start-fullscreen \
+            --disable-restore-session-state \
+            --noerrdialogs \
+            --disable-session-crashed-bubble \
+            --no-first-run \
+            "http://localhost:5173/monitor" > /dev/null 2>&1 &
+    else
+        echo "Monitor already open in browser"
+    fi
+}
+
 start() {
     echo "Starting $APP_NAME..."
     check_ports
     check_pigpiod
+    check_nmcli_permissions
     source $VENV_PATH/bin/activate
     echo "Virtual environment activated"
     
     # Clear the log file
     echo "" > $LOG_FILE
     
-    # Start FastAPI server with sudo (needed for port 80)
+    # Start FastAPI server with nohup
     echo "Starting FastAPI server on port $API_PORT..."
-    sudo -E $VENV_PATH/bin/uvicorn src.api.main:app --host 0.0.0.0 --port $API_PORT --reload --log-level debug > $LOG_FILE 2>&1 &
+    nohup sudo -E env "PATH=$PATH" "$VENV_PATH/bin/uvicorn" src.api.main:app \
+        --host 0.0.0.0 \
+        --port $API_PORT \
+        --reload \
+        --log-level debug > $LOG_FILE 2>&1 &
     API_PID=$!
     echo $API_PID > $PID_FILE
     
-    # Wait a moment before starting dev server
-    sleep 2
+    # Wait to ensure API server is up
+    sleep 5
     
-    # Start development server
+    # Start development server with nohup
     echo "Starting development server on port $DEV_PORT..."
-    cd web && npm run dev -- --host 0.0.0.0 --port $DEV_PORT >> $LOG_FILE 2>&1 &
+    cd web && nohup npm run dev -- \
+        --host 0.0.0.0 \
+        --port $DEV_PORT \
+        >> $LOG_FILE 2>&1 &
     DEV_PID=$!
     echo $DEV_PID >> $PID_FILE
     
@@ -72,10 +124,14 @@ start() {
         echo "Dev Server PID: $DEV_PID"
         echo "Initial log entries:"
         tail -n 10 $LOG_FILE
+        
+        # Open monitor website
+        open_monitor
     else
         echo "Failed to start $APP_NAME. Check logs for details."
         cat $LOG_FILE
         rm -f $PID_FILE
+        exit 1
     fi
 }
 

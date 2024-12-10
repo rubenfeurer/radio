@@ -395,6 +395,8 @@ The project uses pytest for unit testing. Tests are located in the `/tests` dire
    pip install pytest
    pip install pytest-asyncio
    pip install pytest-cov
+   pip install pytest-mock
+   pip install httpx
    ```
 
 3. **Add Test Dependencies to requirements.txt**:
@@ -402,6 +404,8 @@ The project uses pytest for unit testing. Tests are located in the `/tests` dire
    echo "pytest" >> requirements.txt
    echo "pytest-asyncio" >> requirements.txt
    echo "pytest-cov" >> requirements.txt
+   echo "pytest-mock" >> requirements.txt
+   echo "httpx" >> requirements.txt
    ```
 
 ### Running Tests
@@ -427,7 +431,7 @@ tests/
 │   ├── test_main.py
 │   └── test_routes.py
 ├── core/             # Core functionality tests
-��   ├── test_models.py
+│   ├── test_models.py
 │   └── test_radio_manager.py
 └── hardware/         # Hardware interface tests
     ├── test_audio_player.py
@@ -441,8 +445,9 @@ Tests are written using pytest and follow these conventions:
 - Test functions start with `test_`
 - Async tests use `@pytest.mark.asyncio` decorator
 - Fixtures are defined in `conftest.py` or test files
+- Use `pytest-mock` for mocking dependencies
 
-Example test:
+Example test with mocking:
 ```python
 import pytest
 from src.core.radio_manager import RadioManager
@@ -673,3 +678,234 @@ pytest -v tests/api/test_routes.py -k "websocket"
 # Run all API tests including WebSocket
 pytest -v tests/api/
 ```
+
+## API and WebSocket Development
+
+### File Structure
+```
+radio/
+├── src/
+│   ├── api/            # Backend API
+│   │   ├── routes/     # API route modules
+│   │   │   ├── websocket.py  # WebSocket endpoints
+│   │   │   ├── monitor.py    # Monitor endpoints
+│   │   │   └── stations.py   # Station management endpoints
+│   │   ├── models/     # API models and schemas
+│   │   ��   └── requests.py   # Request/Response models
+│   │   └── main.py    # FastAPI application setup
+│   └── lib/           # Shared libraries
+│       └── stores/    # Svelte stores
+│           └── websocket.ts  # WebSocket store
+└── web/
+    └── src/
+        └── routes/    # SvelteKit pages
+            ├── +page.svelte        # Main page
+            └── monitor/
+                └── +page.svelte    # Monitor page
+```
+
+### WebSocket Store
+The WebSocket store (`websocket.ts`) is currently located in `src/lib/stores/` and provides shared WebSocket functionality across the application. It manages:
+- WebSocket connection status
+- Monitor connection status
+- Error handling
+
+### Creating New API Endpoints
+
+1. **Create Route Module**
+   Create a new file in `src/api/routes/`:
+   ```python:src/api/routes/example.py
+   from fastapi import APIRouter
+   from ..models.requests import ExampleModel
+   
+   router = APIRouter(
+       prefix="/example",
+       tags=["Example"]
+   )
+   
+   @router.get("/status")
+   async def get_status():
+       return {"status": "ok"}
+   ```
+
+2. **Add Models**
+   Define request/response models in `src/api/models/requests.py`:
+   ```python:src/api/models/requests.py
+   from pydantic import BaseModel
+   
+   class ExampleModel(BaseModel):
+       name: str
+       value: int
+   ```
+
+3. **Register Router**
+   Add the router in `src/api/main.py`:
+   ```python:src/api/main.py
+   from src.api.routes import example
+   
+   app.include_router(example.router, prefix="/api/v1")
+   ```
+
+### WebSocket Communication
+
+1. **Backend: Add New Message Type**
+   Update `src/api/routes/websocket.py`:
+   ```python:src/api/routes/websocket.py
+   @router.websocket("/ws")
+   async def websocket_endpoint(websocket: WebSocket):
+       # ... existing code ...
+       
+       elif data.get("type") == "example_request":
+           example_data = {
+               "type": "example_update",
+               "data": await get_example_data()
+           }
+           await websocket.send_json(example_data)
+   ```
+
+2. **Frontend: Handle WebSocket Messages**
+   Create new page in `web/src/routes/`:
+   ```svelte:web/src/routes/example/+page.svelte
+   <script lang="ts">
+     import { onMount } from 'svelte';
+     import { browser } from '$app/environment';
+   
+     let ws: WebSocket;
+     
+     function connectWebSocket() {
+       if (!browser) return;
+       
+       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+       const wsHost = window.location.hostname;
+       const wsPort = window.location.port === '5173' ? '80' : window.location.port;
+       
+       const wsUrl = `${wsProtocol}//${wsHost}${wsPort ? ':' + wsPort : ''}/api/v1/ws`;
+       
+       ws = new WebSocket(wsUrl);
+       
+       ws.onmessage = (event) => {
+         const data = JSON.parse(event.data);
+         if (data.type === 'example_update') {
+           // Handle data
+         }
+       };
+     }
+   
+     onMount(() => {
+       connectWebSocket();
+       return () => ws?.close();
+     });
+   </script>
+   ```
+
+### Message Types
+
+Common WebSocket message types:
+
+1. **Status Messages**
+   ```typescript
+   // Request
+   { type: "status_request" }
+   
+   // Response
+   {
+     type: "status_response",
+     data: {
+       current_station: number | null,
+       volume: number,
+       is_playing: boolean
+     }
+   }
+   ```
+
+2. **Monitor Messages**
+   ```typescript
+   // Request
+   { 
+     type: "monitor_request",
+     data: { requestType: "full" | "update" }
+   }
+   
+   // Response
+   {
+     type: "monitor_update",
+     data: {
+       systemInfo: {...},
+       services: [...],
+       webAccess: {...},
+       logs: [...]
+     }
+   }
+   ```
+
+### Best Practices
+- Use consistent message types between frontend and backend
+- Implement proper error handling in both directions
+- Add logging for debugging
+- Follow existing patterns in the codebase
+- Keep WebSocket connections alive with periodic status checks
+- Handle reconnection gracefully
+- Clean up WebSocket connections when components unmount
+
+## WiFi Management
+
+### Features
+- Network scanning and connection
+- Saved network management
+- Access Point (AP) mode support
+- Real-time status updates via WebSocket
+- Signal strength monitoring
+- Automatic reconnection
+
+### WiFi API Endpoints
+
+1. **Get Available Networks**
+   ```bash
+   GET /api/v1/wifi/networks
+   ```
+   Returns list of available WiFi networks with signal strength and saved status.
+
+2. **Connect to Network**
+   ```bash
+   POST /api/v1/wifi/connect
+   {
+     "ssid": "NetworkName",
+     "password": "NetworkPassword"
+   }
+   ```
+
+3. **Forget Network**
+   ```bash
+   DELETE /api/v1/wifi/forget/{ssid}
+   ```
+   Removes a saved network from the system.
+
+4. **Get Current Status**
+   ```bash
+   GET /api/v1/wifi/status
+   ```
+   Returns current WiFi connection status.
+
+### WiFi Manager
+
+The `WiFiManager` class handles all WiFi-related operations:
+```python
+from src.core.wifi_manager import WiFiManager
+
+# Get WiFi status
+status = wifi_manager.get_current_status()
+
+# Connect to network
+success = await wifi_manager.connect_to_network("SSID", "password")
+
+# Remove saved network
+success = wifi_manager._remove_connection("SSID")
+```
+
+### Web Interface Features
+- Display available networks with signal strength
+- Show saved networks separately
+- Connect to new networks
+- Forget saved networks
+- Real-time connection status
+- Signal strength indicator
