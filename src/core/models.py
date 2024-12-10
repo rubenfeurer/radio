@@ -51,3 +51,5 @@ class NetworkModeStatus(BaseModel):
     """Network mode status response model"""
     mode: NetworkMode
     ip_address: Optional[str] = None
+    ap_ssid: Optional[str] = None
+    ap_password: Optional[str] = None

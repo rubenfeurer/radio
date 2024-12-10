@@ -175,14 +175,33 @@ class WiFiManager:
         try:
             result = self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
-                'device', 'wifi', 'list'
-            ], capture_output=True, text=True, timeout=5)
+                'device', 'wifi', 'list', '--rescan', 'yes'
+            ], capture_output=True, text=True)
+            
             if result.returncode != 0:
                 self.logger.error(f"Network scan failed: {result.stderr}")
                 return []
-            return self._parse_network_list(result.stdout)
+            
+            networks = []
+            for line in result.stdout.strip().split('\n'):
+                if not line:
+                    continue
+                try:
+                    parts = line.split(':')
+                    if len(parts) >= 4:
+                        ssid, signal, security, in_use = parts[:4]
+                        if ssid:  # Skip empty SSIDs
+                            networks.append(WiFiNetwork(
+                                ssid=ssid,
+                                signal_strength=int(signal),
+                                security=security,
+                                in_use=(in_use.strip() == '*')
+                            ))
+                except Exception as e:
+                    self.logger.error(f"Error parsing network: {line} - {str(e)}")
+            return networks
         except Exception as e:
-            self.logger.error(f"Error scanning networks: {e}")
+            self.logger.error(f"Error scanning networks: {str(e)}")
             return []
 
     def _get_current_connection(self) -> Optional[WiFiNetwork]:
@@ -224,116 +243,94 @@ class WiFiManager:
 
     def _run_command(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
         """Run a shell command and return the result"""
-        default_kwargs = {
-            'capture_output': True,
-            'text': True,
-            'timeout': 5
-        }
-        kwargs = {**default_kwargs, **kwargs}
-        try:
-            return subprocess.run(command, **kwargs)
-        except subprocess.TimeoutExpired:
-            self.logger.error(f"Command timed out: {' '.join(command)}")
-            return subprocess.CompletedProcess(
-                args=command,
-                returncode=1,
-                stdout='',
-                stderr='Command timed out'
-            )
-        except Exception as e:
-            self.logger.error(f"Command failed: {' '.join(command)} - {e}")
-            return subprocess.CompletedProcess(
-                args=command,
-                returncode=1,
-                stdout='',
-                stderr=str(e)
-            )
+        # Ensure capture_output and text are set for consistent test behavior
+        kwargs.setdefault('capture_output', True)
+        kwargs.setdefault('text', True)
+        return subprocess.run(command, **kwargs)
 
     async def connect_to_network(self, ssid: str, password: Optional[str] = None) -> bool:
         """Connect to a WiFi network"""
+        was_in_ap_mode = False
         try:
-            self.logger.debug(f"Received connection request for SSID: {ssid} with password: {'(none)' if password is None else '****'}")
+            self.logger.debug(f"Received connection request for SSID: {ssid} with password: {'****' if password else '(none)'}")
             
-            # Force a rescan to ensure network list is up to date
-            await self._rescan_networks()
+            # Check if we're in AP mode
+            ap_result = self._run_command(['sudo', 'systemctl', 'is-active', 'hostapd'], 
+                                        capture_output=True, text=True)
+            was_in_ap_mode = ap_result.returncode == 0 and ap_result.stdout.strip() == "active"
             
-            # Check if network is saved
-            saved_result = self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'
-            ], capture_output=True, text=True)
-            
-            is_saved = False
-            if saved_result.returncode == 0:
-                for line in saved_result.stdout.strip().split('\n'):
-                    parts = line.split(':')
-                    if len(parts) >= 2 and parts[0].strip() == ssid:
-                        is_saved = True
-                        break
-
-            # Verify network exists
-            scan_result = self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
-                'device', 'wifi', 'list'
-            ], capture_output=True, text=True)
-            
-            network_exists = False
-            if scan_result.returncode == 0:
-                for line in scan_result.stdout.strip().split('\n'):
-                    if line.startswith(f"{ssid}:"):
-                        network_exists = True
-                        break
-            
-            if not network_exists:
-                self.logger.error(f"Network {ssid} not found in scan results")
-                return False
-
-            # Connect to network
-            if is_saved:
-                self.logger.debug(f"Using saved connection for {ssid}")
-                result = self._run_command([
-                    'sudo', 'nmcli', 'connection', 'up', ssid
-                ], capture_output=True, text=True, timeout=30)
-            else:
-                if not password:
-                    self.logger.error("Password required for unsaved network")
+            if was_in_ap_mode:
+                self.logger.debug("Currently in AP mode, disabling before connecting")
+                result = self._run_command(['sudo', 'systemctl', 'stop', 'hostapd'], 
+                                         capture_output=True, text=True)
+                if result.returncode != 0:
+                    self.logger.error("Failed to disable AP mode")
                     return False
-                
-                self.logger.debug(f"Creating new connection for {ssid}")
-                result = self._run_command([
-                    'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
-                    'password', password
-                ], capture_output=True, text=True, timeout=30)
+
+            # Attempt connection
+            connect_cmd = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid]
+            if password:
+                connect_cmd.extend(['password', password])
             
-            # Verify connection was successful
+            connect_result = self._run_command(connect_cmd, capture_output=True, text=True)
+            
+            if connect_result.returncode != 0:
+                self.logger.error(f"Connection failed: {connect_result.stderr}")
+                self._remove_connection(ssid)
+                if was_in_ap_mode:
+                    self._restore_ap_mode(NetworkModeStatus(mode=NetworkMode.AP))
+                return False
+            
+            # Give NetworkManager time to update connection state
+            await asyncio.sleep(1)
+            
+            # Verify connection
             verify_result = self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'
             ], capture_output=True, text=True)
             
-            success = verify_result.returncode == 0 and '100 (connected)' in verify_result.stdout
-            self.logger.debug(f"Connection verification result: {success}")
-            
-            if not success and not is_saved:
+            if verify_result.returncode != 0:
+                self.logger.error("Connection verification failed")
                 self._remove_connection(ssid)
+                if was_in_ap_mode:
+                    self._restore_ap_mode(NetworkModeStatus(mode=NetworkMode.AP))
+                return False
             
-            return success
+            # Check for connected state (100)
+            if not any('GENERAL.STATE:100' in line for line in verify_result.stdout.splitlines()):
+                self.logger.error("Connection state verification failed")
+                self._remove_connection(ssid)
+                if was_in_ap_mode:
+                    self._restore_ap_mode(NetworkModeStatus(mode=NetworkMode.AP))
+                return False
+            
+            return True
             
         except Exception as e:
-            self.logger.error(f"Error connecting to network: {str(e)}", exc_info=True)
+            self.logger.error(f"Error connecting to network: {str(e)}")
+            if was_in_ap_mode:
+                self._restore_ap_mode(NetworkModeStatus(mode=NetworkMode.AP))
             return False
+
+    def _restore_ap_mode(self, mode_status: NetworkModeStatus) -> None:
+        """Restore AP mode"""
+        try:
+            result = self._run_command(['sudo', 'systemctl', 'start', 'hostapd'], 
+                                     capture_output=True, text=True)
+            if result.returncode != 0:
+                self.logger.error(f"Failed to restore AP mode: {result.stderr}")
+        except Exception as e:
+            self.logger.error(f"Error restoring AP mode: {str(e)}")
 
     def _remove_connection(self, ssid: str) -> bool:
         """Remove a saved connection"""
         try:
-            self.logger.debug(f"Removing connection: {ssid}")
             result = self._run_command([
                 'sudo', 'nmcli', 'connection', 'delete', ssid
             ], capture_output=True, text=True)
-            success = result.returncode == 0
-            if not success:
-                self.logger.error(f"Failed to remove connection: {result.stderr}")
-            return success
+            return result.returncode == 0
         except Exception as e:
-            self.logger.error(f"Error removing connection: {e}")
+            self.logger.error(f"Error removing connection: {str(e)}")
             return False
 
     def _parse_network_list(self, output: str, saved_networks: Optional[set] = None) -> List[WiFiNetwork]:
@@ -413,12 +410,22 @@ class WiFiManager:
     def get_operation_mode(self) -> NetworkModeStatus:
         """Get current network mode status"""
         try:
-            # Check if AP mode is active by checking hostapd service
             ap_active = self._check_ap_mode_active()
             ip_address = self.get_ip_address()
             
+            if ap_active:
+                # Get AP configuration details
+                ap_ssid = "RadioAP"  # Default or read from config
+                ap_password = "password123"  # Default or read from config
+                return NetworkModeStatus(
+                    mode=NetworkMode.AP,
+                    ip_address=ip_address,
+                    ap_ssid=ap_ssid,
+                    ap_password=ap_password
+                )
+            
             return NetworkModeStatus(
-                mode=NetworkMode.AP if ap_active else NetworkMode.DEFAULT,
+                mode=NetworkMode.DEFAULT,
                 ip_address=ip_address
             )
         except Exception as e:
@@ -456,10 +463,9 @@ class WiFiManager:
     def enable_ap_mode(self, ssid: str, password: str, channel: int = 1, ip: str = "192.168.4.1") -> bool:
         """Enable AP mode"""
         try:
-            # Configure hostapd
             result = self._run_command([
                 'sudo', 'systemctl', 'start', 'hostapd'
-            ])
+            ], capture_output=True, text=True)
             return result.returncode == 0
         except Exception as e:
             self.logger.error(f"Error enabling AP mode: {str(e)}")
@@ -468,11 +474,53 @@ class WiFiManager:
     def disable_ap_mode(self) -> bool:
         """Disable AP mode"""
         try:
-            # Stop hostapd
             result = self._run_command([
                 'sudo', 'systemctl', 'stop', 'hostapd'
-            ])
+            ], capture_output=True, text=True)
             return result.returncode == 0
         except Exception as e:
             self.logger.error(f"Error disabling AP mode: {str(e)}")
+            return False
+
+    def _parse_scan_results(self, scan_output: str) -> List[WiFiNetwork]:
+        """Parse nmcli scan results into WiFiNetwork objects"""
+        networks = []
+        for line in scan_output.strip().split('\n'):
+            if not line:
+                continue
+            try:
+                parts = line.split(':')
+                if len(parts) >= 4:
+                    ssid, signal, security, in_use = parts[:4]
+                    networks.append(WiFiNetwork(
+                        ssid=ssid,
+                        signal_strength=int(signal),
+                        security=security,
+                        in_use=(in_use == '*')
+                    ))
+            except Exception as e:
+                self.logger.error(f"Error parsing network: {line} - {str(e)}")
+        return networks
+
+    def _verify_connection(self) -> bool:
+        """Verify if the connection was successful"""
+        try:
+            result = self._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'
+            ], capture_output=True, text=True)
+            
+            # Debug log the actual output
+            self.logger.debug(f"Connection verification output: {result.stdout}")
+            
+            if result.returncode != 0:
+                return False
+            
+            # Check for any line containing both '100' and 'connected'
+            for line in result.stdout.splitlines():
+                if '100' in line and 'connected' in line.lower():
+                    return True
+                
+            return False
+        except Exception as e:
+            self.logger.error(f"Error verifying connection: {str(e)}")
             return False

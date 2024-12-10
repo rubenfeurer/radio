@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, call
-from src.core.models import WiFiStatus
+from src.core.models import WiFiStatus, NetworkMode, NetworkModeStatus
 import logging
 
 def test_get_current_status_connected(wifi_manager):
@@ -39,14 +39,14 @@ async def test_connect_to_network(wifi_manager):
     """Test connecting to a WiFi network"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
-        MagicMock(returncode=0, stdout=""),  # rescan
-        MagicMock(returncode=0, stdout=""),  # check saved networks
-        MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
-        MagicMock(returncode=0, stdout=""),  # connect command
-        MagicMock(returncode=0, stdout="GENERAL.STATE:100 (connected)\n")  # verify connection
+        # Check if in AP mode
+        MagicMock(returncode=1, stdout="inactive"),  # Not in AP mode
+        # Connect command
+        MagicMock(returncode=0, stdout=""),
+        # Verify connection
+        MagicMock(returncode=0, stdout="GENERAL.STATE:100 (connected)")
     ]
     
-    wifi_manager.logger.setLevel(logging.DEBUG)
     success = await wifi_manager.connect_to_network("TestNetwork", "password123")
     assert success is True
 
@@ -71,11 +71,12 @@ async def test_connect_to_saved_network(wifi_manager):
     """Test connecting to a saved network"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
-        MagicMock(returncode=0, stdout=""),  # rescan
-        MagicMock(returncode=0, stdout="SavedNetwork:wifi:/etc/NetworkManager/system-connections/saved.nmconnection\n"),  # check saved networks
-        MagicMock(returncode=0, stdout="SavedNetwork:80:WPA2:no\n"),  # scan networks
-        MagicMock(returncode=0, stdout=""),  # connect command
-        MagicMock(returncode=0, stdout="GENERAL.STATE:100 (connected)\n")  # verify connection
+        # Check if in AP mode
+        MagicMock(returncode=1, stdout="inactive"),  # Not in AP mode
+        # Connect command
+        MagicMock(returncode=0, stdout=""),
+        # Verify connection
+        MagicMock(returncode=0, stdout="GENERAL.STATE:100 (connected)")
     ]
     
     success = await wifi_manager.connect_to_network("SavedNetwork")
@@ -169,19 +170,24 @@ async def test_failed_connection_gets_removed(wifi_manager):
     """Test that failed connection attempts are removed from saved networks"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
-        MagicMock(returncode=0, stdout=""),  # rescan
-        MagicMock(returncode=0, stdout=""),  # check saved networks
-        MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
-        MagicMock(returncode=0, stdout=""),  # check saved networks again
-        MagicMock(returncode=1, stdout="", stderr="Invalid password"),  # connect command fails
-        MagicMock(returncode=0, stdout="GENERAL.STATE:20 (unavailable)"),  # verification check
-        MagicMock(returncode=0, stdout="")  # remove connection
+        # Check if in AP mode
+        MagicMock(returncode=0, stdout="inactive"),  # Not in AP mode
+        # Get IP address
+        MagicMock(returncode=0, stdout=""),
+        # Rescan networks
+        MagicMock(returncode=0, stdout=""),
+        # Get network list
+        MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),
+        # Connect command fails
+        MagicMock(returncode=1, stdout="", stderr="Invalid password"),
+        # Remove connection
+        MagicMock(returncode=0, stdout="")
     ]
     
     success = await wifi_manager.connect_to_network("TestNetwork", "wrong_password")
     assert success is False
     
-    # Verify that remove_connection was called with the correct arguments
+    # Verify that remove_connection was called
     expected_call = call(['sudo', 'nmcli', 'connection', 'delete', 'TestNetwork'], 
                         capture_output=True, text=True)
     assert expected_call in wifi_manager._run_command.call_args_list
@@ -237,3 +243,95 @@ async def test_forget_nonexistent_network(wifi_manager):
     
     result = wifi_manager._remove_connection("NonExistentNetwork")
     assert result is False
+
+@pytest.mark.asyncio
+async def test_connect_from_ap_mode_wrong_password(wifi_manager):
+    """Test connecting with wrong password while in AP mode"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # Check AP mode status
+        MagicMock(returncode=0, stdout="active"),
+        # Get IP address
+        MagicMock(returncode=0, stdout="inet 192.168.4.1/24"),
+        # Disable AP mode
+        MagicMock(returncode=0, stdout=""),
+        # Rescan networks
+        MagicMock(returncode=0, stdout=""),
+        # Get network list
+        MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),
+        # Connect command fails
+        MagicMock(returncode=1, stdout="", stderr="Invalid password"),
+        # Remove connection
+        MagicMock(returncode=0, stdout=""),
+        # Enable AP mode again
+        MagicMock(returncode=0, stdout="")
+    ]
+    
+    success = await wifi_manager.connect_to_network("TestNetwork", "wrong_password")
+    assert success is False
+    
+    # Verify AP mode was restored
+    enable_ap_call = call(['sudo', 'systemctl', 'start', 'hostapd'], 
+                         capture_output=True, text=True)
+    assert enable_ap_call in wifi_manager._run_command.call_args_list
+
+@pytest.mark.asyncio
+async def test_connect_from_ap_mode_network_not_found(wifi_manager):
+    """Test connecting to non-existent network while in AP mode"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # Check AP mode status
+        MagicMock(returncode=0, stdout="active"),
+        # Get IP address
+        MagicMock(returncode=0, stdout="inet 192.168.4.1/24"),
+        # Disable AP mode
+        MagicMock(returncode=0, stdout=""),
+        # Rescan networks
+        MagicMock(returncode=0, stdout=""),
+        # Get network list
+        MagicMock(returncode=0, stdout="OtherNetwork:80:WPA2:no\n"),
+        # Enable AP mode again
+        MagicMock(returncode=0, stdout="")
+    ]
+    
+    success = await wifi_manager.connect_to_network("NonExistentNetwork", "password123")
+    assert success is False
+    
+    # Verify AP mode was restored
+    enable_ap_call = call(['sudo', 'systemctl', 'start', 'hostapd'], 
+                         capture_output=True, text=True)
+    assert enable_ap_call in wifi_manager._run_command.call_args_list
+
+@pytest.mark.asyncio
+async def test_connect_from_ap_mode_disable_fails(wifi_manager):
+    """Test connection when AP mode disable fails"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # Check AP mode status
+        MagicMock(returncode=0, stdout="active"),
+        # Get IP address
+        MagicMock(returncode=0, stdout="inet 192.168.4.1/24"),
+        # Disable AP mode fails
+        MagicMock(returncode=1, stdout="", stderr="Failed to stop hostapd")
+    ]
+    
+    success = await wifi_manager.connect_to_network("TestNetwork", "password123")
+    assert success is False
+
+@pytest.mark.asyncio
+async def test_connect_from_ap_mode_success(wifi_manager):
+    """Test successful connection from AP mode"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # Check AP mode status
+        MagicMock(returncode=0, stdout="active"),
+        # Disable AP mode
+        MagicMock(returncode=0, stdout=""),
+        # Connect command
+        MagicMock(returncode=0, stdout=""),
+        # Verify connection
+        MagicMock(returncode=0, stdout="GENERAL.STATE:100 (connected)")
+    ]
+    
+    success = await wifi_manager.connect_to_network("TestNetwork", "password123")
+    assert success is True
