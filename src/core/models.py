@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
+from enum import Enum
 
 class RadioStation(BaseModel):
     name: str
@@ -40,3 +41,13 @@ class WiFiStatus(BaseModel):
     has_internet: bool = False
     available_networks: List[WiFiNetwork] = []
     preconfigured_ssid: Optional[str] = None
+
+class NetworkMode(str, Enum):
+    """Network operation mode"""
+    DEFAULT = "default"
+    AP = "ap"
+
+class NetworkModeStatus(BaseModel):
+    """Network mode status response model"""
+    mode: NetworkMode
+    ip_address: Optional[str] = None
