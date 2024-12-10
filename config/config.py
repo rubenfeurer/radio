@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, Dict
+import socket
+import os
 
 class Settings(BaseModel):
     # API Settings
@@ -33,6 +35,16 @@ class Settings(BaseModel):
     # Button press durations (in seconds)
     LONG_PRESS_DURATION: float = 3.0
     DOUBLE_PRESS_INTERVAL: float = 0.5
+    
+    # Network Settings
+    HOSTNAME: str = os.environ.get('HOSTNAME', socket.gethostname())  # Get actual hostname
+    
+    # AP Mode Settings
+    AP_SSID: str = HOSTNAME  # Uses actual hostname as network name
+    AP_PASSWORD: str = "radiopassword"  # Default password for AP mode
+    AP_CHANNEL: int = 6
+    AP_COUNTRY: str = "CH"
+    AP_IP: str = "192.168.4.1"  # Static IP when in AP mode
     
     model_config = {
         "case_sensitive": True

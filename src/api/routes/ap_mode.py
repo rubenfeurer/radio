@@ -1,24 +1,59 @@
 from fastapi import APIRouter, HTTPException
 from src.core.wifi_manager import WiFiManager
 from src.core.models import NetworkMode, NetworkModeStatus
+from config.config import settings
+import subprocess
+import logging
 
 # Use the existing WiFiManager instance from wifi.py
 from .wifi import wifi_manager
+
+logger = logging.getLogger(__name__)
 
 # Create endpoint function without router
 async def get_network_mode():
     """Get current network mode (AP or client mode)"""
     try:
-        return NetworkModeStatus(
-            mode=NetworkMode.DEFAULT,  # Temporary default until we implement get_operation_mode
-            ip_address=None
-        )
+        return wifi_manager.get_operation_mode()
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get network mode: {str(e)}"
         )
 
-# Add the endpoint to the existing wifi router
+async def toggle_ap_mode():
+    """Toggle between AP and client mode"""
+    try:
+        current_mode = wifi_manager.get_operation_mode()
+        
+        if current_mode.mode == NetworkMode.AP:
+            # Switch to client mode
+            result = wifi_manager.disable_ap_mode()
+            if not result:
+                raise HTTPException(status_code=500, detail="Failed to disable AP mode")
+        else:
+            # Switch to AP mode
+            result = wifi_manager.enable_ap_mode(
+                ssid=settings.HOSTNAME,
+                password=settings.AP_PASSWORD,
+                channel=settings.AP_CHANNEL,
+                ip=settings.AP_IP
+            )
+            if not result:
+                raise HTTPException(status_code=500, detail="Failed to enable AP mode")
+        
+        # Get new mode after toggle
+        new_mode = wifi_manager.get_operation_mode()
+        return new_mode
+        
+    except Exception as e:
+        logger.error(f"Failed to toggle AP mode: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to toggle AP mode: {str(e)}"
+        )
+
+# Add the endpoints to the existing wifi router
 from .wifi import router
-router.add_api_route("/mode", get_network_mode, response_model=NetworkModeStatus, methods=["GET"]) 
+router.add_api_route("/mode", get_network_mode, response_model=NetworkModeStatus, methods=["GET"])
+router.add_api_route("/mode/toggle", toggle_ap_mode, response_model=NetworkModeStatus, methods=["POST"]) 

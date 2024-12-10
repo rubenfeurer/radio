@@ -11,6 +11,7 @@ import pytest
 from unittest.mock import MagicMock, PropertyMock, patch
 from src.core.wifi_manager import WiFiManager
 from src.utils.logger import setup_logger
+from src.core.models import NetworkMode, NetworkModeStatus
 
 # Create module level mocks
 mock_mpv_instance = None
@@ -150,3 +151,37 @@ def mock_logger(monkeypatch):
 def wifi_manager(mock_logger):
     """Create a WiFiManager instance for testing"""
     return WiFiManager(skip_verify=True)
+
+@pytest.fixture
+def mock_ap_mode_status():
+    """Create NetworkModeStatus instances for AP mode testing"""
+    def create_status(mode=NetworkMode.DEFAULT, ip="192.168.1.100"):
+        return NetworkModeStatus(
+            mode=mode,
+            ip_address=ip
+        )
+    return create_status
+
+@pytest.fixture
+def mock_wifi_manager_ap():
+    """Mock WiFiManager specifically for AP mode testing"""
+    with patch('src.api.routes.ap_mode.wifi_manager') as mock:
+        # Setup default responses
+        default_status = NetworkModeStatus(
+            mode=NetworkMode.DEFAULT,
+            ip_address="192.168.1.100"
+        )
+        ap_status = NetworkModeStatus(
+            mode=NetworkMode.AP,
+            ip_address="192.168.4.1"
+        )
+        
+        mock.get_operation_mode.return_value = default_status
+        mock.enable_ap_mode.return_value = True
+        mock.disable_ap_mode.return_value = True
+        
+        # Store statuses for easy access in tests
+        mock.default_status = default_status
+        mock.ap_status = ap_status
+        
+        yield mock
