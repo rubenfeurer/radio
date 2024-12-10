@@ -21,11 +21,13 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        # Install MPV and development files
-        sudo apt-get install -y python3-dev python3-setuptools gcc make \
+        # Install NetworkManager and other dependencies
+        sudo apt-get install -y \
+          python3-dev python3-setuptools gcc make \
           mpv libmpv-dev \
           python3-pip python3-venv \
-          libasound2-dev  # Add this for audio support
+          libasound2-dev \
+          network-manager  # Add NetworkManager
         
         # Download and build pigpio
         wget https://github.com/joan2937/pigpio/archive/master.zip
@@ -38,8 +40,12 @@ jobs:
         sudo mkdir -p /var/run/pigpio
         sudo chmod 777 /var/run/pigpio
         
-        # Start pigpio daemon with explicit options
+        # Start services
+        sudo systemctl start NetworkManager  # Start NetworkManager
         sudo pigpiod -l -t 0 || true
+        
+        # Verify NetworkManager is running
+        sudo systemctl status NetworkManager
         
     - name: Install Python dependencies
       run: |
@@ -51,9 +57,10 @@ jobs:
       env:
         MOCK_HARDWARE: "true"
         PYTHONPATH: .
-        # Add environment variables for test configuration
         TEST_MODE: "CI"
         DISABLE_HARDWARE: "true"
+        # Add environment variable to skip NetworkManager checks in tests
+        SKIP_NM_CHECK: "true"
       run: |
         # Run pytest with detailed output
         pytest -v tests/ --cov=src --capture=no --log-cli-level=DEBUG

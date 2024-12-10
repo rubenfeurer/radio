@@ -1,13 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, call
-from src.core.wifi_manager import WiFiManager
 from src.core.models import WiFiStatus
 import logging
-
-@pytest.fixture
-def wifi_manager():
-    """Create a WiFiManager instance for testing"""
-    return WiFiManager(skip_verify=True)
 
 def test_get_current_status_connected(wifi_manager):
     """Test WiFi status when connected to a network"""
