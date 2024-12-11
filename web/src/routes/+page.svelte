@@ -57,7 +57,8 @@
   // Add network mode state
   let networkMode = {
     mode: 'default',
-    ip_address: null
+    ip_address: null,
+    switching: false
   };
 
   // Add function to fetch network mode
@@ -153,15 +154,20 @@
 
   async function fetchWiFiStatus() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/wifi/status`);
-      if (!response.ok) {
-        console.error('Failed to fetch WiFi status:', await response.text());
-        return;
-      }
-      const data = await response.json();
-      wifiStatus = data;
+        // Use different endpoint based on network mode
+        const endpoint = networkMode.mode === 'ap' 
+            ? `${API_BASE}/api/v1/wifi/ap/status`
+            : `${API_BASE}/api/v1/wifi/status`;
+            
+        const response = await fetch(endpoint);
+        if (!response.ok) {
+            console.error('Failed to fetch WiFi status:', await response.text());
+            return;
+        }
+        const data = await response.json();
+        wifiStatus = data;
     } catch (error) {
-      console.error("Failed to fetch WiFi status:", error);
+        console.error("Failed to fetch WiFi status:", error);
     }
   }
 
@@ -254,23 +260,46 @@
 
   async function handleApModeToggle() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/wifi/mode/toggle`, {
-        method: 'POST'
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to toggle AP mode');
-        return;
-      }
-      
-      const data = await response.json();
-      networkMode = data;
-      
-      // Refresh WiFi status after mode change
-      await fetchWiFiStatus();
-      
+        networkMode = { 
+            ...networkMode, 
+            switching: true,
+            error: null
+        };
+        
+        const response = await fetch(`${API_BASE}/api/v1/wifi/mode/toggle`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Unknown error');
+        }
+        
+        const data = await response.json();
+        networkMode = { 
+            ...data, 
+            switching: false,
+            error: null
+        };
+        
+        // Add delay before refreshing status
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Refresh both network mode and WiFi status
+        await fetchNetworkMode();
+        await fetchWiFiStatus();
+        
     } catch (error) {
-      console.error('Error toggling AP mode:', error);
+        console.error('Error toggling AP mode:', error);
+        // Even if there's an error, still try to refresh the status
+        await fetchNetworkMode();
+        await fetchWiFiStatus();
+        
+        networkMode = { 
+            ...networkMode, 
+            switching: false,
+            error: error.message || 'Failed to toggle AP mode'
+        };
     }
   }
 
@@ -287,6 +316,11 @@
   const LockIcon = `<svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
   </svg>`;
+
+  // Add a watcher for networkMode changes
+  $: if (networkMode.mode) {
+    fetchWiFiStatus();
+  }
 </script>
 
 <div class="max-w-4xl mx-auto p-4">
@@ -411,12 +445,13 @@
     <div class="flex flex-col gap-2">
       <h3 class="text-lg font-semibold">Network Mode</h3>
       <div class="flex items-center justify-between">
-        <span class="text-sm text-gray-500">
+        <span class="text-sm text-gray-500" id="sending-mode">
           {networkMode.mode === 'ap' ? 'Access Point Mode' : 'Normal Mode'}
         </span>
         <Toggle
           checked={networkMode.mode === 'ap'}
           on:change={handleApModeToggle}
+          disabled={networkMode.switching}
         >
           <span slot="on">AP Mode</span>
           <span slot="off">Normal</span>
@@ -424,6 +459,14 @@
       </div>
       {#if networkMode.ip_address}
         <span class="text-xs text-gray-500">IP: {networkMode.ip_address}</span>
+      {/if}
+      {#if networkMode.switching}
+        <span class="text-xs text-yellow-500">Switching modes, please wait...</span>
+      {/if}
+      {#if networkMode.error}
+        <Alert color="red" class="mt-2">
+          <span class="text-sm">{networkMode.error}</span>
+        </Alert>
       {/if}
     </div>
   </Card>

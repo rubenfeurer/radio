@@ -30,3 +30,8 @@ bcrypt>=4.1.0
 python-dotenv>=1.0.0
 loguru>=0.7.0
 
+# System Dependencies (install via apt)
+# sudo apt-get install hostapd dnsmasq
+# sudo systemctl enable hostapd
+# sudo systemctl enable dnsmasq
+

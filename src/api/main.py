@@ -67,10 +67,10 @@ async def api_health_check():
 
 @app.exception_handler(500)
 async def internal_error_handler(request, exc):
-    logger.error(f"Internal Server Error: {exc}", exc_info=True)
+    logger.error(f"Internal Server Error on {request.url}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal Server Error. Check server logs for details."}
+        content={"detail": f"Internal Server Error: {str(exc)}"}
     )
 
 @app.get("/api/v1/", tags=["System"])

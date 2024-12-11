@@ -2,20 +2,83 @@ import os
 import sys
 from pathlib import Path
 
-# Add project root to Python path BEFORE imports
+# Add project root to Python path
 project_root = str(Path(__file__).parent.parent)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+sys.path.insert(0, project_root)
 
 import pytest
 from unittest.mock import MagicMock, PropertyMock, patch
+
+# Import WiFiManager and models before creating mocks
 from src.core.wifi_manager import WiFiManager
-from src.utils.logger import setup_logger
-from src.core.models import NetworkMode, NetworkModeStatus
+from src.core.models import NetworkMode, NetworkModeStatus, WiFiNetwork, WiFiStatus
+from config.config import settings
 
 # Create module level mocks
 mock_mpv_instance = None
 mock_pi_instance = None
+
+# Create a base WiFiManager mock
+class MockWiFiManager:
+    def __init__(self, *args, **kwargs):
+        pass
+    
+    async def get_operation_mode(self):
+        pass
+    
+    async def enable_ap_mode(self, *args, **kwargs):
+        pass
+    
+    async def disable_ap_mode(self):
+        pass
+    
+    async def get_ip_address(self):
+        pass
+    
+    async def get_current_status(self):
+        pass
+    
+    async def connect_to_network(self, ssid, password):
+        pass
+    
+    async def _remove_connection(self, ssid):
+        pass
+
+# Create a mock instance before imports
+mock_wifi_manager = MagicMock(spec=MockWiFiManager)
+
+# Patch WiFiManager for route imports
+with patch('src.core.wifi_manager.WiFiManager', return_value=mock_wifi_manager):
+    from src.api.routes.ap_mode import wifi_manager as ap_wifi_manager
+    from src.api.routes.wifi import wifi_manager as wifi_router_manager
+
+@pytest.fixture
+def mock_wifi_manager_ap():
+    """Create a properly mocked WiFiManager instance"""
+    mock = MagicMock(spec=MockWiFiManager)
+    # Create new MagicMock instances for each method
+    mock.get_operation_mode = MagicMock()
+    mock.enable_ap_mode = MagicMock()
+    mock.disable_ap_mode = MagicMock()
+    mock.get_ip_address = MagicMock()
+    mock.get_current_status = MagicMock()
+    mock.connect_to_network = MagicMock()
+    mock._remove_connection = MagicMock()
+    return mock
+
+@pytest.fixture(autouse=True)
+def patch_wifi_manager(mock_wifi_manager_ap):
+    """Patch WiFiManager for all tests"""
+    with patch('src.api.routes.ap_mode.wifi_manager', mock_wifi_manager_ap), \
+         patch('src.api.routes.wifi.wifi_manager', mock_wifi_manager_ap), \
+         patch('src.core.wifi_manager.WiFiManager', return_value=mock_wifi_manager_ap):
+        yield
+
+@pytest.fixture
+def wifi_manager():
+    """Create a WiFiManager instance for testing"""
+    with patch('src.core.wifi_manager.WiFiManager._verify_networkmanager'):
+        return WiFiManager(skip_verify=True)
 
 @pytest.fixture(autouse=True)
 def mock_hardware(monkeypatch):
@@ -148,11 +211,6 @@ def mock_logger(monkeypatch):
     return mock_logger
 
 @pytest.fixture
-def wifi_manager(mock_logger):
-    """Create a WiFiManager instance for testing"""
-    return WiFiManager(skip_verify=True)
-
-@pytest.fixture
 def mock_ap_mode_status():
     """Create NetworkModeStatus instances for AP mode testing"""
     def create_status(mode=NetworkMode.DEFAULT, ip="192.168.1.100"):
@@ -163,25 +221,91 @@ def mock_ap_mode_status():
     return create_status
 
 @pytest.fixture
-def mock_wifi_manager_ap():
-    """Mock WiFiManager specifically for AP mode testing"""
-    with patch('src.api.routes.ap_mode.wifi_manager') as mock:
-        # Setup default responses
-        default_status = NetworkModeStatus(
-            mode=NetworkMode.DEFAULT,
-            ip_address="192.168.1.100"
+def mock_iwlist_scan():
+    """Mock iwlist scan output for AP mode testing"""
+    def create_scan_output(networks=None):
+        if networks is None:
+            networks = [
+                {"ssid": "TestNetwork1", "quality": "70/70", "security": "on"},
+                {"ssid": "TestNetwork2", "quality": "50/70", "security": "off"}
+            ]
+            
+        output = ""
+        for i, network in enumerate(networks, 1):
+            output += f"""
+Cell {str(i).zfill(2)} - Address: 00:11:22:33:44:{str(i).zfill(2)}
+                    ESSID:"{network['ssid']}"
+                    Quality={network['quality']}  Signal level=-30 dBm
+                    Encryption key:{network['security']}
+"""
+        return output
+    return create_scan_output
+
+@pytest.fixture
+def mock_hostapd_process():
+    """Mock hostapd process for AP mode testing"""
+    process = MagicMock()
+    process.returncode = 0  # Active by default
+    process.stdout = "active"
+    return process
+
+@pytest.fixture
+def mock_ap_mode_commands(mock_hostapd_process, mock_iwlist_scan):
+    """Mock all command executions for AP mode testing"""
+    def command_response(*args, **kwargs):
+        command = args[0]
+        process = MagicMock()
+        
+        if 'hostapd' in command:
+            return mock_hostapd_process
+        elif 'iwlist' in command and 'scan' in command:
+            process.returncode = 0
+            process.stdout = mock_iwlist_scan()
+            return process
+        elif 'iw' in command and 'scan' in command:
+            process.returncode = 0
+            process.stdout = """
+BSS 00:11:22:33:44:55(on wlan0)
+    SSID: TestNetwork1
+    signal: -50.00 dBm
+BSS 66:77:88:99:aa:bb(on wlan0)
+    SSID: TestNetwork2
+    signal: -70.00 dBm
+"""
+            return process
+            
+        process.returncode = 0
+        process.stdout = ""
+        return process
+        
+    with patch('subprocess.run', side_effect=command_response) as mock_run:
+        yield mock_run
+
+@pytest.fixture
+def mock_ap_status():
+    """Create WiFiStatus instances for AP mode testing"""
+    def create_status(is_active=True, networks=None):
+        if networks is None:
+            networks = [
+                WiFiNetwork(
+                    ssid="TestNetwork1",
+                    signal_strength=100,
+                    security="WPA2",
+                    in_use=False
+                ),
+                WiFiNetwork(
+                    ssid="TestNetwork2",
+                    signal_strength=71,
+                    security=None,
+                    in_use=False
+                )
+            ]
+            
+        return WiFiStatus(
+            ssid=settings.AP_SSID if is_active else None,
+            signal_strength=100 if is_active else None,
+            is_connected=is_active,
+            has_internet=False,
+            available_networks=networks if is_active else []
         )
-        ap_status = NetworkModeStatus(
-            mode=NetworkMode.AP,
-            ip_address="192.168.4.1"
-        )
-        
-        mock.get_operation_mode.return_value = default_status
-        mock.enable_ap_mode.return_value = True
-        mock.disable_ap_mode.return_value = True
-        
-        # Store statuses for easy access in tests
-        mock.default_status = default_status
-        mock.ap_status = ap_status
-        
-        yield mock
+    return create_status

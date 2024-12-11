@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, MagicMock
 from src.api.main import app
 from src.core.models import WiFiStatus, WiFiNetwork
 
@@ -18,94 +18,100 @@ mock_status = WiFiStatus(
     ]
 )
 
-@patch('src.core.wifi_manager.WiFiManager.get_current_status')
-def test_get_wifi_status(mock_get_status):
-    mock_get_status.return_value = mock_status
-    response = client.get("/api/v1/wifi/status")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["ssid"] == "TestNetwork"
-    assert "signal_strength" in data
-    assert "is_connected" in data
-    assert "has_internet" in data
-    assert "available_networks" in data
+@pytest.mark.asyncio
+async def test_get_wifi_status(mock_wifi_manager_ap):
+    """Test getting WiFi status"""
+    mock_wifi_manager_ap.get_current_status.return_value = mock_status
+    mock_wifi_manager_ap.get_preconfigured_ssid = MagicMock(return_value=None)
+    
+    with patch('src.api.routes.wifi.wifi_manager', mock_wifi_manager_ap):
+        response = client.get("/api/v1/wifi/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ssid"] == "TestNetwork"
+        assert data["signal_strength"] == 70
+        assert data["is_connected"] is True
 
-@patch('src.core.wifi_manager.WiFiManager.get_current_status')
-def test_scan_networks(mock_get_status):
-    mock_get_status.return_value = mock_status
-    response = client.get("/api/v1/wifi/status")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["ssid"] == "TestNetwork"
-    assert "signal_strength" in data
-    assert "is_connected" in data
-    assert "has_internet" in data
-    assert "available_networks" in data
+@pytest.mark.asyncio
+async def test_scan_networks(mock_wifi_manager_ap):
+    """Test network scanning"""
+    mock_wifi_manager_ap.get_current_status.return_value = mock_status
+    mock_wifi_manager_ap.get_preconfigured_ssid = MagicMock(return_value=None)
+    
+    with patch('src.api.routes.wifi.wifi_manager', mock_wifi_manager_ap):
+        response = client.get("/api/v1/wifi/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ssid"] == "TestNetwork"
+        assert len(data["available_networks"]) == 2
 
-@patch('src.core.wifi_manager.WiFiManager.connect_to_network')
-async def test_connect_to_network(mock_connect):
+@pytest.mark.asyncio
+async def test_connect_to_network(mock_wifi_manager_ap):
     """Test successful network connection"""
-    # Mock successful connection
-    mock_connect.return_value = True  # WiFiManager returns bool, not dict
+    # Create an awaitable mock that returns True
+    async def mock_connect(*args, **kwargs):
+        return True
+    mock_wifi_manager_ap.connect_to_network.side_effect = mock_connect
     
-    response = client.post("/api/v1/wifi/connect",
-        json={"ssid": "TestNetwork", "password": "TestPassword"})
-    
-    assert response.status_code == 200
-    assert response.json() == {"status": "success"}
-    
-    # Verify mock was called with correct parameters
-    mock_connect.assert_called_once_with("TestNetwork", "TestPassword")
+    with patch('src.api.routes.wifi.wifi_manager', mock_wifi_manager_ap):
+        response = client.post("/api/v1/wifi/connect",
+            json={"ssid": "TestNetwork", "password": "TestPassword"})
+        
+        assert response.status_code == 200
+        assert response.json() == {"status": "success"}
+        mock_wifi_manager_ap.connect_to_network.assert_called_once_with(
+            "TestNetwork", "TestPassword"
+        )
 
-@patch('src.core.wifi_manager.WiFiManager.get_current_status')
-def test_get_current_connection(mock_get_status):
-    mock_get_status.return_value = mock_status
-    response = client.get("/api/v1/wifi/current")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["ssid"] == "TestNetwork"
-    assert "signal_strength" in data
-    assert "has_internet" in data
+@pytest.mark.asyncio
+async def test_get_current_connection(mock_wifi_manager_ap):
+    """Test getting current connection"""
+    mock_wifi_manager_ap.get_current_status.return_value = mock_status
+    
+    with patch('src.api.routes.wifi.wifi_manager', mock_wifi_manager_ap):
+        response = client.get("/api/v1/wifi/current")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ssid"] == "TestNetwork"
+        assert data["signal_strength"] == 70
+        assert data["has_internet"] is True
 
-@patch('src.core.wifi_manager.WiFiManager.connect_to_network')
-async def test_connect_invalid_request(mock_connect):
+@pytest.mark.asyncio
+async def test_connect_invalid_request(mock_wifi_manager_ap):
     """Test connection with invalid request"""
-    mock_connect.return_value = False
-    
     response = client.post("/api/v1/wifi/connect",
         json={"ssid": "", "password": ""})
-    
     assert response.status_code == 400
     assert "detail" in response.json()
 
-@patch('src.core.wifi_manager.WiFiManager.connect_to_network')
-async def test_connect_network_not_found(mock_connect):
+@pytest.mark.asyncio
+async def test_connect_network_not_found(mock_wifi_manager_ap):
     """Test connection to non-existent network"""
-    mock_connect.return_value = False
+    mock_wifi_manager_ap.connect_to_network.return_value = False
     
-    response = client.post("/api/v1/wifi/connect",
-        json={"ssid": "NonExistentNetwork", "password": "TestPassword"})
-    
-    assert response.status_code == 400
-    assert "detail" in response.json()
+    with patch('src.api.routes.wifi.wifi_manager', mock_wifi_manager_ap):
+        response = client.post("/api/v1/wifi/connect",
+            json={"ssid": "NonExistentNetwork", "password": "TestPassword"})
+        assert response.status_code == 400
+        assert "detail" in response.json()
 
-@patch('src.core.wifi_manager.WiFiManager._remove_connection')
-async def test_forget_network(mock_remove):
+@pytest.mark.asyncio
+async def test_forget_network(mock_wifi_manager_ap):
     """Test successful network removal"""
-    mock_remove.return_value = True
+    mock_wifi_manager_ap._remove_connection.return_value = True
     
-    response = client.delete("/api/v1/wifi/forget/TestNetwork")
-    assert response.status_code == 200
-    assert response.json() == {"status": "success"}
-    
-    # Verify mock was called with correct parameters
-    mock_remove.assert_called_once_with("TestNetwork")
+    with patch('src.api.routes.wifi.wifi_manager', mock_wifi_manager_ap):
+        response = client.delete("/api/v1/wifi/forget/TestNetwork")
+        assert response.status_code == 200
+        assert response.json() == {"status": "success"}
+        mock_wifi_manager_ap._remove_connection.assert_called_once_with("TestNetwork")
 
-@patch('src.core.wifi_manager.WiFiManager._remove_connection')
-async def test_forget_network_failure(mock_remove):
+@pytest.mark.asyncio
+async def test_forget_network_failure(mock_wifi_manager_ap):
     """Test failed network removal"""
-    mock_remove.return_value = False
+    mock_wifi_manager_ap._remove_connection.return_value = False
     
-    response = client.delete("/api/v1/wifi/forget/TestNetwork")
-    assert response.status_code == 400
-    assert "detail" in response.json()
+    with patch('src.api.routes.wifi.wifi_manager', mock_wifi_manager_ap):
+        response = client.delete("/api/v1/wifi/forget/TestNetwork")
+        assert response.status_code == 400
+        assert "detail" in response.json()

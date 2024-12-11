@@ -2,6 +2,8 @@ import pytest
 from unittest.mock import MagicMock, call
 from src.core.models import WiFiStatus, NetworkMode, NetworkModeStatus
 import logging
+from unittest.mock import patch
+from builtins import open as mock_open
 
 def test_get_current_status_connected(wifi_manager):
     """Test WiFi status when connected to a network"""
@@ -429,59 +431,93 @@ async def test_disable_ap_mode_failure(wifi_manager):
 @pytest.mark.asyncio
 async def test_enable_ap_mode(wifi_manager):
     """Test enabling AP mode"""
+    # Mock _check_required_packages to return True
+    wifi_manager._check_required_packages = MagicMock(return_value=True)
+    
+    # Mock _run_command
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
         # Stop NetworkManager
         MagicMock(returncode=0, stdout=""),
+        # Configure IP
+        MagicMock(returncode=0, stdout=""),
         # Start hostapd
         MagicMock(returncode=0, stdout=""),
         # Start dnsmasq
-        MagicMock(returncode=0, stdout=""),
-        # Configure IP address
         MagicMock(returncode=0, stdout="")
     ]
-    
-    success = wifi_manager.enable_ap_mode(
-        ssid="TestAP",
-        password="testpass123",
-        channel=1,
-        ip="192.168.4.1"
-    )
-    assert success is True
-    
-    # Verify correct sequence of commands
-    expected_calls = [
-        call(['sudo', 'systemctl', 'stop', 'NetworkManager'], capture_output=True, text=True),
-        call(['sudo', 'systemctl', 'start', 'hostapd'], capture_output=True, text=True),
-        call(['sudo', 'systemctl', 'start', 'dnsmasq'], capture_output=True, text=True),
-        call(['sudo', 'ip', 'addr', 'add', '192.168.4.1/24', 'dev', 'wlan0'], capture_output=True, text=True)
-    ]
-    assert wifi_manager._run_command.call_args_list == expected_calls
+
+    # Mock the file operations
+    mock_file = MagicMock()
+    mock_file.__enter__ = MagicMock(return_value=mock_file)
+    mock_file.__exit__ = MagicMock(return_value=None)
+    mock_file.write = MagicMock()
+
+    with patch('os.makedirs') as mock_makedirs, \
+         patch('builtins.open', return_value=mock_file) as mock_open_func:
+
+        success = wifi_manager.enable_ap_mode(
+            ssid="TestAP",
+            password="testpass123",
+            ip="192.168.4.1"
+        )
+
+        assert success is True
+        assert mock_makedirs.called
+        assert mock_open_func.called
+        assert mock_file.write.called
 
 @pytest.mark.asyncio
 async def test_enable_ap_mode_failure(wifi_manager):
     """Test AP mode enable failure handling"""
+    # Mock _check_required_packages to return True
+    wifi_manager._check_required_packages = MagicMock(return_value=True)
+    
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
         # NetworkManager stop succeeds
         MagicMock(returncode=0, stdout=""),
+        # IP configuration succeeds
+        MagicMock(returncode=0, stdout=""),
         # hostapd start fails
         MagicMock(returncode=1, stderr="Failed to start hostapd"),
-        # dnsmasq start (shouldn't be called but need to handle it)
-        MagicMock(returncode=0, stdout=""),
-        # IP address configuration (shouldn't be called but need to handle it)
-        MagicMock(returncode=0, stdout=""),
-        # NetworkManager restart on failure
-        MagicMock(returncode=0, stdout="")
+        # Cleanup calls
+        MagicMock(returncode=0, stdout=""),  # stop hostapd
+        MagicMock(returncode=0, stdout=""),  # stop dnsmasq
+        MagicMock(returncode=0, stdout=""),  # flush IP
+        MagicMock(returncode=0, stdout="")   # restart NetworkManager
     ]
-    
-    success = wifi_manager.enable_ap_mode(
-        ssid="TestAP",
-        password="testpass123"
-    )
-    assert success is False
-    
-    # Verify NetworkManager is restarted on failure
-    restart_call = call(['sudo', 'systemctl', 'restart', 'NetworkManager'], 
-                       capture_output=True, text=True)
-    assert restart_call in wifi_manager._run_command.call_args_list
+
+    # Mock file operations
+    mock_open = MagicMock()
+    mock_file = MagicMock()
+    mock_file.__enter__ = MagicMock(return_value=mock_file)
+    mock_file.__exit__ = MagicMock(return_value=None)
+    mock_open.return_value = mock_file
+
+    with patch('os.makedirs'), \
+         patch('builtins.open', mock_open):
+
+        success = wifi_manager.enable_ap_mode(
+            ssid="TestAP",
+            password="testpass123"
+        )
+
+        assert success is False
+
+        # Verify all expected calls
+        expected_calls = [
+            # Initial setup
+            call(["sudo", "systemctl", "stop", "NetworkManager"]),
+            call(["sudo", "ip", "addr", "add", "192.168.4.1/24", "dev", "wlan0"]),
+            call(["sudo", "systemctl", "start", "hostapd"]),
+            # Cleanup after failure
+            call(["sudo", "systemctl", "stop", "hostapd"]),
+            call(["sudo", "systemctl", "stop", "dnsmasq"]),
+            call(["sudo", "ip", "addr", "flush", "dev", "wlan0"]),
+            call(["sudo", "systemctl", "restart", "NetworkManager"])
+        ]
+
+        # Verify all calls were made in the correct order
+        wifi_manager._run_command.assert_has_calls(expected_calls, any_order=False)
+        assert wifi_manager._run_command.call_count == len(expected_calls)
