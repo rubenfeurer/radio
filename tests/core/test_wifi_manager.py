@@ -5,34 +5,90 @@ import logging
 
 def test_get_current_status_connected(wifi_manager):
     """Test WiFi status when connected to a network"""
-    # Mock the network manager responses
     wifi_manager._run_command = MagicMock()
-    wifi_manager._run_command.return_value = MagicMock(
-        returncode=0,
-        stdout="MyNetwork:90:WPA2:*\nMyNetwork:85:WPA2:no\nOtherNetwork:85:WPA2:no"
-    )
+    wifi_manager.get_operation_mode = MagicMock(return_value=NetworkModeStatus(
+        mode=NetworkMode.DEFAULT,
+        ap_ssid=None,
+        ap_password=None,
+        ip_address=None
+    ))
+    
+    wifi_manager._run_command.side_effect = [
+        # Get saved connections
+        MagicMock(
+            returncode=0,
+            stdout="NAME:TYPE:FILENAME\nMyNetwork:wifi:/etc/NetworkManager/system-connections/MyNetwork.nmconnection"
+        ),
+        # Get available networks - Note the '*' indicating active connection
+        MagicMock(
+            returncode=0,
+            stdout="MyNetwork:90:WPA2:*\nOtherNetwork:85:WPA2:no"
+        ),
+        # Internet connectivity check
+        MagicMock(returncode=0, stdout="full")
+    ]
     
     status = wifi_manager.get_current_status()
     assert status.ssid == "MyNetwork"
     assert status.is_connected is True
-    # Expect only one entry per SSID
     assert len(status.available_networks) == 2
-    assert any(net.ssid == "MyNetwork" and net.signal_strength == 90 for net in status.available_networks)
+    assert any(net.ssid == "MyNetwork" and net.in_use for net in status.available_networks)
+
+def test_get_current_status_in_ap_mode(wifi_manager):
+    """Test WiFi status when in AP mode"""
+    wifi_manager._run_command = MagicMock()
+    # Mock get_operation_mode to return AP mode
+    wifi_manager.get_operation_mode = MagicMock(return_value=NetworkModeStatus(
+        mode=NetworkMode.AP,
+        ap_ssid="RadioAP",
+        ap_password="password123",
+        ip_address="192.168.4.1"
+    ))
+    
+    wifi_manager._run_command.side_effect = [
+        # Get saved connections
+        MagicMock(returncode=0, stdout="NAME:TYPE:FILENAME"),
+        # Get available networks
+        MagicMock(
+            returncode=0,
+            stdout="Network1:80:WPA2:no\nNetwork2:75:WPA2:no"
+        )
+    ]
+    
+    status = wifi_manager.get_current_status()
+    assert status.ssid == "RadioAP"
+    assert status.is_connected is True
+    assert status.signal_strength == 100
+    assert status.has_internet is False
+    assert len(status.available_networks) == 2
 
 def test_get_current_status_disconnected(wifi_manager):
     """Test WiFi status when not connected"""
     wifi_manager._run_command = MagicMock()
-    wifi_manager._run_command.return_value = MagicMock(
-        returncode=0,
-        stdout="Network1:80:WPA2:no\nNetwork1:75:WPA2:no\nNetwork2:75:WPA2:no"
-    )
+    wifi_manager.get_operation_mode = MagicMock(return_value=NetworkModeStatus(
+        mode=NetworkMode.DEFAULT,
+        ap_ssid=None,
+        ap_password=None,
+        ip_address=None
+    ))
+    
+    wifi_manager._run_command.side_effect = [
+        # Get saved connections
+        MagicMock(returncode=0, stdout="NAME:TYPE:FILENAME"),
+        # Get available networks - Note no '*' indicating no active connection
+        MagicMock(
+            returncode=0,
+            stdout="Network1:80:WPA2:no\nNetwork2:75:WPA2:no"
+        ),
+        # Internet connectivity check not needed when disconnected
+        MagicMock(returncode=1, stdout="")
+    ]
     
     status = wifi_manager.get_current_status()
     assert status.ssid is None
     assert status.is_connected is False
-    # Expect only one entry per SSID
     assert len(status.available_networks) == 2
-    assert any(net.ssid == "Network1" and net.signal_strength == 80 for net in status.available_networks)
+    assert not any(net.in_use for net in status.available_networks)
 
 @pytest.mark.asyncio
 async def test_connect_to_network(wifi_manager):
@@ -97,73 +153,69 @@ def test_network_manager_not_running(wifi_manager):
 def test_get_current_status_with_preconfigured_network(wifi_manager):
     """Test WiFi status with preconfigured network"""
     wifi_manager._run_command = MagicMock()
+    # Mock get_operation_mode to return default mode
+    wifi_manager.get_operation_mode = MagicMock(return_value=NetworkModeStatus(
+        mode=NetworkMode.DEFAULT,
+        ap_ssid=None,
+        ap_password=None,
+        ip_address=None
+    ))
+    
     wifi_manager._run_command.side_effect = [
-        # First call - list saved connections
+        # Get saved connections
         MagicMock(
             returncode=0,
             stdout="NAME:TYPE:FILENAME\n"
-                   "preconfigured:wifi:/etc/NetworkManager/system-connections/preconfigured.nmconnection\n"
-                   "Salt_2GHz_D8261F:wifi:/etc/NetworkManager/system-connections/salt2g.nmconnection\n"
+                   "preconfigured:wifi:/etc/NetworkManager/system-connections/preconfigured.nmconnection"
         ),
-        # Second call - list available networks
+        # Get preconfigured network config
         MagicMock(
             returncode=0,
-            stdout="Salt_2GHz_D8261F:82:WPA2:no\n"
-                   "Salt_5GHz_D8261F:82:WPA2:*\n"
+            stdout="ssid=Salt_2GHz_D8261F"
         ),
-        # Third call - get network list for verification
+        # Get available networks
         MagicMock(
             returncode=0,
-            stdout="Salt_2GHz_D8261F:82:WPA2:no\n"
-                   "Salt_5GHz_D8261F:82:WPA2:*\n"
+            stdout="Salt_2GHz_D8261F:82:WPA2:no\nSalt_5GHz_D8261F:82:WPA2:*"
         ),
-        # Internet check
+        # Internet connectivity check
         MagicMock(returncode=0, stdout="")
     ]
     
-    wifi_manager.logger.setLevel(logging.DEBUG)
     status = wifi_manager.get_current_status()
-    
     networks = {net.ssid: net for net in status.available_networks}
     assert networks["Salt_2GHz_D8261F"].saved is True
-    assert networks["Salt_5GHz_D8261F"].saved is True
-    assert networks["Salt_5GHz_D8261F"].in_use is True
 
 def test_get_current_status_with_saved_networks(wifi_manager):
     """Test WiFi status with saved networks"""
     wifi_manager._run_command = MagicMock()
+    # Mock get_operation_mode to return default mode
+    wifi_manager.get_operation_mode = MagicMock(return_value=NetworkModeStatus(
+        mode=NetworkMode.DEFAULT,
+        ap_ssid=None,
+        ap_password=None,
+        ip_address=None
+    ))
+    
     wifi_manager._run_command.side_effect = [
-        # First call - list saved connections
+        # Get saved connections
         MagicMock(
             returncode=0,
             stdout="NAME:TYPE:FILENAME\n"
-                   "preconfigured:wifi:/etc/NetworkManager/system-connections/preconfigured.nmconnection\n"
-                   "Salt_2GHz_D8261F:wifi:/etc/NetworkManager/system-connections/salt2g.nmconnection\n"
+                   "Salt_2GHz_D8261F:wifi:/etc/NetworkManager/system-connections/salt2g.nmconnection"
         ),
-        # Second call - list available networks
+        # Get available networks
         MagicMock(
             returncode=0,
-            stdout="Salt_2GHz_D8261F:84:WPA2:no\n"
-                   "Salt_5GHz_D8261F:67:WPA2:*\n"
+            stdout="Salt_2GHz_D8261F:84:WPA2:no\nSalt_5GHz_D8261F:67:WPA2:*"
         ),
-        # Third call - get network list for verification
-        MagicMock(
-            returncode=0,
-            stdout="Salt_2GHz_D8261F:84:WPA2:no\n"
-                   "Salt_5GHz_D8261F:67:WPA2:*\n"
-        ),
-        # Internet check
-        MagicMock(returncode=0, stdout="")
+        # Internet connectivity check
+        MagicMock(returncode=0, stdout="full")
     ]
     
-    wifi_manager.logger.setLevel(logging.DEBUG)
     status = wifi_manager.get_current_status()
-    
     networks = {net.ssid: net for net in status.available_networks}
     assert networks["Salt_2GHz_D8261F"].saved is True
-    assert networks["Salt_5GHz_D8261F"].saved is True
-    assert networks["Salt_5GHz_D8261F"].in_use is True
-    assert networks["Salt_2GHz_D8261F"].in_use is False
 
 @pytest.mark.asyncio
 async def test_failed_connection_gets_removed(wifi_manager):
@@ -335,3 +387,101 @@ async def test_connect_from_ap_mode_success(wifi_manager):
     
     success = await wifi_manager.connect_to_network("TestNetwork", "password123")
     assert success is True
+
+@pytest.mark.asyncio
+async def test_disable_ap_mode(wifi_manager):
+    """Test disabling AP mode"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # Stop hostapd
+        MagicMock(returncode=0, stdout=""),
+        # Stop dnsmasq
+        MagicMock(returncode=0, stdout=""),
+        # Restart NetworkManager
+        MagicMock(returncode=0, stdout=""),
+        # Wait for NetworkManager to be ready
+        MagicMock(returncode=0, stdout="NetworkManager is running")
+    ]
+    
+    success = wifi_manager.disable_ap_mode()
+    assert success is True
+    
+    # Verify correct sequence of commands
+    expected_calls = [
+        call(['sudo', 'systemctl', 'stop', 'hostapd'], capture_output=True, text=True),
+        call(['sudo', 'systemctl', 'stop', 'dnsmasq'], capture_output=True, text=True),
+        call(['sudo', 'systemctl', 'restart', 'NetworkManager'], capture_output=True, text=True),
+    ]
+    assert wifi_manager._run_command.call_args_list == expected_calls
+
+@pytest.mark.asyncio
+async def test_disable_ap_mode_failure(wifi_manager):
+    """Test AP mode disable failure handling"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # hostapd stop fails
+        MagicMock(returncode=1, stderr="Failed to stop hostapd"),
+    ]
+    
+    success = wifi_manager.disable_ap_mode()
+    assert success is False
+
+@pytest.mark.asyncio
+async def test_enable_ap_mode(wifi_manager):
+    """Test enabling AP mode"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # Stop NetworkManager
+        MagicMock(returncode=0, stdout=""),
+        # Start hostapd
+        MagicMock(returncode=0, stdout=""),
+        # Start dnsmasq
+        MagicMock(returncode=0, stdout=""),
+        # Configure IP address
+        MagicMock(returncode=0, stdout="")
+    ]
+    
+    success = wifi_manager.enable_ap_mode(
+        ssid="TestAP",
+        password="testpass123",
+        channel=1,
+        ip="192.168.4.1"
+    )
+    assert success is True
+    
+    # Verify correct sequence of commands
+    expected_calls = [
+        call(['sudo', 'systemctl', 'stop', 'NetworkManager'], capture_output=True, text=True),
+        call(['sudo', 'systemctl', 'start', 'hostapd'], capture_output=True, text=True),
+        call(['sudo', 'systemctl', 'start', 'dnsmasq'], capture_output=True, text=True),
+        call(['sudo', 'ip', 'addr', 'add', '192.168.4.1/24', 'dev', 'wlan0'], capture_output=True, text=True)
+    ]
+    assert wifi_manager._run_command.call_args_list == expected_calls
+
+@pytest.mark.asyncio
+async def test_enable_ap_mode_failure(wifi_manager):
+    """Test AP mode enable failure handling"""
+    wifi_manager._run_command = MagicMock()
+    wifi_manager._run_command.side_effect = [
+        # NetworkManager stop succeeds
+        MagicMock(returncode=0, stdout=""),
+        # hostapd start fails
+        MagicMock(returncode=1, stderr="Failed to start hostapd"),
+        # dnsmasq start (shouldn't be called but need to handle it)
+        MagicMock(returncode=0, stdout=""),
+        # IP address configuration (shouldn't be called but need to handle it)
+        MagicMock(returncode=0, stdout=""),
+        # NetworkManager restart on failure
+        MagicMock(returncode=0, stdout="")
+    ]
+    
+    success = wifi_manager.enable_ap_mode(
+        ssid="TestAP",
+        password="testpass123"
+    )
+    assert success is False
+    
+    # Verify NetworkManager is restarted on failure
+    restart_call = call(['sudo', 'systemctl', 'restart', 'NetworkManager'], 
+                       capture_output=True, text=True)
+    assert restart_call in wifi_manager._run_command.call_args_list

@@ -32,6 +32,10 @@ class WiFiManager:
     def get_current_status(self) -> WiFiStatus:
         """Get current WiFi status"""
         try:
+            # Check if we're in AP mode first
+            current_mode = self.get_operation_mode()
+            is_ap_mode = current_mode.mode == NetworkMode.AP
+            
             # Get list of saved connections with basic info first
             saved_result = self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE,FILENAME', 'connection', 'show'
@@ -45,13 +49,15 @@ class WiFiManager:
             saved_networks = set()
             if saved_result.returncode == 0:
                 for line in saved_result.stdout.strip().split('\n'):
+                    if not line:
+                        continue
                     parts = line.split(':')
                     # Check for both 'wifi' and '802-11-wireless' in type field
                     if len(parts) >= 2 and ('wifi' in parts[1].lower() or '802-11-wireless' in parts[1].lower()):
                         conn_name = parts[0].strip()
                         saved_networks.add(conn_name)
                         
-                        # If it's a preconfigured connection, get the SSID from the config file
+                        # Keep existing preconfigured network handling
                         if conn_name == 'preconfigured' and len(parts) >= 3:
                             try:
                                 config_file = parts[2].strip()
@@ -66,64 +72,55 @@ class WiFiManager:
                                             self.logger.debug(f"Added preconfigured SSID: {ssid}")
                             except Exception as e:
                                 self.logger.error(f"Error reading preconfigured network: {e}")
-                        
-                        self.logger.debug(f"Added saved connection: {conn_name}")
 
-            self.logger.debug(f"\n2. Final saved_networks set: {saved_networks}")
-
-            # Get current networks
+            # Get current networks list
             result = self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
                 'device', 'wifi', 'list'
             ], capture_output=True, text=True, timeout=5)
             
-            if result.returncode != 0:
-                self.logger.error(f"Failed to get WiFi status: {result.stderr}")
-                return WiFiStatus()
-
-            self.logger.debug("\n3. Getting available networks:")
-            self.logger.debug(f"Command output: {result.stdout}")
-            
             networks = []
-            for line in result.stdout.strip().split('\n'):
-                if not line:
-                    continue
-                try:
-                    ssid, signal, security, in_use = line.split(':')
-                    if ssid:  # Skip empty SSIDs
-                        is_saved = (
-                            ssid in saved_networks or 
-                            ssid.replace(" ", "") in saved_networks or
-                            in_use == '*'  # Always mark currently connected network as saved
-                        )
-                        
-                        self.logger.debug(f"\nProcessing network: {ssid}")
-                        self.logger.debug(f"  - In saved_networks: {ssid in saved_networks}")
-                        self.logger.debug(f"  - Without spaces: {ssid.replace(' ', '') in saved_networks}")
-                        self.logger.debug(f"  - In use: {in_use == '*'}")
-                        self.logger.debug(f"  - Final saved status: {is_saved}")
-                        
-                        networks.append(WiFiNetwork(
-                            ssid=ssid,
-                            signal_strength=int(signal),
-                            security=security if security != '' else None,
-                            in_use=(in_use == '*'),
-                            saved=is_saved
-                        ))
-                except Exception as e:
-                    self.logger.error(f"Error parsing network: {line} - {e}")
-
-            self.logger.debug("\n=== End Debug Output ===")
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n'):
+                    if not line:
+                        continue
+                    try:
+                        parts = line.split(':')
+                        if len(parts) >= 4:
+                            ssid, signal, security, in_use = parts[:4]
+                            if ssid:  # Skip empty SSIDs
+                                is_saved = (
+                                    ssid in saved_networks or 
+                                    ssid.replace(" ", "") in saved_networks or
+                                    in_use == '*'
+                                )
+                                networks.append(WiFiNetwork(
+                                    ssid=ssid,
+                                    signal_strength=int(signal),
+                                    security=security if security != '' else None,
+                                    in_use=(in_use == '*'),
+                                    saved=is_saved
+                                ))
+                    except Exception as e:
+                        self.logger.error(f"Error parsing network: {line} - {e}")
 
             # Aggregate networks with same SSID
             aggregated_networks = self._aggregate_networks(networks)
-            
-            # Sort networks by signal strength
             aggregated_networks.sort(key=lambda x: x.signal_strength, reverse=True)
 
-            # Get current network from aggregated list
+            # Handle AP mode status
+            if is_ap_mode:
+                return WiFiStatus(
+                    ssid=current_mode.ap_ssid,
+                    signal_strength=100,
+                    is_connected=True,
+                    has_internet=False,
+                    available_networks=aggregated_networks
+                )
+
+            # Get current network
             current_network = next(
-                (net for net in aggregated_networks if net.in_use), 
+                (net for net in aggregated_networks if net.in_use),
                 None
             )
 
@@ -135,29 +132,6 @@ class WiFiManager:
                 ], capture_output=True, text=True, timeout=5)
                 has_internet = internet_check.returncode == 0 and internet_check.stdout.strip() == 'full'
 
-            # Create a mapping of SSIDs to connection names
-            ssid_to_conn_name = {}
-            if saved_result.returncode == 0:
-                for line in saved_result.stdout.strip().split('\n'):
-                    parts = line.split(':')
-                    if len(parts) >= 2 and ('wifi' in parts[1].lower() or '802-11-wireless' in parts[1].lower()):
-                        conn_name = parts[0].strip()
-                        ssid_to_conn_name[conn_name] = conn_name
-                        if conn_name == 'preconfigured' and len(parts) >= 3:
-                            try:
-                                config_file = parts[2].strip()
-                                config_result = self._run_command([
-                                    'sudo', 'cat', config_file
-                                ], capture_output=True, text=True)
-                                if config_result.returncode == 0:
-                                    for config_line in config_result.stdout.split('\n'):
-                                        if 'ssid=' in config_line.lower():
-                                            ssid = config_line.split('=')[1].strip()
-                                            ssid_to_conn_name[ssid] = conn_name
-                                            self.logger.debug(f"Mapped SSID {ssid} to connection name {conn_name}")
-                            except Exception as e:
-                                self.logger.error(f"Error reading preconfigured network: {e}")
-
             return WiFiStatus(
                 ssid=current_network.ssid if current_network else None,
                 signal_strength=current_network.signal_strength if current_network else None,
@@ -167,7 +141,7 @@ class WiFiManager:
             )
 
         except Exception as e:
-            self.logger.error(f"Error getting WiFi status: {str(e)}", exc_info=True)
+            self.logger.error(f"Error getting WiFi status: {str(e)}")
             return WiFiStatus()
 
     async def _scan_networks(self) -> List[WiFiNetwork]:
@@ -463,20 +437,53 @@ class WiFiManager:
     def enable_ap_mode(self, ssid: str, password: str, channel: int = 1, ip: str = "192.168.4.1") -> bool:
         """Enable AP mode"""
         try:
+            # First stop NetworkManager
+            self._run_command(['sudo', 'systemctl', 'stop', 'NetworkManager'], 
+                             capture_output=True, text=True)
+            
+            # Configure and start hostapd
             result = self._run_command([
                 'sudo', 'systemctl', 'start', 'hostapd'
             ], capture_output=True, text=True)
-            return result.returncode == 0
+            
+            # If hostapd fails, return early
+            if result.returncode != 0:
+                self.logger.error(f"Failed to start hostapd: {result.stderr}")
+                # Restart NetworkManager on failure
+                self._run_command(['sudo', 'systemctl', 'restart', 'NetworkManager'], 
+                                 capture_output=True, text=True)
+                return False
+            
+            # Start dnsmasq for DHCP
+            self._run_command(['sudo', 'systemctl', 'start', 'dnsmasq'], 
+                             capture_output=True, text=True)
+            
+            # Configure IP address
+            self._run_command(['sudo', 'ip', 'addr', 'add', ip + '/24', 'dev', 'wlan0'], 
+                             capture_output=True, text=True)
+            
+            return True
         except Exception as e:
             self.logger.error(f"Error enabling AP mode: {str(e)}")
+            # Restart NetworkManager on failure
+            self._run_command(['sudo', 'systemctl', 'restart', 'NetworkManager'], 
+                             capture_output=True, text=True)
             return False
 
     def disable_ap_mode(self) -> bool:
         """Disable AP mode"""
         try:
+            # Stop AP services
+            self._run_command(['sudo', 'systemctl', 'stop', 'hostapd'], 
+                             capture_output=True, text=True)
+            self._run_command(['sudo', 'systemctl', 'stop', 'dnsmasq'], 
+                             capture_output=True, text=True)
+            
+            # Restart NetworkManager
             result = self._run_command([
-                'sudo', 'systemctl', 'stop', 'hostapd'
+                'sudo', 'systemctl', 'restart', 'NetworkManager'
             ], capture_output=True, text=True)
+            
             return result.returncode == 0
         except Exception as e:
             self.logger.error(f"Error disabling AP mode: {str(e)}")

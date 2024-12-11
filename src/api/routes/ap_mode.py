@@ -28,17 +28,17 @@ async def toggle_ap_mode():
     """Toggle between AP and client mode"""
     try:
         current_mode = wifi_manager.get_operation_mode()
-        logger.debug(f"Current mode before toggle: {current_mode}")
+        logger.info(f"Current mode before toggle: {current_mode}")
         
         if current_mode.mode == NetworkMode.AP:
-            # Switch to client mode
-            logger.info("Switching to client mode")
+            logger.info("Disabling AP mode...")
             result = wifi_manager.disable_ap_mode()
             if not result:
+                logger.error("Failed to disable AP mode")
                 raise HTTPException(status_code=500, detail="Failed to disable AP mode")
+            logger.info("AP mode disabled successfully")
         else:
-            # Switch to AP mode
-            logger.info("Switching to AP mode")
+            logger.info("Enabling AP mode...")
             result = wifi_manager.enable_ap_mode(
                 ssid=settings.HOSTNAME,
                 password=settings.AP_PASSWORD,
@@ -46,11 +46,13 @@ async def toggle_ap_mode():
                 ip=settings.AP_IP
             )
             if not result:
+                logger.error("Failed to enable AP mode")
                 raise HTTPException(status_code=500, detail="Failed to enable AP mode")
+            logger.info("AP mode enabled successfully")
         
         # Get new mode after toggle
         new_mode = wifi_manager.get_operation_mode()
-        logger.debug(f"New mode after toggle: {new_mode}")
+        logger.info(f"New mode after toggle: {new_mode}")
         return new_mode
         
     except Exception as e:
