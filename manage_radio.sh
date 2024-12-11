@@ -8,64 +8,6 @@ PID_FILE="/tmp/${APP_NAME}.pid"
 API_PORT=80
 DEV_PORT=5173
 
-check_dependencies() {
-    # Check for required packages
-    PACKAGES="hostapd dnsmasq iw"
-    MISSING_PACKAGES=""
-    
-    for pkg in $PACKAGES; do
-        if ! dpkg -l | grep -q "^ii  $pkg "; then
-            MISSING_PACKAGES="$MISSING_PACKAGES $pkg"
-        fi
-    done
-    
-    if [ ! -z "$MISSING_PACKAGES" ]; then
-        echo "Installing required packages:$MISSING_PACKAGES"
-        sudo apt-get update
-        sudo apt-get install -y $MISSING_PACKAGES
-        
-        # Enable services
-        sudo systemctl enable hostapd
-        sudo systemctl enable dnsmasq
-        
-        # Create default configurations
-        sudo mkdir -p /etc/hostapd
-        sudo tee /etc/hostapd/hostapd.conf > /dev/null <<EOL
-# Default configuration will be overwritten by the application
-interface=wlan0
-driver=nl80211
-EOL
-        
-        sudo tee /etc/dnsmasq.conf > /dev/null <<EOL
-# Default configuration will be overwritten by the application
-interface=wlan0
-dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
-EOL
-    fi
-}
-
-check_ap_permissions() {
-    # Create sudo rule for AP mode if it doesn't exist
-    SUDO_FILE="/etc/sudoers.d/radio-ap"
-    if [ ! -f "$SUDO_FILE" ]; then
-        echo "Setting up AP mode permissions..."
-        sudo tee $SUDO_FILE > /dev/null <<EOF
-# Allow radio user to manage AP mode
-radio ALL=(ALL) NOPASSWD: /usr/sbin/hostapd
-radio ALL=(ALL) NOPASSWD: /usr/sbin/dnsmasq
-radio ALL=(ALL) NOPASSWD: /sbin/ip addr add *
-radio ALL=(ALL) NOPASSWD: /sbin/ip addr flush *
-radio ALL=(ALL) NOPASSWD: /bin/systemctl start hostapd
-radio ALL=(ALL) NOPASSWD: /bin/systemctl stop hostapd
-radio ALL=(ALL) NOPASSWD: /bin/systemctl start dnsmasq
-radio ALL=(ALL) NOPASSWD: /bin/systemctl stop dnsmasq
-radio ALL=(ALL) NOPASSWD: /bin/systemctl start NetworkManager
-radio ALL=(ALL) NOPASSWD: /bin/systemctl stop NetworkManager
-EOF
-        sudo chmod 440 $SUDO_FILE
-    fi
-}
-
 check_ports() {
     # Check and kill any existing processes on API_PORT
     if sudo lsof -Pi :$API_PORT -sTCP:LISTEN -t >/dev/null ; then
@@ -144,8 +86,6 @@ start() {
     check_ports
     check_pigpiod
     check_nmcli_permissions
-    check_dependencies
-    check_ap_permissions
     source $VENV_PATH/bin/activate
     echo "Virtual environment activated"
     

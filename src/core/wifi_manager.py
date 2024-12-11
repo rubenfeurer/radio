@@ -434,122 +434,41 @@ class WiFiManager:
             self.logger.error(f"Error getting IP address: {str(e)}")
             return None
 
-    def enable_ap_mode(self, ssid: str, password: str, ip: str = "192.168.4.1") -> bool:
-        """Enable Access Point mode"""
+    def enable_ap_mode(self, ssid: str, password: str, channel: int = 1, ip: str = "192.168.4.1") -> bool:
+        """Enable AP mode"""
         try:
-            logger.info(f"Enabling AP mode with SSID: {ssid}, IP: {ip}")
+            # First stop NetworkManager
+            self._run_command(['sudo', 'systemctl', 'stop', 'NetworkManager'], 
+                             capture_output=True, text=True)
             
-            # Check if hostapd and dnsmasq are installed
-            if not self._check_required_packages():
-                logger.error("Required packages (hostapd, dnsmasq) are not installed")
-                return False
-
-            # Configure hostapd before stopping NetworkManager
-            logger.debug("Creating hostapd configuration...")
-            hostapd_conf = f"""
-interface={self._interface}
-driver=nl80211
-ssid={ssid}
-hw_mode=g
-channel=6
-wmm_enabled=0
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
-wpa=2
-wpa_passphrase={password}
-wpa_key_mgmt=WPA-PSK
-wpa_pairwise=TKIP
-rsn_pairwise=CCMP
-"""
-            # Ensure directory exists
-            os.makedirs('/etc/hostapd', exist_ok=True)
+            # Configure and start hostapd
+            result = self._run_command([
+                'sudo', 'systemctl', 'start', 'hostapd'
+            ], capture_output=True, text=True)
             
-            # Write configuration
-            logger.debug("Writing hostapd configuration...")
-            try:
-                with open('/etc/hostapd/hostapd.conf', 'w') as f:
-                    f.write(hostapd_conf)
-            except Exception as e:
-                logger.error(f"Failed to write hostapd configuration: {str(e)}")
-                return False
-
-            # Configure dnsmasq
-            dnsmasq_conf = f"""
-interface={self._interface}
-dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
-"""
-            try:
-                with open('/etc/dnsmasq.conf', 'w') as f:
-                    f.write(dnsmasq_conf)
-            except Exception as e:
-                logger.error(f"Failed to write dnsmasq configuration: {str(e)}")
-                return False
-
-            # Now stop NetworkManager
-            logger.debug("Stopping NetworkManager...")
-            result = self._run_command(["sudo", "systemctl", "stop", "NetworkManager"])
+            # If hostapd fails, return early
             if result.returncode != 0:
-                logger.error(f"Failed to stop NetworkManager: {result.stderr}")
+                self.logger.error(f"Failed to start hostapd: {result.stderr}")
+                # Restart NetworkManager on failure
+                self._run_command(['sudo', 'systemctl', 'restart', 'NetworkManager'], 
+                                 capture_output=True, text=True)
                 return False
-
+            
+            # Start dnsmasq for DHCP
+            self._run_command(['sudo', 'systemctl', 'start', 'dnsmasq'], 
+                             capture_output=True, text=True)
+            
             # Configure IP address
-            logger.debug(f"Configuring IP address: {ip}")
-            ip_result = self._run_command([
-                "sudo", "ip", "addr", "add", f"{ip}/24", "dev", self._interface
-            ])
-            if ip_result.returncode != 0:
-                logger.error(f"Failed to configure IP: {ip_result.stderr}")
-                self._cleanup_ap_mode()
-                return False
-
-            # Start services
-            for service in ['hostapd', 'dnsmasq']:
-                logger.debug(f"Starting {service}...")
-                result = self._run_command(["sudo", "systemctl", "start", service])
-                if result.returncode != 0:
-                    logger.error(f"Failed to start {service}: {result.stderr}")
-                    self._cleanup_ap_mode()
-                    return False
-
-            logger.info("AP mode enabled successfully")
+            self._run_command(['sudo', 'ip', 'addr', 'add', ip + '/24', 'dev', 'wlan0'], 
+                             capture_output=True, text=True)
+            
             return True
-
         except Exception as e:
-            logger.error(f"Error enabling AP mode: {str(e)}")
-            self._cleanup_ap_mode()
+            self.logger.error(f"Error enabling AP mode: {str(e)}")
+            # Restart NetworkManager on failure
+            self._run_command(['sudo', 'systemctl', 'restart', 'NetworkManager'], 
+                             capture_output=True, text=True)
             return False
-
-    def _check_required_packages(self) -> bool:
-        """Check if required packages are installed"""
-        for package in ['hostapd', 'dnsmasq']:
-            result = self._run_command(['which', package])
-            if result.returncode != 0:
-                logger.error(f"Package {package} is not installed")
-                return False
-        return True
-
-    def _cleanup_ap_mode(self):
-        """Cleanup AP mode in case of failure"""
-        try:
-            logger.debug("Running AP mode cleanup...")
-            
-            # Stop services in reverse order
-            for service in ['hostapd', 'dnsmasq']:
-                logger.debug(f"Stopping {service}...")
-                self._run_command(["sudo", "systemctl", "stop", service])
-            
-            # Remove IP address
-            logger.debug("Removing IP configuration...")
-            self._run_command([
-                "sudo", "ip", "addr", "flush", "dev", self._interface
-            ])
-            
-            # Restart NetworkManager
-            logger.debug("Restarting NetworkManager...")
-            self._run_command(["sudo", "systemctl", "restart", "NetworkManager"])
-        except Exception as e:
-            logger.error(f"Error during cleanup: {str(e)}")
 
     def disable_ap_mode(self) -> bool:
         """Disable AP mode"""
