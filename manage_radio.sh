@@ -8,24 +8,56 @@ PID_FILE="/tmp/${APP_NAME}.pid"
 API_PORT=80
 DEV_PORT=5173
 
-check_ports() {
-    # Check and kill any existing processes on API_PORT
-    if sudo lsof -Pi :$API_PORT -sTCP:LISTEN -t >/dev/null ; then
-        echo "Port $API_PORT is already in use. Stopping existing process..."
-        sudo kill -9 $(sudo lsof -t -i:$API_PORT)
-        sleep 2
-    fi
+# Create PID file with proper permissions
+setup_pid_file() {
+    # Remove existing PID file if any
+    sudo rm -f "$PID_FILE"
     
-    # Check and kill any existing processes on DEV_PORT
-    if lsof -Pi :$DEV_PORT -sTCP:LISTEN -t >/dev/null ; then
-        echo "Port $DEV_PORT is already in use. Stopping existing process..."
-        sudo kill -9 $(lsof -t -i:$DEV_PORT)
+    # Create new PID file and set permissions
+    sudo touch "$PID_FILE"
+    sudo chown radio:radio "$PID_FILE"
+    sudo chmod 644 "$PID_FILE"
+}
+
+check_ports() {
+    # Function to kill process on a port
+    kill_port() {
+        local port=$1
+        if sudo lsof -Pi :$port -sTCP:LISTEN -t >/dev/null ; then
+            echo "Port $port is in use. Stopping process..."
+            sudo kill -15 $(sudo lsof -t -i:$port) 2>/dev/null || true
+            sleep 2
+            sudo kill -9 $(sudo lsof -t -i:$port) 2>/dev/null || true
+        fi
+    }
+
+    # Kill any existing uvicorn processes
+    if pgrep -f "uvicorn.*$APP_PATH" >/dev/null; then
+        echo "Stopping existing uvicorn process..."
+        sudo pkill -15 -f "uvicorn.*$APP_PATH"
         sleep 2
+        sudo pkill -9 -f "uvicorn.*$APP_PATH"
     fi
 
-    # Additional check for any hanging processes
-    sudo pkill -f "uvicorn.*$APP_PATH" || true
-    pkill -f "npm run dev" || true
+    # Kill any existing npm processes
+    if pgrep -f "npm run dev" >/dev/null; then
+        echo "Stopping existing npm process..."
+        sudo pkill -15 -f "npm run dev"
+        sleep 2
+        sudo pkill -9 -f "npm run dev"
+    fi
+
+    # Check specific ports
+    kill_port $API_PORT
+    kill_port $DEV_PORT
+
+    # Final verification
+    sleep 2
+    if sudo lsof -Pi :$API_PORT -sTCP:LISTEN -t >/dev/null || \
+       sudo lsof -Pi :$DEV_PORT -sTCP:LISTEN -t >/dev/null; then
+        echo "Failed to free ports. Please check manually."
+        exit 1
+    fi
 }
 
 check_pigpiod() {
@@ -81,16 +113,34 @@ open_monitor() {
     fi
 }
 
+verify_process() {
+    local pid=$1
+    local name=$2
+    local max_attempts=30
+    local attempt=0
+    
+    while [ $attempt -lt $max_attempts ]; do
+        if ! ps -p $pid > /dev/null; then
+            echo "Process $name failed to start"
+            return 1
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+    return 0
+}
+
 start() {
     echo "Starting $APP_NAME..."
     check_ports
     check_pigpiod
     check_nmcli_permissions
+    
+    # Setup PID file with proper permissions first
+    setup_pid_file
+    
     source $VENV_PATH/bin/activate
     echo "Virtual environment activated"
-    
-    # Clear the log file
-    echo "" > $LOG_FILE
     
     # Start FastAPI server with nohup
     echo "Starting FastAPI server on port $API_PORT..."
@@ -100,24 +150,85 @@ start() {
         --reload \
         --log-level debug > $LOG_FILE 2>&1 &
     API_PID=$!
-    echo $API_PID > $PID_FILE
+    sudo -u radio bash -c "echo $API_PID > $PID_FILE"
     
-    # Wait to ensure API server is up
-    sleep 5
+    # Wait for FastAPI to be ready
+    echo "Waiting for FastAPI server to be ready..."
+    max_attempts=30
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if curl -s http://localhost:$API_PORT/api/v1/health > /dev/null; then
+            echo "FastAPI server is ready"
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+        echo "Waiting... ($attempt/$max_attempts)"
+    done
     
-    # Start development server with nohup
+    if [ $attempt -eq $max_attempts ]; then
+        echo "Failed to start FastAPI server. Check logs:"
+        tail -n 50 $LOG_FILE
+        exit 1
+    fi
+    
+    # Start development server with nohup and proper environment
     echo "Starting development server on port $DEV_PORT..."
-    cd web && nohup npm run dev -- \
+    cd web
+    # Clear any existing node processes
+    sudo pkill -f "node.*vite" || true
+    
+    # Export environment variables
+    export VITE_API_BASE="http://localhost:$API_PORT"
+    export NODE_ENV="development"
+    
+    # Start dev server with full output
+    nohup npm run dev -- \
         --host 0.0.0.0 \
         --port $DEV_PORT \
+        --clearScreen false \
         >> $LOG_FILE 2>&1 &
     DEV_PID=$!
-    echo $DEV_PID >> $PID_FILE
+    sudo -u radio bash -c "echo $DEV_PID >> $PID_FILE"
     
-    # Wait to ensure both servers start
-    sleep 3
+    # Return to original directory
+    cd ..
     
-    # Check if processes are running
+    # Wait for dev server with better checking
+    echo "Waiting for development server to be ready..."
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        # Check if process is still running
+        if ! ps -p $DEV_PID > /dev/null; then
+            echo "Development server process died. Check logs:"
+            tail -n 50 $LOG_FILE
+            exit 1
+        fi
+        
+        # Try to connect to dev server
+        if curl -s http://localhost:$DEV_PORT > /dev/null; then
+            echo "Development server is ready"
+            break
+        fi
+        
+        # Show recent logs if taking too long
+        if [ $attempt -eq 15 ]; then
+            echo "Recent development server logs:"
+            tail -n 20 $LOG_FILE
+        fi
+        
+        attempt=$((attempt + 1))
+        sleep 1
+        echo "Waiting... ($attempt/$max_attempts)"
+    done
+    
+    if [ $attempt -eq $max_attempts ]; then
+        echo "Failed to start development server. Check logs:"
+        tail -n 50 $LOG_FILE
+        exit 1
+    fi
+    
+    # Final verification
     if ps -p $API_PID > /dev/null && ps -p $DEV_PID > /dev/null; then
         echo "$APP_NAME started successfully"
         echo "FastAPI PID: $API_PID"
@@ -130,7 +241,7 @@ start() {
     else
         echo "Failed to start $APP_NAME. Check logs for details."
         cat $LOG_FILE
-        rm -f $PID_FILE
+        sudo rm -f $PID_FILE
         exit 1
     fi
 }
@@ -144,12 +255,12 @@ stop() {
             # Force kill if still running
             sudo kill -9 $PID 2>/dev/null || true
         done < $PID_FILE
-        rm -f $PID_FILE
+        sudo rm -f $PID_FILE
         echo "$APP_NAME stopped."
         
         # Kill any remaining processes
-        sudo pkill -f "uvicorn.*$APP_PATH"
-        pkill -f "npm run dev"
+        sudo pkill -f "uvicorn.*$APP_PATH" || true
+        sudo pkill -f "npm run dev" || true
     else
         echo "$APP_NAME is not running."
     fi

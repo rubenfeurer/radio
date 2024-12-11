@@ -4,6 +4,7 @@ from src.core.models import NetworkMode, NetworkModeStatus
 from config.config import settings
 import subprocess
 import logging
+import asyncio
 
 # Use the existing WiFiManager instance from wifi.py
 from .wifi import wifi_manager
@@ -35,8 +36,10 @@ async def toggle_ap_mode():
             result = wifi_manager.disable_ap_mode()
             if not result:
                 logger.error("Failed to disable AP mode")
-                raise HTTPException(status_code=500, detail="Failed to disable AP mode")
-            logger.info("AP mode disabled successfully")
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Failed to disable AP mode. Check system logs."
+                )
         else:
             logger.info("Enabling AP mode...")
             result = wifi_manager.enable_ap_mode(
@@ -47,10 +50,14 @@ async def toggle_ap_mode():
             )
             if not result:
                 logger.error("Failed to enable AP mode")
-                raise HTTPException(status_code=500, detail="Failed to enable AP mode")
-            logger.info("AP mode enabled successfully")
+                raise HTTPException(
+                    status_code=500, 
+                    detail="Failed to enable AP mode. Check system logs."
+                )
         
-        # Get new mode after toggle
+        # Wait for mode change to take effect
+        await asyncio.sleep(2)
+        
         new_mode = wifi_manager.get_operation_mode()
         logger.info(f"New mode after toggle: {new_mode}")
         return new_mode

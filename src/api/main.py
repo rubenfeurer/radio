@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import stations, system, websocket, wifi, monitor, ap_mode
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
+from src.api.routes.wifi import wifi_manager
 import socket
 import logging
 from fastapi import WebSocket, WebSocketDisconnect
@@ -19,18 +20,27 @@ radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadc
 hostname = f"{socket.gethostname()}.local"
 
 # Construct the allowed origins
-allowed_origins = [
-    f"http://{hostname}:5173",    # Dev server
-    f"http://{hostname}",         # Production
-    f"ws://{hostname}",          # WebSocket production
-    f"ws://{hostname}:80",       # WebSocket explicit port
-    "http://localhost:5173",      # Local development
-    "ws://localhost:80",         # Local WebSocket
-]
+def get_allowed_origins():
+    base_origins = [
+        f"http://{hostname}:5173",    # Dev server
+        f"http://{hostname}",         # Production
+        f"ws://{hostname}",          # WebSocket production
+        f"ws://{hostname}:80",       # WebSocket explicit port
+        "http://localhost:5173",      # Local development
+        "ws://localhost:80",         # Local WebSocket
+        "http://192.168.4.1",        # AP mode
+        "http://192.168.4.1:5173",   # AP mode dev server
+        "ws://192.168.4.1",          # AP mode WebSocket
+        "ws://192.168.4.1:80",       # AP mode WebSocket explicit port
+    ]
+    try:
+        return ["*"] if wifi_manager._check_ap_mode_active() else base_origins
+    except:
+        return base_origins  # Fallback to base origins if check fails
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

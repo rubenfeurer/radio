@@ -409,10 +409,16 @@ class WiFiManager:
     def _check_ap_mode_active(self) -> bool:
         """Check if AP mode is currently active"""
         try:
-            result = self._run_command([
+            # Check both hostapd status and IP address
+            hostapd_active = self._run_command([
                 'sudo', 'systemctl', 'is-active', 'hostapd'
-            ], capture_output=True, text=True)
-            return result.returncode == 0
+            ], capture_output=True, text=True).returncode == 0
+            
+            ip_addr = self.get_ip_address()
+            is_ap_ip = ip_addr == "192.168.4.1"
+            
+            self.logger.debug(f"AP mode check: hostapd={hostapd_active}, ip={ip_addr}, is_ap={is_ap_ip}")
+            return hostapd_active and is_ap_ip
         except Exception as e:
             self.logger.error(f"Error checking AP mode: {str(e)}")
             return False
