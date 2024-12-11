@@ -23,7 +23,9 @@ hostname = f"{socket.gethostname()}.local"
 def get_allowed_origins():
     base_origins = [
         f"http://{hostname}:5173",    # Dev server
+        f"http://{hostname}.local:5173",  # Add .local variant
         f"http://{hostname}",         # Production
+        f"http://{hostname}.local",   # Add .local variant
         f"ws://{hostname}",          # WebSocket production
         f"ws://{hostname}:80",       # WebSocket explicit port
         "http://localhost:5173",      # Local development

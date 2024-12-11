@@ -153,3 +153,35 @@ async def forget_network(ssid: str):
     except Exception as e:
         logger.error(f"Error removing network: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e)) 
+
+@router.get("/mode", response_model=NetworkModeStatus, tags=["WiFi"])
+async def get_network_mode():
+    """Get current network operation mode"""
+    try:
+        return wifi_manager.get_operation_mode()
+    except Exception as e:
+        logger.error(f"Error getting network mode: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/mode/toggle", response_model=NetworkModeStatus, tags=["WiFi"])
+async def toggle_ap_mode():
+    """Toggle between AP and normal mode"""
+    try:
+        current_mode = wifi_manager.get_operation_mode()
+        
+        if current_mode.mode == NetworkMode.AP:
+            success = await wifi_manager.disable_ap_mode()
+            if not success:
+                raise HTTPException(status_code=500, detail="Failed to disable AP mode")
+        else:
+            success = await wifi_manager.enable_ap_mode()
+            if not success:
+                raise HTTPException(status_code=500, detail="Failed to enable AP mode")
+        
+        # Get and return new mode
+        return wifi_manager.get_operation_mode()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error toggling AP mode: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
