@@ -111,11 +111,13 @@ class WiFiManager:
             # Handle AP mode status
             if is_ap_mode:
                 return WiFiStatus(
-                    ssid=current_mode.ap_ssid,
+                    ssid=getattr(current_mode, 'ap_ssid', 'RadioAP'),
                     signal_strength=100,
                     is_connected=True,
                     has_internet=False,
-                    available_networks=aggregated_networks
+                    available_networks=aggregated_networks,
+                    is_ap_mode=True,
+                    ap_ip=getattr(current_mode, 'ap_ip', "192.168.4.1")
                 )
 
             # Get current network

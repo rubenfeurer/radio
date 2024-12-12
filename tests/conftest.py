@@ -8,7 +8,8 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 import pytest
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch, AsyncMock
+from fastapi.testclient import TestClient
 from src.core.wifi_manager import WiFiManager
 from src.utils.logger import setup_logger
 from src.core.models import NetworkMode, NetworkModeStatus
@@ -150,16 +151,30 @@ def mock_logger(monkeypatch):
 @pytest.fixture
 def wifi_manager(mock_logger):
     """Create a WiFiManager instance for testing"""
-    return WiFiManager(skip_verify=True)
+    manager = WiFiManager(skip_verify=True)
+    # Mock async methods
+    manager.connect_to_network = AsyncMock(return_value=True)
+    manager._remove_connection = AsyncMock(return_value=True)
+    return manager
 
 @pytest.fixture
 def mock_ap_mode_status():
     """Create NetworkModeStatus instances for AP mode testing"""
-    def create_status(mode=NetworkMode.DEFAULT, ip="192.168.1.100"):
-        return NetworkModeStatus(
-            mode=mode,
-            ip_address=ip
-        )
+    def create_status(mode=NetworkMode.WIFI_CLIENT, ip="192.168.1.100"):
+        if mode == NetworkMode.AP:
+            return NetworkModeStatus(
+                mode=NetworkMode.AP,
+                is_connected=True,
+                ap_ip=ip,
+                is_ap_mode=True,
+                ap_ssid="RadioAP"
+            )
+        else:
+            return NetworkModeStatus(
+                mode=NetworkMode.WIFI_CLIENT,
+                is_connected=True,
+                current_ssid="TestWiFi"
+            )
     return create_status
 
 @pytest.fixture
@@ -167,21 +182,43 @@ def mock_wifi_manager_ap():
     """Mock WiFiManager specifically for AP mode testing"""
     with patch('src.api.routes.ap_mode.wifi_manager') as mock:
         # Setup default responses
-        default_status = NetworkModeStatus(
-            mode=NetworkMode.DEFAULT,
-            ip_address="192.168.1.100"
+        client_status = NetworkModeStatus(
+            mode=NetworkMode.WIFI_CLIENT,
+            is_connected=True,
+            current_ssid="TestWiFi"
         )
         ap_status = NetworkModeStatus(
             mode=NetworkMode.AP,
-            ip_address="192.168.4.1"
+            is_connected=True,
+            ap_ip="192.168.4.1",
+            is_ap_mode=True,
+            ap_ssid="RadioAP"
         )
         
-        mock.get_operation_mode.return_value = default_status
-        mock.enable_ap_mode.return_value = True
-        mock.disable_ap_mode.return_value = True
-        
-        # Store statuses for easy access in tests
-        mock.default_status = default_status
+        mock.default_status = client_status
         mock.ap_status = ap_status
-        
         yield mock
+
+@pytest.fixture
+async def async_wifi_manager(wifi_manager):
+    """Create an async WiFiManager instance for testing"""
+    # Mock the async methods
+    wifi_manager.connect_to_network = AsyncMock()
+    wifi_manager.connect_to_network.return_value = True
+    return wifi_manager
+
+@pytest.fixture
+def mock_async_wifi_process():
+    """Create a basic async WiFi process mock with success status"""
+    process = AsyncMock()
+    process.returncode = 0
+    process.stderr = ""
+    process.stdout = "active"  # Default response
+    return process
+
+@pytest.fixture
+async def async_client():
+    """Create an async test client"""
+    from src.api.main import app
+    async with TestClient(app) as client:
+        yield client

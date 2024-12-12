@@ -40,12 +40,13 @@ class WiFiStatus(BaseModel):
     is_connected: bool = False
     has_internet: bool = False
     available_networks: List[WiFiNetwork] = []
+    is_ap_mode: bool = False
+    ap_ip: Optional[str] = None
     preconfigured_ssid: Optional[str] = None
 
-class NetworkMode(str, Enum):
-    """Network operation mode"""
-    DEFAULT = "default"
-    AP = "ap"
+class NetworkMode(Enum):
+    WIFI_CLIENT = "wifi_client"  # Regular WiFi mode
+    AP = "ap"  # Access Point mode
 
 class NetworkModeStatus(BaseModel):
     """Network mode status response model"""

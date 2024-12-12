@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 from src.api.routes.ap_mode import get_network_mode, toggle_ap_mode
-from src.core.models import NetworkMode
+from src.core.models import NetworkMode, NetworkModeStatus
 
 @pytest.mark.asyncio
 async def test_get_network_mode_success(mock_wifi_manager_ap, mock_ap_mode_status):
@@ -27,28 +27,52 @@ async def test_get_network_mode_failure(mock_wifi_manager_ap):
 
 @pytest.mark.asyncio
 async def test_toggle_ap_mode_to_ap(mock_wifi_manager_ap):
-    """Test toggling from default to AP mode"""
-    mock_wifi_manager_ap.get_operation_mode.side_effect = [
-        mock_wifi_manager_ap.default_status,
-        mock_wifi_manager_ap.ap_status
-    ]
+    """Test toggling from client to AP mode"""
+    # Setup initial client mode and final AP mode states
+    client_status = NetworkModeStatus(
+        mode=NetworkMode.WIFI_CLIENT,
+        is_connected=True,
+        current_ssid="TestWiFi"
+    )
+    ap_status = NetworkModeStatus(
+        mode=NetworkMode.AP,
+        is_connected=True,
+        ap_ip="192.168.4.1",
+        is_ap_mode=True,
+        ap_ssid="RadioAP"
+    )
+    
+    mock_wifi_manager_ap.get_operation_mode.side_effect = [client_status, ap_status]
+    mock_wifi_manager_ap.enable_ap_mode.return_value = True
     
     result = await toggle_ap_mode()
     
-    assert result == mock_wifi_manager_ap.ap_status
+    assert result == ap_status
     mock_wifi_manager_ap.enable_ap_mode.assert_called_once()
     assert not mock_wifi_manager_ap.disable_ap_mode.called
 
 @pytest.mark.asyncio
 async def test_toggle_ap_mode_to_default(mock_wifi_manager_ap):
-    """Test toggling from AP to default mode"""
-    mock_wifi_manager_ap.get_operation_mode.side_effect = [
-        mock_wifi_manager_ap.ap_status,
-        mock_wifi_manager_ap.default_status
-    ]
+    """Test toggling from AP to client mode"""
+    # Setup initial AP mode and final client mode states
+    ap_status = NetworkModeStatus(
+        mode=NetworkMode.AP,
+        is_connected=True,
+        ap_ip="192.168.4.1",
+        is_ap_mode=True,
+        ap_ssid="RadioAP"
+    )
+    client_status = NetworkModeStatus(
+        mode=NetworkMode.WIFI_CLIENT,
+        is_connected=True,
+        current_ssid="TestWiFi"
+    )
+    
+    mock_wifi_manager_ap.get_operation_mode.side_effect = [ap_status, client_status]
+    mock_wifi_manager_ap.disable_ap_mode.return_value = True
     
     result = await toggle_ap_mode()
     
-    assert result == mock_wifi_manager_ap.default_status
+    assert result == client_status
     mock_wifi_manager_ap.disable_ap_mode.assert_called_once()
     assert not mock_wifi_manager_ap.enable_ap_mode.called 

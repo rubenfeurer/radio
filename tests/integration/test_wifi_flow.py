@@ -105,5 +105,5 @@ def test_error_handling(test_client, mock_wifi_manager):
     # Test network scan failure
     mock_wifi_manager.get_current_status.side_effect = Exception("Scan failed")
     response = test_client.get("/api/v1/wifi/networks")
-    assert response.status_code == 200
-    assert response.json() == [] 
+    assert response.status_code == 500
+    assert "Error getting networks" in response.json()["detail"] 

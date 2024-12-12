@@ -9,15 +9,14 @@ logger = logging.getLogger(__name__)
 @router.get("/debug", tags=["Diagnostics"])
 async def debug_wifi():
     """Debug endpoint to check WiFi status with detailed logging"""
-    wifi = WiFiManager()
-    wifi.logger.setLevel(logging.DEBUG)
-    if not wifi.logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter('DEBUG: %(message)s'))
-        wifi.logger.addHandler(handler)
-    
-    status = wifi.get_current_status()
-    return status
+    try:
+        wifi = WiFiManager()
+        wifi.logger.setLevel(logging.DEBUG)
+        status = wifi.get_current_status()
+        return status
+    except Exception as e:
+        logger.error(f"Error in debug endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/debug_nmcli", tags=["Diagnostics"])
 async def debug_nmcli():
@@ -40,4 +39,4 @@ async def debug_nmcli():
         }
     except Exception as e:
         logger.error(f"Error executing nmcli commands: {e}")
-        return {"error": str(e)} 
+        raise HTTPException(status_code=500, detail=f"Error executing nmcli commands: {str(e)}") 
