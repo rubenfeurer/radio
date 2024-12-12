@@ -62,8 +62,6 @@ async def toggle_ap_mode():
         logger.info(f"New mode after toggle: {new_mode}")
         return new_mode
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Failed to toggle AP mode: {str(e)}")
         raise HTTPException(
