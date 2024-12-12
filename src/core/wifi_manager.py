@@ -5,6 +5,8 @@ import logging
 from .models import WiFiStatus, WiFiNetwork, NetworkModeStatus, NetworkMode
 import os
 from src.utils.logger import setup_logger
+import tempfile
+from config.config import settings
 
 logger = setup_logger()
 
@@ -440,40 +442,71 @@ class WiFiManager:
             self.logger.error(f"Error getting IP address: {str(e)}")
             return None
 
-    def enable_ap_mode(self, ssid: str, password: str, channel: int = 1, ip: str = "192.168.4.1") -> bool:
+    def enable_ap_mode(
+        self,
+        ssid: str = settings.AP_SSID,
+        password: str = settings.AP_PASSWORD,
+        channel: int = settings.AP_CHANNEL,
+        ip: str = settings.AP_IP
+    ) -> bool:
         """Enable AP mode"""
         try:
-            # First stop NetworkManager
-            self._run_command(['sudo', 'systemctl', 'stop', 'NetworkManager'], 
-                             capture_output=True, text=True)
+            self.logger.info(f"Enabling AP mode with SSID: {ssid}, IP: {ip}")
             
-            # Configure and start hostapd
-            result = self._run_command([
-                'sudo', 'systemctl', 'start', 'hostapd'
-            ], capture_output=True, text=True)
+            # Stop NetworkManager and wpa_supplicant
+            self._run_command(['sudo', 'systemctl', 'stop', 'NetworkManager'])
+            self._run_command(['sudo', 'systemctl', 'stop', 'wpa_supplicant'])
             
-            # If hostapd fails, return early
-            if result.returncode != 0:
-                self.logger.error(f"Failed to start hostapd: {result.stderr}")
-                # Restart NetworkManager on failure
-                self._run_command(['sudo', 'systemctl', 'restart', 'NetworkManager'], 
-                                 capture_output=True, text=True)
-                return False
+            # Configure interface
+            self._run_command(['sudo', 'ip', 'link', 'set', 'wlan0', 'down'])
+            self._run_command(['sudo', 'ip', 'addr', 'flush', 'dev', 'wlan0'])
+            self._run_command(['sudo', 'ip', 'link', 'set', 'wlan0', 'up'])
+            self._run_command(['sudo', 'ip', 'addr', 'add', f"{ip}/24", 'dev', 'wlan0'])
+
+            # Create hostapd config
+            hostapd_config = f"""
+interface=wlan0
+driver=nl80211
+ssid={ssid}
+hw_mode=g
+channel={channel}
+wpa=2
+wpa_passphrase={password}
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=TKIP CCMP
+rsn_pairwise=CCMP
+auth_algs=1
+macaddr_acl=0
+ignore_broadcast_ssid=0
+country_code={settings.AP_COUNTRY}
+ieee80211n=1
+wmm_enabled=1
+"""
+            with open('/tmp/hostapd.conf', 'w') as f:
+                f.write(hostapd_config)
             
-            # Start dnsmasq for DHCP
-            self._run_command(['sudo', 'systemctl', 'start', 'dnsmasq'], 
-                             capture_output=True, text=True)
+            self._run_command(['sudo', 'cp', '/tmp/hostapd.conf', '/etc/hostapd/hostapd.conf'])
             
-            # Configure IP address
-            self._run_command(['sudo', 'ip', 'addr', 'add', ip + '/24', 'dev', 'wlan0'], 
-                             capture_output=True, text=True)
+            # Configure dnsmasq
+            dnsmasq_config = f"""
+interface=wlan0
+dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
+"""
+            with open('/tmp/dnsmasq.conf', 'w') as f:
+                f.write(dnsmasq_config)
+            
+            self._run_command(['sudo', 'cp', '/tmp/dnsmasq.conf', '/etc/dnsmasq.conf'])
+            
+            # Start services
+            self._run_command(['sudo', 'systemctl', 'start', 'hostapd'])
+            self._run_command(['sudo', 'systemctl', 'start', 'dnsmasq'])
             
             return True
+            
         except Exception as e:
             self.logger.error(f"Error enabling AP mode: {str(e)}")
-            # Restart NetworkManager on failure
-            self._run_command(['sudo', 'systemctl', 'restart', 'NetworkManager'], 
-                             capture_output=True, text=True)
+            # Cleanup on failure
+            self._run_command(['sudo', 'systemctl', 'restart', 'NetworkManager'])
             return False
 
     def disable_ap_mode(self) -> bool:

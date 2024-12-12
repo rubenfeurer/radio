@@ -73,7 +73,7 @@ check_nmcli_permissions() {
     # Create sudo rule for nmcli if it doesn't exist
     SUDO_FILE="/etc/sudoers.d/radio-nmcli"
     if [ ! -f "$SUDO_FILE" ]; then
-        echo "Setting up nmcli permissions..."
+        echo "Setting up permissions..."
         sudo tee $SUDO_FILE <<EOF
 # Allow radio user to run specific nmcli commands without password
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi list
@@ -83,6 +83,14 @@ radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi connect *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection up *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection delete *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
+# Add AP mode permissions
+radio ALL=(ALL) NOPASSWD: /usr/sbin/hostapd
+radio ALL=(ALL) NOPASSWD: /usr/sbin/dnsmasq
+radio ALL=(ALL) NOPASSWD: /sbin/ip
+radio ALL=(ALL) NOPASSWD: /bin/systemctl start hostapd
+radio ALL=(ALL) NOPASSWD: /bin/systemctl stop hostapd
+radio ALL=(ALL) NOPASSWD: /bin/systemctl start dnsmasq
+radio ALL=(ALL) NOPASSWD: /bin/systemctl stop dnsmasq
 EOF
         sudo chmod 440 $SUDO_FILE
     fi

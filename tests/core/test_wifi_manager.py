@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, ANY
 from src.core.models import WiFiStatus, NetworkMode, NetworkModeStatus
 import logging
 
@@ -427,17 +427,19 @@ async def test_disable_ap_mode_failure(wifi_manager):
     assert success is False
 
 @pytest.mark.asyncio
-async def test_enable_ap_mode(wifi_manager):
+async def test_enable_ap_mode(wifi_manager, tmp_path):
     """Test enabling AP mode"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
         # Stop NetworkManager
         MagicMock(returncode=0, stdout=""),
+        # Copy config file
+        MagicMock(returncode=0, stdout=""),
         # Start hostapd
         MagicMock(returncode=0, stdout=""),
-        # Start dnsmasq
+        # Configure IP
         MagicMock(returncode=0, stdout=""),
-        # Configure IP address
+        # Start dnsmasq
         MagicMock(returncode=0, stdout="")
     ]
     
@@ -452,32 +454,33 @@ async def test_enable_ap_mode(wifi_manager):
     # Verify correct sequence of commands
     expected_calls = [
         call(['sudo', 'systemctl', 'stop', 'NetworkManager'], capture_output=True, text=True),
+        call(['sudo', 'cp', ANY, '/etc/hostapd/hostapd.conf'], capture_output=True, text=True),
         call(['sudo', 'systemctl', 'start', 'hostapd'], capture_output=True, text=True),
-        call(['sudo', 'systemctl', 'start', 'dnsmasq'], capture_output=True, text=True),
-        call(['sudo', 'ip', 'addr', 'add', '192.168.4.1/24', 'dev', 'wlan0'], capture_output=True, text=True)
+        call(['sudo', 'ip', 'addr', 'add', '192.168.4.1/24', 'dev', 'wlan0'], capture_output=True, text=True),
+        call(['sudo', 'systemctl', 'start', 'dnsmasq'], capture_output=True, text=True)
     ]
-    assert wifi_manager._run_command.call_args_list == expected_calls
+    assert len(wifi_manager._run_command.call_args_list) == len(expected_calls)
+    for actual, expected in zip(wifi_manager._run_command.call_args_list, expected_calls):
+        assert actual == expected
 
 @pytest.mark.asyncio
-async def test_enable_ap_mode_failure(wifi_manager):
+async def test_enable_ap_mode_failure(wifi_manager, tmp_path):
     """Test AP mode enable failure handling"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
-        # NetworkManager stop succeeds
+        # Stop NetworkManager succeeds
         MagicMock(returncode=0, stdout=""),
-        # hostapd start fails
-        MagicMock(returncode=1, stderr="Failed to start hostapd"),
-        # dnsmasq start (shouldn't be called but need to handle it)
-        MagicMock(returncode=0, stdout=""),
-        # IP address configuration (shouldn't be called but need to handle it)
-        MagicMock(returncode=0, stdout=""),
+        # Copy config fails
+        MagicMock(returncode=1, stderr="Permission denied"),
         # NetworkManager restart on failure
         MagicMock(returncode=0, stdout="")
     ]
     
     success = wifi_manager.enable_ap_mode(
         ssid="TestAP",
-        password="testpass123"
+        password="testpass123",
+        channel=1,
+        ip="192.168.4.1"
     )
     assert success is False
     

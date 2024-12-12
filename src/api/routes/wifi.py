@@ -4,6 +4,7 @@ from src.core.wifi_manager import WiFiManager
 from src.core.models import WiFiStatus, WiFiNetwork, NetworkMode, NetworkModeStatus
 from src.api.models.requests import WiFiConnectionRequest
 import logging
+import asyncio
 
 router = APIRouter(prefix="/wifi")
 wifi_manager = WiFiManager()
@@ -168,18 +169,27 @@ async def toggle_ap_mode():
     """Toggle between AP and normal mode"""
     try:
         current_mode = wifi_manager.get_operation_mode()
+        logger.info(f"Current mode before toggle: {current_mode.mode}")
         
         if current_mode.mode == NetworkMode.AP:
             success = await wifi_manager.disable_ap_mode()
             if not success:
+                logger.error("Failed to disable AP mode")
                 raise HTTPException(status_code=500, detail="Failed to disable AP mode")
         else:
             success = await wifi_manager.enable_ap_mode()
             if not success:
+                logger.error("Failed to enable AP mode")
                 raise HTTPException(status_code=500, detail="Failed to enable AP mode")
         
-        # Get and return new mode
-        return wifi_manager.get_operation_mode()
+        # Wait briefly for mode change to take effect
+        await asyncio.sleep(2)
+        
+        # Get and verify new mode
+        new_mode = wifi_manager.get_operation_mode()
+        logger.info(f"New mode after toggle: {new_mode.mode}")
+        
+        return new_mode
     except HTTPException:
         raise
     except Exception as e:

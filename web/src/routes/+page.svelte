@@ -254,23 +254,33 @@
 
   async function handleApModeToggle() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/wifi/mode/toggle`, {
-        method: 'POST'
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to toggle AP mode');
-        return;
-      }
-      
-      const data = await response.json();
-      networkMode = data;
-      
-      // Refresh WiFi status after mode change
-      await fetchWiFiStatus();
-      
+        const targetMode = networkMode.mode === 'ap' ? 'default' : 'ap';
+        console.log(`Attempting to switch to ${targetMode} mode`);
+        
+        const response = await fetch(`${API_BASE}/api/v1/wifi/mode/toggle`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('Failed to toggle AP mode:', error);
+            alert(`Failed to switch to ${targetMode} mode: ${error.detail}`);
+            return;
+        }
+        
+        const data = await response.json();
+        console.log('New network mode:', data);
+        networkMode = data;
+        
+        // Refresh WiFi status after mode change
+        await fetchWiFiStatus();
+        
+        // Show success message
+        alert(`Successfully switched to ${data.mode} mode`);
+        
     } catch (error) {
-      console.error('Error toggling AP mode:', error);
+        console.error('Error toggling AP mode:', error);
+        alert('Failed to switch mode - please check system logs');
     }
   }
 
