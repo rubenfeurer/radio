@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.routes import stations, system, websocket, wifi, monitor, ap_mode
+from src.api.routes import stations, system, websocket, wifi, monitor, ap_mode, wifi_diagnostics, wifi_preconfigured
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 from src.api.routes.wifi import wifi_manager
@@ -31,9 +31,9 @@ def get_allowed_origins():
         "http://localhost:5173",      # Local development
         "ws://localhost:80",         # Local WebSocket
         "http://192.168.4.1",        # AP mode
-        "http://192.168.4.1:5173",   # AP mode dev server
-        "ws://192.168.4.1",          # AP mode WebSocket
-        "ws://192.168.4.1:80",       # AP mode WebSocket explicit port
+        f"http://192.168.4.1:5173",   # AP mode dev server
+        f"ws://192.168.4.1",          # AP mode WebSocket
+        f"ws://192.168.4.1:80",       # AP mode WebSocket explicit port
     ]
     try:
         return ["*"] if wifi_manager._check_ap_mode_active() else base_origins
@@ -52,9 +52,11 @@ app.add_middleware(
 app.include_router(stations.router, prefix="/api/v1")
 app.include_router(system.router, prefix="/api/v1")
 app.include_router(wifi.router, prefix="/api/v1")
+app.include_router(wifi_diagnostics.router, prefix="/api/v1")
+app.include_router(wifi_preconfigured.router, prefix="/api/v1")
 app.include_router(websocket.router, prefix="/api/v1")
 app.include_router(monitor.router, prefix="/api/v1")
-app.include_router(ap_mode.router, prefix="/api/v1")
+app.include_router(ap_mode.router, prefix="/api/v1/wifi")
 
 logger = logging.getLogger(__name__)
 
