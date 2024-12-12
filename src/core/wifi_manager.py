@@ -5,6 +5,7 @@ import logging
 from .models import WiFiStatus, WiFiNetwork
 import os
 from src.utils.logger import setup_logger
+from functools import partial
 
 logger = setup_logger()
 
@@ -14,26 +15,30 @@ class WiFiManager:
     def __init__(self, skip_verify: bool = False):
         """Initialize WiFi manager"""
         self.logger = logger
-        # Check both environment variable and skip_verify parameter
-        if not os.getenv('SKIP_NM_CHECK') and not skip_verify:
-            self._verify_networkmanager()
+        self._skip_verify = skip_verify  # Store skip_verify flag
         self._interface = "wlan0"
-        
-    def _verify_networkmanager(self) -> None:
+        # Don't run verification in __init__, provide a separate method
+
+    async def initialize(self):
+        """Async initialization method"""
+        if not os.getenv('SKIP_NM_CHECK') and not self._skip_verify:
+            await self._verify_networkmanager()
+
+    async def _verify_networkmanager(self) -> None:
         """Verify NetworkManager is running"""
         try:
-            result = self._run_command(['systemctl', 'is-active', 'NetworkManager'])
+            result = await self._run_command(['systemctl', 'is-active', 'NetworkManager'])
             if result.returncode != 0:
                 raise RuntimeError("NetworkManager service is not active")
         except Exception as e:
             self.logger.error("NetworkManager verification failed: %s", str(e))
             raise RuntimeError("NetworkManager is not running") from e
 
-    def get_current_status(self) -> WiFiStatus:
+    async def get_current_status(self) -> WiFiStatus:
         """Get current WiFi status"""
         try:
             # Get list of saved connections with basic info first
-            saved_result = self._run_command([
+            saved_result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE,FILENAME', 'connection', 'show'
             ], capture_output=True, text=True)
             
@@ -55,7 +60,7 @@ class WiFiManager:
                         if conn_name == 'preconfigured' and len(parts) >= 3:
                             try:
                                 config_file = parts[2].strip()
-                                config_result = self._run_command([
+                                config_result = await self._run_command([
                                     'sudo', 'cat', config_file
                                 ], capture_output=True, text=True)
                                 if config_result.returncode == 0:
@@ -72,7 +77,7 @@ class WiFiManager:
             self.logger.debug(f"\n2. Final saved_networks set: {saved_networks}")
 
             # Get current networks
-            result = self._run_command([
+            result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
                 'device', 'wifi', 'list'
             ], capture_output=True, text=True, timeout=5)
@@ -130,7 +135,7 @@ class WiFiManager:
             # Check internet connectivity
             has_internet = False
             if current_network:
-                internet_check = self._run_command([
+                internet_check = await self._run_command([
                     'sudo', 'nmcli', 'networking', 'connectivity', 'check'
                 ], capture_output=True, text=True, timeout=5)
                 has_internet = internet_check.returncode == 0 and internet_check.stdout.strip() == 'full'
@@ -146,7 +151,7 @@ class WiFiManager:
                         if conn_name == 'preconfigured' and len(parts) >= 3:
                             try:
                                 config_file = parts[2].strip()
-                                config_result = self._run_command([
+                                config_result = await self._run_command([
                                     'sudo', 'cat', config_file
                                 ], capture_output=True, text=True)
                                 if config_result.returncode == 0:
@@ -173,7 +178,7 @@ class WiFiManager:
     async def _scan_networks(self) -> List[WiFiNetwork]:
         """Scan for available networks"""
         try:
-            result = self._run_command([
+            result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
                 'device', 'wifi', 'list'
             ], capture_output=True, text=True, timeout=5)
@@ -222,16 +227,17 @@ class WiFiManager:
             logger.warning(f"Internet check failed: {e}")
             return False
 
-    def _run_command(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
-        """Run a shell command and return the result"""
-        default_kwargs = {
-            'capture_output': True,
-            'text': True,
-            'timeout': 5
-        }
-        kwargs = {**default_kwargs, **kwargs}
+    async def _run_command(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
+        """Run system commands asynchronously"""
         try:
-            return subprocess.run(command, **kwargs)
+            # Create a partial function with the command and kwargs
+            cmd_func = partial(subprocess.run, command, **kwargs)
+            
+            # Run in threadpool to avoid blocking
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, cmd_func)
+            
+            return result
         except subprocess.TimeoutExpired:
             self.logger.error(f"Command timed out: {' '.join(command)}")
             return subprocess.CompletedProcess(
@@ -258,7 +264,7 @@ class WiFiManager:
             await self._rescan_networks()
             
             # Check if network is saved
-            saved_result = self._run_command([
+            saved_result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'
             ], capture_output=True, text=True)
             
@@ -271,7 +277,7 @@ class WiFiManager:
                         break
 
             # Verify network exists
-            scan_result = self._run_command([
+            scan_result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
                 'device', 'wifi', 'list'
             ], capture_output=True, text=True)
@@ -290,7 +296,7 @@ class WiFiManager:
             # Connect to network
             if is_saved:
                 self.logger.debug(f"Using saved connection for {ssid}")
-                result = self._run_command([
+                result = await self._run_command([
                     'sudo', 'nmcli', 'connection', 'up', ssid
                 ], capture_output=True, text=True, timeout=30)
             else:
@@ -299,13 +305,13 @@ class WiFiManager:
                     return False
                 
                 self.logger.debug(f"Creating new connection for {ssid}")
-                result = self._run_command([
+                result = await self._run_command([
                     'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
                     'password', password
                 ], capture_output=True, text=True, timeout=30)
             
             # Verify connection was successful
-            verify_result = self._run_command([
+            verify_result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'
             ], capture_output=True, text=True)
             
@@ -313,7 +319,7 @@ class WiFiManager:
             self.logger.debug(f"Connection verification result: {success}")
             
             if not success and not is_saved:
-                self._remove_connection(ssid)
+                await self._remove_connection(ssid)
             
             return success
             
@@ -321,11 +327,11 @@ class WiFiManager:
             self.logger.error(f"Error connecting to network: {str(e)}", exc_info=True)
             return False
 
-    def _remove_connection(self, ssid: str) -> bool:
+    async def _remove_connection(self, ssid: str) -> bool:
         """Remove a saved connection"""
         try:
             self.logger.debug(f"Removing connection: {ssid}")
-            result = self._run_command([
+            result = await self._run_command([
                 'sudo', 'nmcli', 'connection', 'delete', ssid
             ], capture_output=True, text=True)
             success = result.returncode == 0
@@ -336,13 +342,13 @@ class WiFiManager:
             self.logger.error(f"Error removing connection: {e}")
             return False
 
-    def _parse_network_list(self, output: str, saved_networks: Optional[set] = None) -> List[WiFiNetwork]:
+    async def _parse_network_list(self, output: str, saved_networks: Optional[set] = None) -> List[WiFiNetwork]:
         """Parse nmcli output into WiFiNetwork objects"""
         networks = []
         
         if saved_networks is None:
             # Get saved networks if not provided
-            saved_result = self._run_command([
+            saved_result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'NAME', 'connection', 'show'
             ], capture_output=True, text=True)
             saved_networks = set()
@@ -369,7 +375,7 @@ class WiFiManager:
     async def _rescan_networks(self) -> None:
         """Force a rescan of available networks"""
         try:
-            result = self._run_command([
+            result = await self._run_command([
                 'sudo', 'nmcli', 'device', 'wifi', 'rescan'
             ], capture_output=True, text=True, timeout=5)
             if result.returncode != 0:
@@ -392,11 +398,11 @@ class WiFiManager:
         
         return list(aggregated.values())
 
-    def get_preconfigured_ssid(self) -> Optional[str]:
+    async def get_preconfigured_ssid(self) -> Optional[str]:
         """Get the SSID for the preconfigured connection"""
         try:
             config_file = '/etc/NetworkManager/system-connections/preconfigured.nmconnection'
-            config_result = self._run_command([
+            config_result = await self._run_command([
                 'sudo', 'cat', config_file
             ], capture_output=True, text=True)
             

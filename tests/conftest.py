@@ -11,6 +11,8 @@ import pytest
 from unittest.mock import MagicMock, PropertyMock, patch
 from src.core.wifi_manager import WiFiManager
 from src.utils.logger import setup_logger
+import pytest_asyncio
+from unittest.mock import AsyncMock
 
 # Create module level mocks
 mock_mpv_instance = None
@@ -100,7 +102,7 @@ def mock_wifi_process():
     return process
 
 @pytest.fixture
-def mock_networkmanager(mock_wifi_process):
+def mock_networkmanager():
     """Mock NetworkManager for WiFi testing"""
     def command_response(*args, **kwargs):
         command = args[0]
@@ -128,8 +130,7 @@ def mock_networkmanager(mock_wifi_process):
             
         return process
     
-    with patch('subprocess.run', side_effect=command_response) as mock_run:
-        yield mock_run
+    return command_response
 
 @pytest.fixture(autouse=True)
 def mock_logger(monkeypatch):
@@ -146,7 +147,15 @@ def mock_logger(monkeypatch):
     monkeypatch.setattr('src.utils.logger.setup_logger', mock_setup_logger)
     return mock_logger
 
-@pytest.fixture
-def wifi_manager(mock_logger):
-    """Create a WiFiManager instance for testing"""
-    return WiFiManager(skip_verify=True)
+@pytest_asyncio.fixture
+async def wifi_manager(mock_logger, mock_networkmanager):
+    """Create a WiFiManager instance for testing with async support"""
+    manager = WiFiManager(skip_verify=True)
+    
+    # Mock the _run_command method to be async
+    async def mock_run_command(*args, **kwargs):
+        # Use the mock_networkmanager fixture for responses
+        return mock_networkmanager(*args, **kwargs)
+    
+    manager._run_command = AsyncMock(side_effect=mock_run_command)
+    return manager

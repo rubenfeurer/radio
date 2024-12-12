@@ -5,12 +5,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import stations, system, websocket, wifi, monitor
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
+from src.core.wifi_manager import WiFiManager
 import socket
 import logging
 from fastapi import WebSocket, WebSocketDisconnect
 from src.core.models import SystemStatus
+import asyncio
 
 app = FastAPI(title="Internet Radio API")
+
+# Initialize WiFiManager with skip_verify=True for testing
+wifi_manager = WiFiManager(skip_verify=True)
 
 # Initialize the singleton RadioManager with WebSocket callback
 radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
