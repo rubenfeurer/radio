@@ -1,5 +1,12 @@
 from pydantic import BaseModel
 from typing import Optional, Dict
+import socket
+
+# Get hostname dynamically
+try:
+    DEFAULT_HOSTNAME = socket.gethostname()
+except:
+    DEFAULT_HOSTNAME = "radiod"
 
 class Settings(BaseModel):
     # API Settings
@@ -33,6 +40,20 @@ class Settings(BaseModel):
     # Button press durations (in seconds)
     LONG_PRESS_DURATION: float = 3.0
     DOUBLE_PRESS_INTERVAL: float = 0.5
+    
+    # Access Point Settings
+    AP_SSID: str = DEFAULT_HOSTNAME  # Use dynamic hostname
+    AP_PASSWORD: str = "radio@1234"
+    AP_CHANNEL: int = 6
+    AP_INTERFACE: str = "wlan0"
+    AP_IP_ADDRESS: str = "192.168.4.1"
+    AP_SUBNET_MASK: str = "255.255.255.0"
+    AP_DHCP_RANGE_START: str = "192.168.4.2"
+    AP_DHCP_RANGE_END: str = "192.168.4.20"
+    
+    # Network Mode Settings
+    DEFAULT_MODE: str = "client"  # "client" or "ap"
+    FALLBACK_TO_AP: bool = True   # Fallback to AP mode if client connection fails
     
     model_config = {
         "case_sensitive": True

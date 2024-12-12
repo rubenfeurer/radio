@@ -40,3 +40,13 @@ class WiFiStatus(BaseModel):
     has_internet: bool = False
     available_networks: List[WiFiNetwork] = []
     preconfigured_ssid: Optional[str] = None
+
+class ModeStatus(BaseModel):
+    """Model for network mode status"""
+    mode: str
+    is_switching: bool = False
+
+class NetworkStatus(BaseModel):
+    """Model for combined network status"""
+    wifi_status: WiFiStatus
+    mode_status: ModeStatus

@@ -2,7 +2,8 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import patch, AsyncMock, MagicMock
 from src.api.main import app
-from src.core.models import WiFiStatus, WiFiNetwork
+from src.core.models import WiFiStatus, WiFiNetwork, ModeStatus, NetworkStatus
+from src.core.mode_manager import NetworkMode
 
 # Create mock data
 mock_status = WiFiStatus(
@@ -14,6 +15,12 @@ mock_status = WiFiStatus(
         WiFiNetwork(ssid="Network1", signal_strength=80, security="WPA2"),
         WiFiNetwork(ssid="Network2", signal_strength=60, security="WPA2")
     ]
+)
+
+# Add mock data for mode tests
+mock_network_status = NetworkStatus(
+    wifi_status=mock_status,
+    mode_status=ModeStatus(mode="client", is_switching=False)
 )
 
 @pytest.fixture
@@ -154,3 +161,89 @@ async def test_debug_nmcli(mock_run_command):
     assert response.status_code == 200
     data = response.json()
     assert "available_networks_output" in data
+
+@pytest.mark.asyncio
+@patch('src.core.mode_manager.ModeManager.detect_current_mode')
+async def test_get_current_mode(mock_detect_mode):
+    """Test getting current network mode"""
+    mock_detect_mode.return_value = NetworkMode.CLIENT
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/wifi/mode")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["mode"] == "client"
+    assert "is_switching" in data
+    assert isinstance(data["is_switching"], bool)
+
+@pytest.mark.asyncio
+@patch('src.core.mode_manager.ModeManager.switch_mode')
+async def test_switch_mode_success(mock_switch):
+    """Test successful mode switch"""
+    mock_switch.return_value = True
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/wifi/mode/ap")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+    assert "Successfully switched to ap mode" in data["message"]
+
+@pytest.mark.asyncio
+@patch('src.core.mode_manager.ModeManager.switch_mode')
+async def test_switch_mode_failure(mock_switch):
+    """Test failed mode switch"""
+    mock_switch.return_value = False
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/wifi/mode/ap")
+    
+    assert response.status_code == 500
+    data = response.json()
+    assert "detail" in data
+    assert "Failed to switch mode" in data["detail"]
+
+@pytest.mark.asyncio
+async def test_switch_mode_invalid():
+    """Test switch mode with invalid mode"""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/wifi/mode/invalid")
+    
+    assert response.status_code == 400
+    data = response.json()
+    assert "detail" in data
+    assert "Invalid mode" in data["detail"]
+
+@pytest.mark.asyncio
+@patch('src.core.mode_manager.ModeManager.detect_current_mode')
+@patch('src.core.wifi_manager.WiFiManager.get_current_status')
+async def test_get_network_status(mock_wifi_status, mock_detect_mode):
+    """Test getting combined network status"""
+    mock_wifi_status.return_value = mock_status
+    mock_detect_mode.return_value = NetworkMode.CLIENT
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/wifi/network_status")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert "wifi_status" in data
+    assert "mode_status" in data
+    assert data["wifi_status"]["ssid"] == "TestNetwork"
+    assert data["mode_status"]["mode"] == "client"
+
+@pytest.mark.asyncio
+async def test_websocket_mode_status():
+    """Test WebSocket mode status updates"""
+    from fastapi.testclient import TestClient
+    
+    client = TestClient(app)
+    with client.websocket_connect("/api/v1/wifi/ws/mode") as websocket:
+        data = websocket.receive_json()
+        assert "type" in data
+        assert data["type"] == "mode_status"
+        assert "data" in data
+        assert "mode" in data["data"]
+        assert "is_switching" in data["data"]

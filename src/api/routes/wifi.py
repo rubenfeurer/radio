@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, WebSocket
 from typing import List
 from src.core.wifi_manager import WiFiManager
 from src.core.models import WiFiStatus, WiFiNetwork
 from src.api.models.requests import WiFiConnectionRequest
+from src.core.mode_manager import mode_manager, NetworkMode
+from src.core.models import NetworkStatus, ModeStatus
 import logging
+import asyncio
 
 router = APIRouter(prefix="/wifi")
 wifi_manager = WiFiManager(skip_verify=True)
@@ -153,3 +156,64 @@ async def forget_network(ssid: str):
     except Exception as e:
         logger.error(f"Error removing network: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e)) 
+
+@router.get("/network_status", response_model=NetworkStatus, tags=["WiFi"])
+async def get_network_status():
+    """Get combined WiFi and mode status including connection and mode information"""
+    wifi_status = await get_wifi_status()
+    mode = await mode_manager.detect_current_mode()
+    mode_status = ModeStatus(
+        mode=mode.value,
+        is_switching=mode_manager.is_switching
+    )
+    return NetworkStatus(
+        wifi_status=wifi_status,
+        mode_status=mode_status
+    )
+
+@router.get("/mode", response_model=ModeStatus, tags=["WiFi"])
+async def get_current_mode():
+    """Get current network mode (AP/Client)"""
+    mode = await mode_manager.detect_current_mode()
+    return ModeStatus(
+        mode=mode.value,
+        is_switching=mode_manager.is_switching
+    )
+
+@router.post("/mode/{mode}", tags=["WiFi"])
+async def switch_mode(mode: str):
+    """Switch between AP and Client mode"""
+    try:
+        target_mode = NetworkMode(mode.lower())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid mode. Use 'ap' or 'client'")
+    
+    if mode_manager.is_switching:
+        raise HTTPException(status_code=409, detail="Mode switch already in progress")
+    
+    success = await mode_manager.switch_mode(target_mode)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to switch mode")
+    
+    return {"message": f"Successfully switched to {mode} mode"}
+
+# WebSocket endpoint for real-time updates
+@router.websocket("/ws/mode")
+async def mode_status_websocket(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            # Send current mode status every second
+            mode = await mode_manager.detect_current_mode()
+            await websocket.send_json({
+                "type": "mode_status",
+                "data": {
+                    "mode": mode.value,
+                    "is_switching": mode_manager.is_switching
+                }
+            })
+            await asyncio.sleep(1)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        await websocket.close() 
