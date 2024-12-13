@@ -343,12 +343,64 @@ async def connect_from_ap_mode(request: WiFiConnectionRequest):
     try:
         logger.debug(f"Attempting to connect to network: {request.ssid}")
         
-        # First attempt to switch to client mode temporarily
+        # Check if this is the preconfigured network
+        preconfigured_ssid = await wifi_manager.get_preconfigured_ssid()
+        if request.ssid == preconfigured_ssid:
+            logger.debug("Using preconfigured connection method")
+            # First switch to client mode
+            success = await mode_manager.temp_switch_to_client_mode()
+            if not success:
+                raise HTTPException(status_code=400, detail="Failed to switch to client mode")
+            
+            try:
+                # Use the preconfigured connection method
+                result = await wifi_manager._run_command([
+                    'sudo', 'nmcli', 'connection', 'up', 'preconfigured'
+                ], capture_output=True, text=True, timeout=30)
+                
+                if result.returncode == 0:
+                    logger.debug("Successfully connected to preconfigured network")
+                    return {"status": "success"}
+                else:
+                    logger.error(f"Failed to connect: {result.stderr}")
+                    await mode_manager.restore_previous_mode()
+                    raise HTTPException(status_code=400, detail="Failed to connect to network")
+                    
+            except Exception as e:
+                logger.error(f"Error during preconfigured connection: {e}")
+                await mode_manager.restore_previous_mode()
+                raise HTTPException(status_code=400, detail=str(e))
+        
+        # Original code for non-preconfigured networks
         success = await mode_manager.temp_switch_to_client_mode()
         if not success:
             raise HTTPException(status_code=400, detail="Failed to switch to client mode")
         
         try:
+            # Wait for NetworkManager to be fully ready
+            await asyncio.sleep(2)
+            
+            # Force a network scan using nmcli directly
+            logger.debug("Performing initial network scan...")
+            scan_result = await wifi_manager._run_command([
+                'sudo', 'nmcli', 'device', 'wifi', 'rescan'
+            ], capture_output=True, text=True)
+            
+            if scan_result.returncode != 0:
+                logger.error(f"Scan failed: {scan_result.stderr}")
+                raise HTTPException(status_code=400, detail="Network scan failed")
+            
+            # Wait for scan to complete
+            await asyncio.sleep(2)
+            
+            # Verify network is available
+            status = await wifi_manager.get_current_status()
+            available_networks = [n.ssid for n in status.available_networks]
+            
+            if request.ssid not in available_networks:
+                logger.error(f"Network {request.ssid} not found in scan results")
+                raise HTTPException(status_code=400, detail="Network not found")
+            
             # Attempt connection
             result = await wifi_manager.connect_to_network(request.ssid, request.password)
             
