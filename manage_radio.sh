@@ -65,6 +65,19 @@ EOF
     fi
 }
 
+ensure_client_mode() {
+    echo "Ensuring system starts in CLIENT mode..."
+    # Stop AP mode services
+    sudo systemctl stop hostapd || true
+    sudo systemctl stop dnsmasq || true
+    
+    # Start NetworkManager if not running
+    if ! systemctl is-active --quiet NetworkManager; then
+        sudo systemctl start NetworkManager
+        sleep 2
+    fi
+}
+
 open_monitor() {
     echo "Opening monitor website..."
     # Wait for services to be fully up
@@ -95,6 +108,7 @@ start() {
     check_ports
     check_pigpiod
     check_nmcli_permissions
+    ensure_client_mode
     source $VENV_PATH/bin/activate
     echo "Virtual environment activated"
     
