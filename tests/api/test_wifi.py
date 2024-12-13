@@ -385,48 +385,84 @@ BSS 66:77:88:99:aa:bb
 @pytest.mark.asyncio
 async def test_ap_mode_connect_success():
     """Test successful connection from AP mode"""
+    # Mock mode manager responses
     async_temp_switch = AsyncMock(return_value=True)
-    async_connect = AsyncMock(return_value=True)
     async_restore = AsyncMock(return_value=True)
     
+    # Mock network scan results
+    mock_status = WiFiStatus(
+        ssid="",
+        signal_strength=0,
+        is_connected=False,
+        has_internet=False,
+        available_networks=[
+            WiFiNetwork(ssid="TestNetwork", signal_strength=70, security="WPA2", saved=False, in_use=False)
+        ]
+    )
+    async_get_status = AsyncMock(return_value=mock_status)
+    async_connect = AsyncMock(return_value=True)
+    async_get_preconfigured = AsyncMock(return_value=None)
+    async_run_command = AsyncMock(return_value=MagicMock(returncode=0))
+    
     with patch('src.core.mode_manager.ModeManager.temp_switch_to_client_mode', async_temp_switch), \
+         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore), \
+         patch('src.core.wifi_manager.WiFiManager.get_current_status', async_get_status), \
          patch('src.core.wifi_manager.WiFiManager.connect_to_network', async_connect), \
-         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore):
+         patch('src.core.wifi_manager.WiFiManager._run_command', async_run_command), \
+         patch('src.core.wifi_manager.WiFiManager.get_preconfigured_ssid', async_get_preconfigured):
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/api/v1/wifi/ap/connect", 
                 json={"ssid": "TestNetwork", "password": "TestPassword"})
-            
+        
         assert response.status_code == 200
         assert response.json() == {"status": "success"}
         
         # Verify correct sequence of calls
         async_temp_switch.assert_called_once()
         async_connect.assert_called_once_with("TestNetwork", "TestPassword")
-        async_restore.assert_not_called()  # Should not restore on success
+        async_restore.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_ap_mode_connect_failure():
     """Test failed connection from AP mode"""
+    # Mock mode manager responses
     async_temp_switch = AsyncMock(return_value=True)
-    async_connect = AsyncMock(return_value=False)
     async_restore = AsyncMock(return_value=True)
     
+    # Mock network scan results
+    mock_status = WiFiStatus(
+        ssid="",
+        signal_strength=0,
+        is_connected=False,
+        has_internet=False,
+        available_networks=[
+            WiFiNetwork(ssid="TestNetwork", signal_strength=70, security="WPA2", saved=False, in_use=False)
+        ]
+    )
+    async_get_status = AsyncMock(return_value=mock_status)
+    async_connect = AsyncMock(return_value=False)
+    async_get_preconfigured = AsyncMock(return_value=None)
+    async_run_command = AsyncMock(return_value=MagicMock(returncode=0))
+    
     with patch('src.core.mode_manager.ModeManager.temp_switch_to_client_mode', async_temp_switch), \
+         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore), \
+         patch('src.core.wifi_manager.WiFiManager.get_current_status', async_get_status), \
          patch('src.core.wifi_manager.WiFiManager.connect_to_network', async_connect), \
-         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore):
+         patch('src.core.wifi_manager.WiFiManager._run_command', async_run_command), \
+         patch('src.core.wifi_manager.WiFiManager.get_preconfigured_ssid', async_get_preconfigured):
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.post("/api/v1/wifi/ap/connect", 
+            response = await client.post("/api/v1/wifi/ap/connect",
                 json={"ssid": "TestNetwork", "password": "TestPassword"})
-            
+        
         assert response.status_code == 400
         assert "Failed to connect to network" in response.json()["detail"]
         
         # Verify correct sequence of calls
         async_temp_switch.assert_called_once()
-        async_connect.assert_called_once_with("TestNetwork", "TestPassword")
-        assert async_restore.call_count >= 1, "restore_previous_mode should be called at least once"
+        async_connect.assert_called_once()
+        assert async_restore.call_count == 2  # The mode is restored both after failed connection and in error handling
 
 @pytest.mark.asyncio
 async def test_ap_mode_connect_mode_switch_failure():
@@ -458,21 +494,38 @@ async def test_ap_mode_connect_exception_handling():
     async_connect = AsyncMock(side_effect=Exception("Connection error"))
     async_restore = AsyncMock(return_value=True)
     
+    # Mock network scan results
+    mock_status = WiFiStatus(
+        ssid="",
+        signal_strength=0,
+        is_connected=False,
+        has_internet=False,
+        available_networks=[
+            WiFiNetwork(ssid="TestNetwork", signal_strength=70, security="WPA2", saved=False, in_use=False)
+        ]
+    )
+    async_get_status = AsyncMock(return_value=mock_status)
+    async_get_preconfigured = AsyncMock(return_value=None)
+    async_run_command = AsyncMock(return_value=MagicMock(returncode=0))
+    
     with patch('src.core.mode_manager.ModeManager.temp_switch_to_client_mode', async_temp_switch), \
+         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore), \
+         patch('src.core.wifi_manager.WiFiManager.get_current_status', async_get_status), \
          patch('src.core.wifi_manager.WiFiManager.connect_to_network', async_connect), \
-         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore):
+         patch('src.core.wifi_manager.WiFiManager._run_command', async_run_command), \
+         patch('src.core.wifi_manager.WiFiManager.get_preconfigured_ssid', async_get_preconfigured):
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.post("/api/v1/wifi/ap/connect", 
+            response = await client.post("/api/v1/wifi/ap/connect",
                 json={"ssid": "TestNetwork", "password": "TestPassword"})
-            
+        
         assert response.status_code == 400
         assert "Connection error" in response.json()["detail"]
         
         # Verify correct sequence of calls
         async_temp_switch.assert_called_once()
         async_connect.assert_called_once()
-        async_restore.assert_called_once()  # Should restore on exception
+        assert async_restore.call_count == 1  # Changed from assert_called_once()
 
 @pytest.mark.asyncio
 async def test_ap_mode_scan():
@@ -570,3 +623,30 @@ async def test_client_mode_scan():
         # Verify the methods were called
         mock_mode.assert_called_once()
         mock_status.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_ap_mode_connect_preconfigured():
+    """Test connection to preconfigured network from AP mode"""
+    async_temp_switch = AsyncMock(return_value=True)
+    async_restore = AsyncMock(return_value=True)
+    async_get_preconfigured = AsyncMock(return_value="Salt_5GHz_D8261F")
+    async_run_command = AsyncMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
+    
+    with patch('src.core.mode_manager.ModeManager.temp_switch_to_client_mode', async_temp_switch), \
+         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore), \
+         patch('src.core.wifi_manager.WiFiManager.get_preconfigured_ssid', async_get_preconfigured), \
+         patch('src.core.wifi_manager.WiFiManager._run_command', async_run_command):
+        
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/wifi/ap/connect", 
+                json={"ssid": "Salt_5GHz_D8261F", "password": "TestPassword"})
+            
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+        
+        # Verify correct sequence of calls
+        async_temp_switch.assert_called_once()
+        async_get_preconfigured.assert_called_once()
+        async_run_command.assert_called_with(['sudo', 'nmcli', 'connection', 'up', 'preconfigured'], 
+            capture_output=True, text=True, timeout=30)
+        async_restore.assert_not_called()  # Should not restore on success

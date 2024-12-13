@@ -78,7 +78,7 @@ async def test_detect_current_mode_normal(mode_manager):
     mode = await mode_manager.detect_current_mode()
     assert mode == NetworkMode.AP
     
-    # Reset mock
+    # Reset mock and test CLIENT mode detection
     mode_manager._run_command.reset_mock()
     mode_manager._run_command.side_effect = [
         MagicMock(returncode=1, stdout="inactive", stderr=""),  # hostapd inactive
@@ -112,48 +112,39 @@ async def test_temp_mode_timeout(mode_manager):
     mode_manager.restore_previous_mode.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_switch_mode_mock(mode_manager):
-    """Test mode switching without actual system changes"""
-    # Mock the switch methods
-    mode_manager._switch_to_ap = AsyncMock(return_value=True)
-    mode_manager._switch_to_client = AsyncMock(return_value=True)
+async def test_temp_switch_with_preconfigured(mode_manager):
+    """Test temporary switch with preconfigured network"""
+    mode_manager._current_mode = NetworkMode.AP
+    mode_manager._temp_mode_active = False
     
-    # Test switching to AP mode
-    result = await mode_manager.switch_mode(NetworkMode.AP)
-    assert result is True
+    mode_manager._run_command.side_effect = [
+        MagicMock(returncode=0, stdout="", stderr=""),  # stop hostapd
+        MagicMock(returncode=0, stdout="", stderr=""),  # stop dnsmasq
+        MagicMock(returncode=0, stdout="", stderr=""),  # reset interface
+        MagicMock(returncode=0, stdout="", stderr=""),  # start NetworkManager
+        MagicMock(returncode=0, stdout="preconfigured:wifi:/etc/NetworkManager/system-connections/preconfigured.nmconnection")
+    ]
     
-    # Test switching to Client mode
-    result = await mode_manager.switch_mode(NetworkMode.CLIENT)
+    result = await mode_manager.temp_switch_to_client_mode()
+    
     assert result is True
+    assert mode_manager._temp_mode_active is True
+    assert mode_manager._previous_mode == NetworkMode.AP
+    assert mode_manager.current_mode == NetworkMode.CLIENT
 
 @pytest.mark.asyncio
-async def test_get_network_status_ap_mode(mode_manager):
-    """Test getting network status in AP mode"""
+async def test_temp_switch_failure(mode_manager):
+    """Test temporary switch failure"""
     # Setup initial state
     mode_manager._current_mode = NetworkMode.AP
     mode_manager._temp_mode_active = False
     
-    # Mock status detection
-    mode_manager.detect_current_mode = AsyncMock(return_value=NetworkMode.AP)
+    # Mock failed client mode switch
+    mode_manager._switch_to_client = AsyncMock(return_value=False)
     
-    # Get status
-    mode = await mode_manager.detect_current_mode()
-    assert mode == NetworkMode.AP
-    assert mode_manager.is_temp_mode is False
-    assert mode_manager.is_switching is False
-
-@pytest.mark.asyncio
-async def test_get_network_status_client_mode(mode_manager):
-    """Test getting network status in CLIENT mode"""
-    # Setup initial state
-    mode_manager._current_mode = NetworkMode.CLIENT
-    mode_manager._temp_mode_active = False
+    # Attempt temporary switch
+    result = await mode_manager.temp_switch_to_client_mode()
     
-    # Mock status detection
-    mode_manager.detect_current_mode = AsyncMock(return_value=NetworkMode.CLIENT)
-    
-    # Get status
-    mode = await mode_manager.detect_current_mode()
-    assert mode == NetworkMode.CLIENT
-    assert mode_manager.is_temp_mode is False
-    assert mode_manager.is_switching is False
+    assert result is False
+    assert mode_manager._temp_mode_active is False
+    assert mode_manager.current_mode == NetworkMode.AP

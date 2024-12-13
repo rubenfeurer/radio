@@ -90,58 +90,19 @@ class ModeManager:
 
         async with self._mode_lock:
             try:
-                self._temp_mode_active = True
                 self._previous_mode = self._current_mode
-                self._switching = True
+                success = await self._switch_to_client()
                 
-                logger.debug(f"Stored previous_mode as {self._previous_mode}")
-                
-                # Stop AP services
-                await self._run_command(['sudo', 'systemctl', 'stop', 'hostapd'])
-                await self._run_command(['sudo', 'systemctl', 'stop', 'dnsmasq'])
-                await self._run_command(['sudo', 'sysctl', 'net.ipv4.ip_forward=0'])
-                
-                # Reset interface completely
-                logger.debug("Resetting interface...")
-                await self._run_command(['sudo', 'ip', 'link', 'set', settings.AP_INTERFACE, 'down'])
-                await self._run_command(['sudo', 'ip', 'addr', 'flush', 'dev', settings.AP_INTERFACE])
-                await asyncio.sleep(1)  # Give interface time to settle
-                
-                # Start NetworkManager
-                logger.debug("Starting NetworkManager...")
-                await self._run_command(['sudo', 'systemctl', 'start', 'NetworkManager'])
-                
-                # Wait for NetworkManager to be fully ready
-                for _ in range(10):  # Try for up to 10 seconds
-                    try:
-                        status = await self._run_command([
-                            'sudo', 'nmcli', 'device', 'status'
-                        ])
-                        logger.debug(f"Device status: {status.stdout}")
-                        
-                        if 'wlan0' in status.stdout and 'unavailable' not in status.stdout:
-                            logger.debug("NetworkManager is ready with wlan0 available")
-                            break
-                    except Exception as e:
-                        logger.debug(f"Error checking device status: {e}")
-                        pass
-                    await asyncio.sleep(1)
-                    logger.debug("Waiting for NetworkManager to be ready...")
-                
-                # Ensure wireless is enabled
-                await self._run_command(['sudo', 'nmcli', 'radio', 'wifi', 'on'])
-                await self._run_command(['sudo', 'ip', 'link', 'set', settings.AP_INTERFACE, 'up'])
-                await asyncio.sleep(2)  # Give interface time to initialize
-                
-                self._current_mode = NetworkMode.CLIENT
-                self._switching = False
-                logger.debug("Successfully switched to client mode")
-                
-                return True
+                if success:
+                    self._temp_mode_active = True
+                    self._current_mode = NetworkMode.CLIENT
+                    # Start timeout handler
+                    self._timeout_task = asyncio.create_task(self._handle_temp_mode_timeout())
+                    return True
+                return False
                 
             except Exception as e:
                 logger.error(f"Error switching to client mode: {e}")
-                self._switching = False
                 self._temp_mode_active = False
                 return False
 
@@ -316,21 +277,19 @@ class ModeManager:
     async def _switch_to_client(self) -> bool:
         """Switch to Client mode"""
         try:
-            # 1. Stop AP services
+            # Stop AP services
             await self._run_command(['sudo', 'systemctl', 'stop', 'hostapd'])
             await self._run_command(['sudo', 'systemctl', 'stop', 'dnsmasq'])
             
-            # 2. Disable IP forwarding
-            await self._run_command(['sudo', 'sysctl', 'net.ipv4.ip_forward=0'])
-            
-            # 3. Reset interface
+            # Reset interface and wait
             await self._reset_interface()
+            await asyncio.sleep(2)  # Give interface time to reset
             
-            # 4. Start NetworkManager
+            # Start NetworkManager and wait
             await self._run_command(['sudo', 'systemctl', 'start', 'NetworkManager'])
+            await asyncio.sleep(3)  # Give NetworkManager time to initialize
             
             return True
-            
         except Exception as e:
             logger.error(f"Error switching to client mode: {e}")
             return False
