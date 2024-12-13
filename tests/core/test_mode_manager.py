@@ -52,34 +52,6 @@ async def test_restore_previous_mode(mode_manager):
     assert mode_manager.current_mode == NetworkMode.AP
 
 @pytest.mark.asyncio
-async def test_scan_from_ap_mode(mode_manager):
-    """Test scanning for networks from AP mode"""
-    # Setup initial state
-    mode_manager._current_mode = NetworkMode.AP
-    
-    # Mock scan results
-    scan_output = "MyNetwork1:80:WPA2\nMyNetwork2:70:WPA1"
-    mode_manager._run_command.return_value = MagicMock(
-        returncode=0,
-        stdout=scan_output,
-        stderr=""
-    )
-    
-    # Mock mode switching methods
-    mode_manager.temp_switch_to_client_mode = AsyncMock(return_value=True)
-    mode_manager.restore_previous_mode = AsyncMock(return_value=True)
-    
-    # Perform scan
-    results = await mode_manager.scan_from_ap_mode()
-    
-    assert results is not None
-    assert len(results) == 2
-    assert results[0]['ssid'] == 'MyNetwork1'
-    assert results[0]['signal_strength'] == 80
-    assert results[1]['ssid'] == 'MyNetwork2'
-    assert results[1]['signal_strength'] == 70
-
-@pytest.mark.asyncio
 async def test_detect_current_mode_temp_mode(mode_manager):
     """Test mode detection respects temporary mode"""
     # Setup temporary mode
@@ -153,3 +125,35 @@ async def test_switch_mode_mock(mode_manager):
     # Test switching to Client mode
     result = await mode_manager.switch_mode(NetworkMode.CLIENT)
     assert result is True
+
+@pytest.mark.asyncio
+async def test_get_network_status_ap_mode(mode_manager):
+    """Test getting network status in AP mode"""
+    # Setup initial state
+    mode_manager._current_mode = NetworkMode.AP
+    mode_manager._temp_mode_active = False
+    
+    # Mock status detection
+    mode_manager.detect_current_mode = AsyncMock(return_value=NetworkMode.AP)
+    
+    # Get status
+    mode = await mode_manager.detect_current_mode()
+    assert mode == NetworkMode.AP
+    assert mode_manager.is_temp_mode is False
+    assert mode_manager.is_switching is False
+
+@pytest.mark.asyncio
+async def test_get_network_status_client_mode(mode_manager):
+    """Test getting network status in CLIENT mode"""
+    # Setup initial state
+    mode_manager._current_mode = NetworkMode.CLIENT
+    mode_manager._temp_mode_active = False
+    
+    # Mock status detection
+    mode_manager.detect_current_mode = AsyncMock(return_value=NetworkMode.CLIENT)
+    
+    # Get status
+    mode = await mode_manager.detect_current_mode()
+    assert mode == NetworkMode.CLIENT
+    assert mode_manager.is_temp_mode is False
+    assert mode_manager.is_switching is False

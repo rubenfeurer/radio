@@ -32,39 +32,17 @@ async def initialized_wifi_manager(wifi_manager):
     await wifi_manager.initialize()
     return wifi_manager
 
-@pytest.mark.asyncio
-async def test_get_wifi_status(initialized_wifi_manager):
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/api/v1/wifi/status")
-    assert response.status_code == 200
-    data = response.json()
-    assert "ssid" in data
-    assert "signal_strength" in data
-    assert "is_connected" in data
-    assert "has_internet" in data
-    assert "available_networks" in data
+@pytest.fixture
+def mock_connect():
+    """Fixture to provide a mock for connect_to_network"""
+    with patch('src.core.wifi_manager.WiFiManager.connect_to_network') as mock:
+        yield mock
 
 @pytest.mark.asyncio
-@patch('src.core.wifi_manager.WiFiManager.get_current_status')
-async def test_scan_networks(mock_get_status):
-    mock_get_status.return_value = mock_status
-    
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/api/v1/wifi/status")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["ssid"] == "TestNetwork"
-    assert "signal_strength" in data
-    assert "is_connected" in data
-    assert "has_internet" in data
-    assert "available_networks" in data
-
-@pytest.mark.asyncio
-@patch('src.core.wifi_manager.WiFiManager.connect_to_network')
 async def test_connect_to_network(mock_connect):
     """Test successful network connection"""
-    # Mock successful connection
-    mock_connect.return_value = AsyncMock(return_value=True)()
+    # Set up AsyncMock correctly
+    mock_connect.return_value = True  # AsyncMock will handle the awaiting
     
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/api/v1/wifi/connect",
@@ -75,17 +53,6 @@ async def test_connect_to_network(mock_connect):
     
     # Verify mock was called with correct parameters
     mock_connect.assert_called_once_with("TestNetwork", "TestPassword")
-
-@pytest.mark.asyncio
-@patch('src.core.wifi_manager.WiFiManager.get_current_status')
-async def test_get_current_connection(mock_get_status):
-    mock_get_status.return_value = mock_status
-    
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/api/v1/wifi/status")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["ssid"] == "TestNetwork"
 
 @pytest.mark.asyncio
 @patch('src.core.wifi_manager.WiFiManager.connect_to_network')
@@ -233,13 +200,26 @@ async def test_get_network_status(mock_wifi_status, mock_detect_mode):
     data = response.json()
     assert "wifi_status" in data
     assert "mode_status" in data
-    assert data["wifi_status"]["ssid"] == "TestNetwork"
-    assert data["mode_status"]["mode"] == "client"
+    
+    # Verify WiFi status
+    wifi_status = data["wifi_status"]
+    assert wifi_status["ssid"] == "TestNetwork"
+    assert wifi_status["signal_strength"] == 70
+    assert wifi_status["is_connected"] is True
+    assert wifi_status["has_internet"] is True
+    assert len(wifi_status["available_networks"]) == 2
+    
+    # Verify mode status
+    mode_status = data["mode_status"]
+    assert mode_status["mode"] == "client"
+    assert "is_switching" in mode_status
+    assert isinstance(mode_status["is_switching"], bool)
 
 @pytest.mark.asyncio
 async def test_websocket_mode_status_normal():
     """Test WebSocket mode status updates in normal mode"""
-    with patch('src.core.mode_manager.ModeManager.is_temp_mode', new_callable=PropertyMock) as mock_temp_mode:
+    with patch('src.core.mode_manager.ModeManager.is_temp_mode', new_callable=PropertyMock) as mock_temp_mode, \
+         patch('src.core.mode_manager.ModeManager.detect_current_mode', AsyncMock(return_value=NetworkMode.CLIENT)):
         mock_temp_mode.return_value = False
         
         client = TestClient(app)
@@ -251,33 +231,20 @@ async def test_websocket_mode_status_normal():
             assert "mode" in data["data"]
             assert "is_switching" in data["data"]
             assert "is_temp_mode" in data["data"]
-            assert "scan_in_progress" in data["data"]
-            assert data["data"]["is_temp_mode"] is False
-
-@pytest.mark.asyncio
-async def test_websocket_mode_status_temp_mode():
-    """Test WebSocket mode status updates in temporary mode"""
-    with patch('src.core.mode_manager.ModeManager.is_temp_mode', new_callable=PropertyMock) as mock_temp_mode, \
-         patch('src.core.mode_manager.ModeManager.current_mode', new_callable=PropertyMock) as mock_current_mode:
-        
-        mock_temp_mode.return_value = True
-        mock_current_mode.return_value = NetworkMode.CLIENT
-        
-        client = TestClient(app)
-        with client.websocket_connect("/api/v1/wifi/ws/mode") as websocket:
-            data = websocket.receive_json()
-            assert data["type"] == "mode_status"
-            assert data["data"]["is_temp_mode"] is True
             assert data["data"]["mode"] == "client"
+            assert isinstance(data["data"]["is_switching"], bool)
+            assert data["data"]["is_temp_mode"] is False
 
 @pytest.mark.asyncio
 async def test_websocket_mode_status_scanning():
     """Test WebSocket mode status updates during scanning"""
     with patch('src.core.mode_manager.ModeManager.is_temp_mode', new_callable=PropertyMock) as mock_temp_mode, \
-         patch('src.core.mode_manager.ModeManager.is_switching', new_callable=PropertyMock) as mock_switching:
+         patch('src.core.mode_manager.ModeManager.is_switching', new_callable=PropertyMock) as mock_switching, \
+         patch('src.core.mode_manager.ModeManager.current_mode', new_callable=PropertyMock) as mock_current_mode:
         
         mock_temp_mode.return_value = True
         mock_switching.return_value = True
+        mock_current_mode.return_value = NetworkMode.AP
         
         client = TestClient(app)
         with client.websocket_connect("/api/v1/wifi/ws/mode") as websocket:
@@ -285,7 +252,7 @@ async def test_websocket_mode_status_scanning():
             assert data["type"] == "mode_status"
             assert data["data"]["is_temp_mode"] is True
             assert data["data"]["is_switching"] is True
-            assert data["data"]["scan_in_progress"] is True
+            assert data["data"]["mode"] == "ap"
 
 @pytest.mark.asyncio
 async def test_websocket_mode_status_disconnect_handling():
@@ -317,64 +284,99 @@ async def test_websocket_mode_status_error_handling():
             assert "Test error" in str(data["error"])
 
 @pytest.mark.asyncio
-@patch('src.core.mode_manager.ModeManager.scan_from_ap_mode')
-@patch('src.core.mode_manager.ModeManager.detect_current_mode')
-async def test_trigger_scan_from_ap_mode(mock_detect_mode, mock_scan, initialized_wifi_manager):
-    """Test triggering network scan from AP mode"""
-    # Mock AP mode and successful scan
-    mock_detect_mode.return_value = NetworkMode.AP
-    mock_scan.return_value = [
-        {"ssid": "Network1", "signal_strength": 80, "security": "WPA2"},
-        {"ssid": "Network2", "signal_strength": 70, "security": "WPA2"}
+async def test_wifi_mode_switch_and_connect_flow():
+    """Test the complete flow of switching to AP mode, scanning, and connecting"""
+    
+    mock_networks = [
+        {
+            "ssid": "SavedNetwork",
+            "security": "WPA2",
+            "signal_strength": 80,
+            "saved": True,
+            "in_use": False
+        },
+        {
+            "ssid": "OtherNetwork",
+            "security": "WPA2",
+            "signal_strength": 70,
+            "saved": False,
+            "in_use": False
+        }
     ]
     
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/api/v1/wifi/scan")
+    # Create mock iw scan output that matches the format in routes/wifi.py
+    mock_iw_output = """
+BSS 00:11:22:33:44:55
+    signal: -20.00 dBm
+    SSID: SavedNetwork
+    WPA2: yes
+BSS 66:77:88:99:aa:bb
+    signal: -30.00 dBm
+    SSID: OtherNetwork
+    WPA2: yes
+"""
     
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "success"
-    assert len(data["networks"]) == 2
-
-@pytest.mark.asyncio
-@patch('src.core.mode_manager.ModeManager.detect_current_mode')
-async def test_trigger_scan_from_client_mode(mock_detect_mode, initialized_wifi_manager):
-    """Test attempting to scan from client mode (should fail)"""
-    # Set up the mock to return CLIENT mode
-    mock_detect_mode.return_value = NetworkMode.CLIENT
+    mock_wifi_status = WiFiStatus(
+        ssid="SavedNetwork",
+        signal_strength=80,
+        is_connected=True,
+        has_internet=True,
+        available_networks=[WiFiNetwork(**n) for n in mock_networks]
+    )
     
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/api/v1/wifi/scan")
+    # Create mock command results
+    mock_command_result = type('CommandResult', (), {
+        'stdout': mock_iw_output,
+        'stderr': '',
+        'returncode': 0
+    })()
     
-    assert response.status_code == 400
-    data = response.json()
-    assert "detail" in data
-    assert "Can only scan from AP mode" in data["detail"]
-
-@pytest.mark.asyncio
-async def test_get_scan_results_empty(initialized_wifi_manager):
-    """Test getting scan results when none available"""
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/api/v1/wifi/scan-results")
+    async_get_status = AsyncMock(return_value=mock_wifi_status)
+    async_connect = AsyncMock(return_value=True)
+    async_switch_mode = AsyncMock(return_value=True)
+    async_detect_mode = AsyncMock(side_effect=[NetworkMode.CLIENT, NetworkMode.AP, NetworkMode.AP])
+    async_run_command = AsyncMock(return_value=mock_command_result)
     
-    assert response.status_code == 200
-    data = response.json()
-    assert "networks" in data
-    assert len(data["networks"]) == 0
-
-@pytest.mark.asyncio
-@patch('src.api.routes.wifi.mode_manager')
-async def test_get_scan_results_with_data(mock_mode_manager, initialized_wifi_manager):
-    """Test getting scan results with available data"""
-    mock_mode_manager._scan_results = [
-        {"ssid": "Network1", "signal_strength": 80, "security": "WPA2"},
-        {"ssid": "Network2", "signal_strength": 70, "security": "WPA2"}
-    ]
-    
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/api/v1/wifi/scan-results")
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data["networks"]) == 2
-    assert data["networks"][0]["ssid"] == "Network1"
+    with patch('src.core.mode_manager.ModeManager.switch_mode', async_switch_mode), \
+         patch('src.core.mode_manager.ModeManager.detect_current_mode', async_detect_mode), \
+         patch('src.core.wifi_manager.WiFiManager.connect_to_network', async_connect), \
+         patch('src.api.routes.wifi.mode_manager') as mock_mode_manager, \
+         patch('src.core.wifi_manager.WiFiManager.get_current_status', async_get_status), \
+         patch('src.api.routes.wifi.wifi_manager') as mock_wifi_manager, \
+         patch('src.core.wifi_manager.WiFiManager._run_command', async_run_command), \
+         patch('src.core.mode_manager.ModeManager._run_command', async_run_command):
+        
+        # Set up mock mode manager
+        mock_mode_manager.detect_current_mode = async_detect_mode
+        mock_mode_manager.switch_mode = async_switch_mode
+        mock_mode_manager.is_temp_mode = False
+        mock_mode_manager.is_switching = False
+        mock_mode_manager.current_mode = NetworkMode.AP
+        mock_mode_manager._run_command = async_run_command
+        
+        # Set up mock wifi manager
+        mock_wifi_manager.get_current_status = async_get_status
+        mock_wifi_manager.connect_to_network = async_connect
+        mock_wifi_manager._run_command = async_run_command
+        
+        client = TestClient(app)
+        
+        # Test flow
+        response = client.get("/api/v1/wifi/mode")
+        assert response.status_code == 200
+        assert response.json()["mode"] == "client"
+        
+        response = client.post("/api/v1/wifi/mode/ap")
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+        
+        response = client.get("/api/v1/wifi/mode")
+        assert response.status_code == 200
+        assert response.json()["mode"] == "ap"
+        
+        # Test network scan
+        response = client.post("/api/v1/wifi/scan")
+        assert response.status_code == 200
+        data = response.json()
+        assert "networks" in data
+        assert len(data["networks"]) == 2

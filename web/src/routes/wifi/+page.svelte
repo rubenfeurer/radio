@@ -70,23 +70,79 @@
   let loading = true;
   let preconfiguredSSID: string | null = null;
 
-  onMount(async () => {
-    try {
-      // Check current mode first
-      const modeResponse = await fetch(`${API_BASE}/api/v1/wifi/mode`);
-      if (modeResponse.ok) {
-        const { mode } = await modeResponse.json();
-        currentMode = mode.toUpperCase();
-        console.log('Current mode:', currentMode);
-      }
-    } catch (error) {
-      console.error('Error fetching mode:', error);
-    }
+  // Add WebSocket connection for real-time updates
+  let ws: WebSocket;
+  let wsConnected = false;
 
-    await Promise.all([
-      fetchNetworks(),
-      fetchCurrentConnection()
-    ]);
+  function connectWebSocket() {
+    if (!browser) return;
+    
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = currentHost;
+    const wsPort = window.location.port === '5173' ? '80' : window.location.port;
+    const wsUrl = `${wsProtocol}//${wsHost}${wsPort ? ':' + wsPort : ''}/api/v1/ws`;
+    
+    try {
+      ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        wsConnected = true;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'wifi_status') {
+            // Update networks list when we get a status update
+            fetchNetworks();
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        wsConnected = false;
+        if (browser) {
+          setTimeout(connectWebSocket, 1000);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        wsConnected = false;
+      };
+    } catch (error) {
+      console.error('Error creating WebSocket:', error);
+      wsConnected = false;
+    }
+  }
+
+  // Update onMount to include WebSocket connection
+  onMount(async () => {
+    if (browser) {
+      try {
+        const modeResponse = await fetch(`${API_BASE}/api/v1/wifi/mode`);
+        if (modeResponse.ok) {
+          const { mode } = await modeResponse.json();
+          currentMode = mode.toUpperCase();
+        }
+      } catch (error) {
+        console.error('Error fetching mode:', error);
+      }
+
+      await Promise.all([
+        fetchNetworks(),
+        fetchCurrentConnection()
+      ]);
+
+      connectWebSocket();
+      return () => {
+        if (ws) {
+          ws.close();
+        }
+      };
+    }
   });
 
   async function fetchCurrentConnection() {
@@ -102,45 +158,16 @@
   async function fetchNetworks() {
     loading = true;
     try {
-      let networkData;
+      // Get network status which includes all network information
+      const response = await fetch(`${API_BASE}/api/v1/wifi/network_status`);
+      if (!response.ok) throw new Error('Failed to fetch networks');
+      const data = await response.json();
       
-      // In AP mode, handle scanning first
-      if (currentMode === 'AP') {
-        console.log('Triggering AP mode scan...');
-        // Trigger scan
-        const scanResponse = await fetch(`${API_BASE}/api/v1/wifi/scan`, { 
-          method: 'POST' 
-        });
-        if (!scanResponse.ok) throw new Error('Failed to trigger scan');
-        
-        // Wait for scan to complete
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        
-        // Get scan results
-        const resultsResponse = await fetch(`${API_BASE}/api/v1/wifi/scan-results`);
-        if (!resultsResponse.ok) throw new Error('Failed to get scan results');
-        const results = await resultsResponse.json();
-        networkData = results.networks;
-        console.log('AP mode scan results:', networkData);
-      } else {
-        // CLIENT mode - use normal endpoint
-        console.log('Fetching CLIENT mode networks...');
-        const response = await fetch(`${API_BASE}/api/v1/wifi/networks`);
-        if (!response.ok) throw new Error('Failed to fetch networks');
-        networkData = await response.json();
-        
-        // Fetch preconfigured SSID (only in CLIENT mode)
-        const statusResponse = await fetch(`${API_BASE}/api/v1/wifi/status`);
-        if (statusResponse.ok) {
-          const status = await statusResponse.json();
-          preconfiguredSSID = status.preconfigured_ssid;
-        }
-      }
-
-      // Process networks (same for both modes)
-      networks = networkData.filter(network => 
+      // Extract networks and preconfigured SSID from the response
+      networks = data.wifi_status.available_networks.filter(network => 
         network.ssid && network.ssid.trim() !== ''
       );
+      preconfiguredSSID = data.wifi_status.preconfigured_ssid;
       
       if (currentConnection?.ssid) {
         networks = networks.map(network => ({
@@ -184,11 +211,11 @@
   async function attemptConnection(ssid: string, password: string) {
     connecting = true;
     try {
-      const statusResponse = await fetch(`${API_BASE}/api/v1/wifi/status`);
-      if (statusResponse.ok) {
-        const status = await statusResponse.json();
+      const networkStatus = await fetch(`${API_BASE}/api/v1/wifi/network_status`);
+      if (networkStatus.ok) {
+        const status = await networkStatus.json();
         // If the SSID matches the preconfigured one, use 'preconfigured' instead
-        if (status.preconfigured_ssid && ssid === status.preconfigured_ssid) {
+        if (status.wifi_status.preconfigured_ssid && ssid === status.wifi_status.preconfigured_ssid) {
           ssid = 'preconfigured';
         }
       }

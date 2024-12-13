@@ -27,10 +27,27 @@ class SystemStatus(BaseModel):
 class WiFiNetwork(BaseModel):
     """Model for available WiFi networks"""
     ssid: str
-    signal_strength: int
+    signal_strength: int  # Percentage (0-100)
     security: Optional[str] = None
     in_use: bool = False
     saved: bool = False
+
+    @classmethod
+    def from_iw_scan(cls, ssid: str, signal_dbm: float, security: Optional[str] = None) -> 'WiFiNetwork':
+        """Create WiFiNetwork instance from iw scan results"""
+        # Convert dBm to percentage (typical range: -100 dBm to -50 dBm)
+        if signal_dbm <= -100:
+            signal_percent = 0
+        elif signal_dbm >= -50:
+            signal_percent = 100
+        else:
+            signal_percent = 2 * (signal_dbm + 100)
+        
+        return cls(
+            ssid=ssid,
+            signal_strength=int(signal_percent),
+            security=security or "None"
+        )
 
 class WiFiStatus(BaseModel):
     """Model for WiFi connection status"""

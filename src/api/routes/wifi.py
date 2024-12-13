@@ -14,34 +14,6 @@ router = APIRouter(prefix="/wifi")
 wifi_manager = WiFiManager(skip_verify=True)
 logger = logging.getLogger(__name__)
 
-@router.get("/networks", response_model=List[WiFiNetwork], tags=["WiFi"])
-async def get_networks():
-    """Get list of available WiFi networks"""
-    try:
-        status = await wifi_manager.get_current_status()
-        return status.available_networks
-    except Exception as e:
-        logger.error(f"Error getting networks: {e}")
-        return []
-
-@router.get("/status", response_model=WiFiStatus, tags=["WiFi"])
-async def get_wifi_status():
-    """Get current WiFi status including connection state and available networks"""
-    try:
-        status = await wifi_manager.get_current_status()
-        status.preconfigured_ssid = await wifi_manager.get_preconfigured_ssid()
-        return status
-    except Exception as e:
-        logger.error(f"Error in get_wifi_status: {e}")
-        return WiFiStatus(
-            ssid=None,
-            signal_strength=None,
-            is_connected=False,
-            has_internet=False,
-            available_networks=[],
-            preconfigured_ssid=None
-        )
-
 @router.post("/connect", tags=["WiFi"])
 async def connect_to_network(request: WiFiConnectionRequest):
     """Connect to a WiFi network"""
@@ -162,18 +134,32 @@ async def forget_network(ssid: str):
 @router.get("/network_status", response_model=NetworkStatus, tags=["WiFi"])
 async def get_network_status():
     """Get combined WiFi and mode status including connection and mode information"""
-    wifi_status = await get_wifi_status()
-    mode = await mode_manager.detect_current_mode()
-    mode_status = ModeStatus(
-        mode=mode.value,
-        is_switching=mode_manager.is_switching
-    )
-    return NetworkStatus(
-        wifi_status=wifi_status,
-        mode_status=mode_status
-    )
+    try:
+        # Get WiFi status
+        wifi_status = await wifi_manager.get_current_status()
+        wifi_status.preconfigured_ssid = await wifi_manager.get_preconfigured_ssid()
 
-@router.get("/mode")
+        # Get mode status
+        current_mode = await mode_manager.detect_current_mode()
+        mode_status = ModeStatus(
+            mode=current_mode.value,
+            is_switching=mode_manager.is_switching,
+            is_temp_mode=mode_manager.is_temp_mode
+        )
+
+        # Combine into NetworkStatus
+        return NetworkStatus(
+            wifi_status=wifi_status,
+            mode_status=mode_status
+        )
+    except Exception as e:
+        logger.error(f"Error in get_network_status: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Internal Server Error. Check server logs for details."
+        )
+
+@router.get("/mode", tags=["Mode"])
 async def get_mode():
     """Get current network mode"""
     try:
@@ -188,7 +174,7 @@ async def get_mode():
         logger.error(f"Error in get_mode endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/mode/{mode}")
+@router.post("/mode/{mode}", tags=["Mode"])
 async def switch_mode(mode: str):
     """Switch between AP and CLIENT modes"""
     try:
@@ -204,80 +190,147 @@ async def switch_mode(mode: str):
         logger.error(f"Error switching mode: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/scan", tags=["WiFi"])
+@router.post("/scan", tags=["AP"])
 async def trigger_network_scan():
-    """Trigger a network scan from AP mode"""
+    """Trigger a network scan in either AP or CLIENT mode"""
     try:
         current_mode = await mode_manager.detect_current_mode()
-        if current_mode != NetworkMode.AP:
-            raise HTTPException(
-                status_code=400,
-                detail="Can only scan from AP mode"
-            )
+        logger.debug(f"Scanning networks in {current_mode} mode")
 
-        results = await mode_manager.scan_from_ap_mode()
-        if results is None:
-            raise HTTPException(status_code=500, detail="Scan failed")
+        if current_mode == NetworkMode.CLIENT:
+            # In CLIENT mode, use WiFiManager's existing scan functionality
+            status = await wifi_manager.get_current_status()
+            return {"status": "success", "networks": status.available_networks}
+        else:
+            # In AP mode, use iw scan
+            try:
+                scan_cmd = await wifi_manager._run_command([
+                    'sudo', 'iw', 'dev', 'wlan0', 'scan'
+                ], capture_output=True, text=True, timeout=10)
+                
+                if scan_cmd.returncode != 0:
+                    logger.error(f"iw scan failed: {scan_cmd.stderr}")
+                    raise HTTPException(status_code=500, detail="Network scan failed")
 
-        return {"status": "success", "networks": results}
+                # Parse scan results
+                networks = []
+                current_network = None
+                
+                for line in scan_cmd.stdout.split('\n'):
+                    line = line.strip()
+                    
+                    if line.startswith('BSS '):
+                        if current_network and current_network.get('ssid'):
+                            networks.append(WiFiNetwork.from_iw_scan(
+                                ssid=current_network['ssid'],
+                                signal_dbm=current_network.get('signal', -100),
+                                security=current_network.get('security')
+                            ))
+                        current_network = {}
+                    
+                    elif line.startswith('signal:'):
+                        try:
+                            signal_dbm = float(line.split()[1])
+                            current_network['signal'] = signal_dbm
+                        except (IndexError, ValueError):
+                            pass
+                    
+                    elif line.startswith('SSID:'):
+                        try:
+                            ssid = line.split('SSID:', 1)[1].strip()
+                            if ssid and not ssid.isspace():
+                                current_network['ssid'] = ssid
+                        except IndexError:
+                            pass
+                    
+                    elif any(sec in line for sec in ['WPA', 'WEP']):
+                        current_network['security'] = 'WPA2'
+
+                # Add the last network if exists
+                if current_network and current_network.get('ssid'):
+                    networks.append(WiFiNetwork.from_iw_scan(
+                        ssid=current_network['ssid'],
+                        signal_dbm=current_network.get('signal', -100),
+                        security=current_network.get('security')
+                    ))
+
+                # Remove duplicates and sort by signal strength
+                unique_networks = {}
+                for network in networks:
+                    if network.ssid not in unique_networks or \
+                       network.signal_strength > unique_networks[network.ssid].signal_strength:
+                        unique_networks[network.ssid] = network
+
+                sorted_networks = sorted(
+                    unique_networks.values(),
+                    key=lambda x: x.signal_strength,
+                    reverse=True
+                )
+
+                return {"status": "success", "networks": sorted_networks}
+                
+            except Exception as e:
+                logger.error(f"Error during iw scan: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
     except HTTPException as he:
         raise he
     except Exception as e:
         logger.error(f"Error during network scan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/scan-results", tags=["WiFi"])
-async def get_scan_results():
-    """Get the latest scan results"""
-    try:
-        if not hasattr(mode_manager, '_scan_results'):
-            return {"networks": []}
-        return {"networks": mode_manager._scan_results or []}
-    except Exception as e:
-        logger.error(f"Error getting scan results: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 # WebSocket endpoint for real-time updates
 @router.websocket("/ws/mode")
 async def mode_status_websocket(websocket: WebSocket):
+    """WebSocket endpoint for real-time mode status updates"""
     await websocket.accept()
+    
     try:
         while True:
             try:
-                if not mode_manager.is_temp_mode:
-                    mode = await mode_manager.detect_current_mode()
-                else:
-                    mode = mode_manager.current_mode
-                    logger.debug(f"In temporary mode, using current mode: {mode}")
-
-                await websocket.send_json({
+                # Get current mode status
+                current_mode = mode_manager.current_mode if mode_manager.is_temp_mode else await mode_manager.detect_current_mode()
+                
+                # Prepare status data
+                status_data = {
                     "type": "mode_status",
                     "data": {
-                        "mode": mode.value,
+                        "mode": current_mode.value,
                         "is_switching": mode_manager.is_switching,
-                        "is_temp_mode": mode_manager.is_temp_mode,
-                        "scan_in_progress": mode_manager.is_switching and mode_manager.is_temp_mode
+                        "is_temp_mode": mode_manager.is_temp_mode
                     }
-                })
+                }
                 
-                # Wait for client message or disconnect
-                try:
-                    await websocket.receive_text()
-                except WebSocketDisconnect:
-                    logger.debug("WebSocket client disconnected during receive")
-                    return
+                # Send status update
+                await websocket.send_json(status_data)
                 
+                # Wait for a short period before next update
                 await asyncio.sleep(1)
+                
+                # Optional: Check if client is still connected
+                try:
+                    # Use receive_text with a timeout to check connection
+                    await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
+                except asyncio.TimeoutError:
+                    # This is expected, continue normal operation
+                    continue
+                except WebSocketDisconnect:
+                    logger.debug("Client disconnected")
+                    break
+                
             except WebSocketDisconnect:
-                logger.debug("WebSocket client disconnected")
-                return
+                logger.debug("WebSocket disconnected")
+                break
             except Exception as e:
                 logger.error(f"WebSocket error: {e}")
                 try:
                     await websocket.send_json({"error": str(e)})
                 except:
                     pass
-                return
+                break
+                
+    except Exception as e:
+        logger.error(f"WebSocket connection error: {e}")
     finally:
         try:
             await websocket.close()

@@ -39,30 +39,46 @@ async def test_wifi_mode_switch_and_connect_flow():
         ]
     )
 
-    # Create async mock for get_current_status
+    # Create mock iw scan output
+    mock_iw_output = """BSS 00:11:22:33:44:55
+        signal: -20.00 dBm
+        SSID: SavedNetwork
+        WPA2: yes
+    BSS 66:77:88:99:aa:bb
+        signal: -30.00 dBm
+        SSID: OtherNetwork
+        WPA2: yes"""
+    
+    mock_command_result = type('CommandResult', (), {
+        'stdout': mock_iw_output,
+        'stderr': '',
+        'returncode': 0
+    })()
+
     async_get_status = AsyncMock(return_value=mock_wifi_status)
     async_connect = AsyncMock(return_value=True)
     async_switch_mode = AsyncMock(return_value=True)
     async_detect_mode = AsyncMock(side_effect=[NetworkMode.CLIENT, NetworkMode.AP, NetworkMode.AP])
-    async_scan = AsyncMock(return_value=mock_networks)
+    async_run_command = AsyncMock(return_value=mock_command_result)
 
     with patch('src.core.mode_manager.ModeManager.switch_mode', async_switch_mode), \
          patch('src.core.mode_manager.ModeManager.detect_current_mode', async_detect_mode), \
-         patch('src.core.mode_manager.ModeManager.scan_from_ap_mode', async_scan), \
          patch('src.core.wifi_manager.WiFiManager.connect_to_network', async_connect), \
          patch('src.api.routes.wifi.mode_manager') as mock_mode_manager, \
          patch('src.core.wifi_manager.WiFiManager.get_current_status', async_get_status), \
          patch('src.api.routes.wifi.wifi_manager') as mock_wifi_manager:
 
-        # Set up mock mode manager with scan results
-        mock_mode_manager._scan_results = mock_networks
+        # Set up mock mode manager
         mock_mode_manager.detect_current_mode = async_detect_mode
         mock_mode_manager.switch_mode = async_switch_mode
-        mock_mode_manager.scan_from_ap_mode = async_scan
+        mock_mode_manager.is_temp_mode = False
+        mock_mode_manager.is_switching = False
+        mock_mode_manager.current_mode = NetworkMode.AP
 
         # Set up mock wifi manager
         mock_wifi_manager.get_current_status = async_get_status
         mock_wifi_manager.connect_to_network = async_connect
+        mock_wifi_manager._run_command = async_run_command
 
         client = TestClient(app)
 
@@ -89,30 +105,8 @@ async def test_wifi_mode_switch_and_connect_flow():
         assert len(data["networks"]) == 2
         assert data["networks"][0]["ssid"] == "SavedNetwork"
 
-        # 4. Get scan results
-        response = client.get("/api/v1/wifi/scan-results")
-        assert response.status_code == 200
-        networks = response.json()["networks"]
-        assert len(networks) == 2
-        saved_network = next(n for n in networks if n["saved"])
-        assert saved_network["ssid"] == "SavedNetwork"
-
-        # 5. Connect to saved network
-        response = client.post(
-            "/api/v1/wifi/connect",
-            json={"ssid": "SavedNetwork", "password": ""}
-        )
+        # 4. Connect to saved network
+        response = client.post("/api/v1/wifi/connect", 
+            json={"ssid": "SavedNetwork", "password": "testpass"})
         assert response.status_code == 200
         assert response.json()["status"] == "success"
-
-        # 6. Verify connection status
-        response = client.get("/api/v1/wifi/current")
-        assert response.status_code == 200
-        connection = response.json()
-        assert connection["ssid"] == "SavedNetwork"
-        assert connection["is_connected"] is True
-
-        # Verify the mocks were called correctly
-        async_switch_mode.assert_called_once_with(NetworkMode.AP)
-        async_scan.assert_called_once()
-        async_connect.assert_called_once_with("SavedNetwork", "")

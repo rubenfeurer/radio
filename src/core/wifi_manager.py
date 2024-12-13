@@ -175,21 +175,6 @@ class WiFiManager:
             self.logger.error(f"Error getting WiFi status: {str(e)}", exc_info=True)
             return WiFiStatus()
 
-    async def _scan_networks(self) -> List[WiFiNetwork]:
-        """Scan for available networks"""
-        try:
-            result = await self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
-                'device', 'wifi', 'list'
-            ], capture_output=True, text=True, timeout=5)
-            if result.returncode != 0:
-                self.logger.error(f"Network scan failed: {result.stderr}")
-                return []
-            return self._parse_network_list(result.stdout)
-        except Exception as e:
-            self.logger.error(f"Error scanning networks: {e}")
-            return []
-
     def _get_current_connection(self) -> Optional[WiFiNetwork]:
         """Get current WiFi connection details"""
         try:

@@ -56,11 +56,17 @@
     : '';
 
   onMount(() => {
-    loadInitialStations();
-    fetchVolume();
-    fetchWiFiStatus();
-    connectWebSocket();
-    return () => ws?.close();
+    if (browser) {
+      loadInitialStations();
+      fetchVolume();
+      fetchWiFiStatus();
+      connectWebSocket();
+      return () => {
+        if (ws) {
+          ws.close();
+        }
+      };
+    }
   });
 
   async function loadInitialStations() {
@@ -131,15 +137,15 @@
 
   async function fetchWiFiStatus() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/wifi/status`);
+      const response = await fetch(`${API_BASE}/api/v1/wifi/network_status`);
       if (!response.ok) {
-        console.error('Failed to fetch WiFi status:', await response.text());
+        console.error('Failed to fetch network status:', await response.text());
         return;
       }
       const data = await response.json();
-      wifiStatus = data;
+      wifiStatus = data.wifi_status;
     } catch (error) {
-      console.error("Failed to fetch WiFi status:", error);
+      console.error("Failed to fetch network status:", error);
     }
   }
 
@@ -149,33 +155,44 @@
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsHost = currentHost;
     const wsPort = window.location.port === '5173' ? '80' : window.location.port;
-    
-    // Fix WebSocket URL to match backend route
     const wsUrl = `${wsProtocol}//${wsHost}${wsPort ? ':' + wsPort : ''}/api/v1/ws`;
-    console.log('Connecting to WebSocket:', wsUrl);
     
-    ws = new WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-      wsConnected = true;
-      // Request initial status
-      ws?.send(JSON.stringify({ type: "status_request" }));
-    };
+    try {
+      ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        wsConnected = true;
+        ws?.send(JSON.stringify({ type: "status_request" }));
+      };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'status_response' || data.type === 'status_update') {
-        updateStatus(data.data);
-      } else if (data.type === 'wifi_status') {
-        wifiStatus = data.data;
-      }
-    };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'status_response' || data.type === 'status_update') {
+            updateStatus(data.data);
+          } else if (data.type === 'wifi_status') {
+            wifiStatus = data.data;
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
 
-    ws.onclose = () => {
+      ws.onclose = () => {
+        wsConnected = false;
+        if (browser) {
+          setTimeout(connectWebSocket, 1000);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        wsConnected = false;
+      };
+    } catch (error) {
+      console.error('Error creating WebSocket:', error);
       wsConnected = false;
-      // Reconnect after 1 second
-      setTimeout(connectWebSocket, 1000);
-    };
+    }
   }
 
   function updateStatus(data: any) {
