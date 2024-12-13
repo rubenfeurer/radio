@@ -1,9 +1,12 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock, MagicMock, PropertyMock
 from src.api.main import app
 from src.core.models import WiFiStatus, WiFiNetwork, ModeStatus, NetworkStatus
 from src.core.mode_manager import NetworkMode
+from starlette.websockets import WebSocketDisconnect
+from fastapi.testclient import TestClient
+import asyncio
 
 # Create mock data
 mock_status = WiFiStatus(
@@ -234,20 +237,84 @@ async def test_get_network_status(mock_wifi_status, mock_detect_mode):
     assert data["mode_status"]["mode"] == "client"
 
 @pytest.mark.asyncio
-async def test_websocket_mode_status():
-    """Test WebSocket mode status updates with scan information"""
-    from fastapi.testclient import TestClient
-    
+async def test_websocket_mode_status_normal():
+    """Test WebSocket mode status updates in normal mode"""
+    with patch('src.core.mode_manager.ModeManager.is_temp_mode', new_callable=PropertyMock) as mock_temp_mode:
+        mock_temp_mode.return_value = False
+        
+        client = TestClient(app)
+        with client.websocket_connect("/api/v1/wifi/ws/mode") as websocket:
+            data = websocket.receive_json()
+            assert "type" in data
+            assert data["type"] == "mode_status"
+            assert "data" in data
+            assert "mode" in data["data"]
+            assert "is_switching" in data["data"]
+            assert "is_temp_mode" in data["data"]
+            assert "scan_in_progress" in data["data"]
+            assert data["data"]["is_temp_mode"] is False
+
+@pytest.mark.asyncio
+async def test_websocket_mode_status_temp_mode():
+    """Test WebSocket mode status updates in temporary mode"""
+    with patch('src.core.mode_manager.ModeManager.is_temp_mode', new_callable=PropertyMock) as mock_temp_mode, \
+         patch('src.core.mode_manager.ModeManager.current_mode', new_callable=PropertyMock) as mock_current_mode:
+        
+        mock_temp_mode.return_value = True
+        mock_current_mode.return_value = NetworkMode.CLIENT
+        
+        client = TestClient(app)
+        with client.websocket_connect("/api/v1/wifi/ws/mode") as websocket:
+            data = websocket.receive_json()
+            assert data["type"] == "mode_status"
+            assert data["data"]["is_temp_mode"] is True
+            assert data["data"]["mode"] == "client"
+
+@pytest.mark.asyncio
+async def test_websocket_mode_status_scanning():
+    """Test WebSocket mode status updates during scanning"""
+    with patch('src.core.mode_manager.ModeManager.is_temp_mode', new_callable=PropertyMock) as mock_temp_mode, \
+         patch('src.core.mode_manager.ModeManager.is_switching', new_callable=PropertyMock) as mock_switching:
+        
+        mock_temp_mode.return_value = True
+        mock_switching.return_value = True
+        
+        client = TestClient(app)
+        with client.websocket_connect("/api/v1/wifi/ws/mode") as websocket:
+            data = websocket.receive_json()
+            assert data["type"] == "mode_status"
+            assert data["data"]["is_temp_mode"] is True
+            assert data["data"]["is_switching"] is True
+            assert data["data"]["scan_in_progress"] is True
+
+@pytest.mark.asyncio
+async def test_websocket_mode_status_disconnect_handling():
+    """Test WebSocket disconnection handling"""
     client = TestClient(app)
+    
     with client.websocket_connect("/api/v1/wifi/ws/mode") as websocket:
+        # Get initial data
         data = websocket.receive_json()
-        assert "type" in data
         assert data["type"] == "mode_status"
-        assert "data" in data
-        assert "mode" in data["data"]
-        assert "is_switching" in data["data"]
-        assert "is_temp_mode" in data["data"]
-        assert "scan_in_progress" in data["data"]
+        
+        # Force disconnect
+        websocket.close()
+        
+        # Attempting to receive after close should raise WebSocketDisconnect
+        with pytest.raises(WebSocketDisconnect):
+            websocket.receive_json()
+
+@pytest.mark.asyncio
+async def test_websocket_mode_status_error_handling():
+    """Test WebSocket error handling"""
+    with patch('src.core.mode_manager.ModeManager.detect_current_mode') as mock_detect:
+        mock_detect.side_effect = Exception("Test error")
+        
+        client = TestClient(app)
+        with client.websocket_connect("/api/v1/wifi/ws/mode") as websocket:
+            data = websocket.receive_json()
+            assert "error" in data
+            assert "Test error" in str(data["error"])
 
 @pytest.mark.asyncio
 @patch('src.core.mode_manager.ModeManager.scan_from_ap_mode')

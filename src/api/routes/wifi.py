@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, WebSocket
+from fastapi import APIRouter, HTTPException, Query, WebSocket, Depends
 from typing import List
 from src.core.wifi_manager import WiFiManager
 from src.core.models import WiFiStatus, WiFiNetwork
@@ -8,6 +8,7 @@ from src.core.models import NetworkStatus, ModeStatus
 from src.utils.logger import logger
 import logging
 import asyncio
+from starlette.websockets import WebSocketDisconnect
 
 router = APIRouter(prefix="/wifi")
 wifi_manager = WiFiManager(skip_verify=True)
@@ -242,19 +243,43 @@ async def mode_status_websocket(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            # Send current mode and scan status
-            mode = await mode_manager.detect_current_mode()
-            await websocket.send_json({
-                "type": "mode_status",
-                "data": {
-                    "mode": mode.value,
-                    "is_switching": mode_manager.is_switching,
-                    "is_temp_mode": mode_manager.is_temp_mode if hasattr(mode_manager, 'is_temp_mode') else False,
-                    "scan_in_progress": mode_manager.is_switching and mode_manager.is_temp_mode if hasattr(mode_manager, 'is_temp_mode') else False
-                }
-            })
-            await asyncio.sleep(1)
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+            try:
+                if not mode_manager.is_temp_mode:
+                    mode = await mode_manager.detect_current_mode()
+                else:
+                    mode = mode_manager.current_mode
+                    logger.debug(f"In temporary mode, using current mode: {mode}")
+
+                await websocket.send_json({
+                    "type": "mode_status",
+                    "data": {
+                        "mode": mode.value,
+                        "is_switching": mode_manager.is_switching,
+                        "is_temp_mode": mode_manager.is_temp_mode,
+                        "scan_in_progress": mode_manager.is_switching and mode_manager.is_temp_mode
+                    }
+                })
+                
+                # Wait for client message or disconnect
+                try:
+                    await websocket.receive_text()
+                except WebSocketDisconnect:
+                    logger.debug("WebSocket client disconnected during receive")
+                    return
+                
+                await asyncio.sleep(1)
+            except WebSocketDisconnect:
+                logger.debug("WebSocket client disconnected")
+                return
+            except Exception as e:
+                logger.error(f"WebSocket error: {e}")
+                try:
+                    await websocket.send_json({"error": str(e)})
+                except:
+                    pass
+                return
     finally:
-        await websocket.close() 
+        try:
+            await websocket.close()
+        except:
+            pass 

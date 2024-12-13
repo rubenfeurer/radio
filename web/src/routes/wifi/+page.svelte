@@ -108,14 +108,20 @@
       if (currentMode === 'AP') {
         console.log('Triggering AP mode scan...');
         // Trigger scan
-        await fetch(`${API_BASE}/api/v1/wifi/ap/scan`, { method: 'POST' });
+        const scanResponse = await fetch(`${API_BASE}/api/v1/wifi/scan`, { 
+          method: 'POST' 
+        });
+        if (!scanResponse.ok) throw new Error('Failed to trigger scan');
+        
         // Wait for scan to complete
         await new Promise(resolve => setTimeout(resolve, 5000));
+        
         // Get scan results
-        const scanResponse = await fetch(`${API_BASE}/api/v1/wifi/ap/scan-results`);
-        if (!scanResponse.ok) throw new Error('Failed to get scan results');
-        const scanResults = await scanResponse.json();
-        networkData = scanResults.networks;
+        const resultsResponse = await fetch(`${API_BASE}/api/v1/wifi/scan-results`);
+        if (!resultsResponse.ok) throw new Error('Failed to get scan results');
+        const results = await resultsResponse.json();
+        networkData = results.networks;
+        console.log('AP mode scan results:', networkData);
       } else {
         // CLIENT mode - use normal endpoint
         console.log('Fetching CLIENT mode networks...');
@@ -280,9 +286,23 @@
 
   <div class="flex justify-between items-center mb-4">
     <h1 class="text-2xl font-bold">WiFi Settings</h1>
-    <Badge color={currentMode === 'AP' ? 'purple' : 'blue'}>
-      {currentMode} Mode
-    </Badge>
+    <div class="flex items-center gap-2">
+      {#if currentMode === 'AP'}
+        <Button 
+          size="sm"
+          disabled={loading}
+          on:click={fetchNetworks}
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          {loading ? 'Scanning...' : 'Scan Networks'}
+        </Button>
+      {/if}
+      <Badge color={currentMode === 'AP' ? 'purple' : 'blue'}>
+        {currentMode} Mode
+      </Badge>
+    </div>
   </div>
 
   {#if selectedNetwork}

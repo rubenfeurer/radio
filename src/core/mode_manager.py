@@ -41,19 +41,19 @@ class ModeManager:
             return None
 
         try:
-            # Store scan results here
+            logger.debug("Starting AP mode scan sequence")
             self._scan_results = None
             
-            # Temporarily switch to client mode
+            logger.debug("Attempting temporary switch to client mode")
             success = await self.temp_switch_to_client_mode()
             if not success:
                 logger.error("Failed to switch to client mode for scanning")
                 return None
 
-            # Wait for NetworkManager to initialize
+            logger.debug("Successfully switched to client mode, waiting for NetworkManager")
             await asyncio.sleep(2)
 
-            # Perform network scan using nmcli
+            logger.debug("Performing network scan")
             scan_result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY',
                 'device', 'wifi', 'list'
@@ -61,19 +61,29 @@ class ModeManager:
             
             if scan_result.returncode == 0:
                 self._scan_results = self._parse_scan_results(scan_result.stdout)
+                logger.debug(f"Scan successful, found {len(self._scan_results)} networks")
+            else:
+                logger.error("Scan command failed")
 
-            # Switch back to AP mode
-            await self.restore_previous_mode()
+            logger.debug("Attempting to restore AP mode")
+            restore_success = await self.restore_previous_mode()
+            if not restore_success:
+                logger.error("Failed to restore AP mode")
+            else:
+                logger.debug("Successfully restored AP mode")
             
             return self._scan_results
 
         except Exception as e:
             logger.error(f"Error during network scan: {e}")
+            logger.debug("Attempting to restore AP mode after error")
             await self.restore_previous_mode()
             return None
 
     async def temp_switch_to_client_mode(self) -> bool:
         """Temporarily switch to client mode"""
+        logger.debug(f"Entering temp_switch_to_client_mode. Current state: temp_active={self._temp_mode_active}, current_mode={self._current_mode}")
+        
         if self._temp_mode_active:
             logger.warning("Already in temporary mode")
             return False
@@ -85,10 +95,13 @@ class ModeManager:
                 self._switching = True
                 self._timeout_task = None
 
+                logger.debug(f"Stored previous_mode as {self._previous_mode}")
+
                 # Switch to client mode
                 success = await self._switch_to_client()
                 if success:
                     self._current_mode = NetworkMode.CLIENT
+                    logger.debug("Successfully switched to client mode")
                     
                     # Start timeout timer
                     self._timeout_task = asyncio.create_task(self._handle_temp_mode_timeout())
@@ -97,9 +110,12 @@ class ModeManager:
 
             finally:
                 self._switching = False
+                logger.debug(f"Exiting temp_switch_to_client_mode. Success={success}, current_mode={self._current_mode}")
 
     async def restore_previous_mode(self) -> bool:
         """Restore the previous mode"""
+        logger.debug(f"Entering restore_previous_mode. Current state: temp_active={self._temp_mode_active}, previous_mode={self._previous_mode}, current_mode={self._current_mode}")
+        
         if not self._temp_mode_active:
             logger.warning("Not in temporary mode")
             return False
@@ -118,6 +134,8 @@ class ModeManager:
                         pass
                     self._timeout_task = None
 
+                logger.debug(f"Attempting to restore to previous mode: {self._previous_mode}")
+                
                 if self._previous_mode == NetworkMode.AP:
                     success = await self._switch_to_ap()
                 elif self._previous_mode == NetworkMode.CLIENT:
@@ -126,11 +144,15 @@ class ModeManager:
                 if success:
                     self._current_mode = self._previous_mode
                     self._temp_mode_active = False
+                    logger.debug(f"Successfully restored to {self._current_mode} mode")
+                else:
+                    logger.error("Failed to restore previous mode")
                     
                 return success
 
             finally:
                 self._switching = False
+                logger.debug(f"Exiting restore_previous_mode. Success={success}, current_mode={self._current_mode}")
 
     async def _handle_temp_mode_timeout(self):
         """Handle timeout for temporary mode"""
@@ -158,48 +180,45 @@ class ModeManager:
 
     async def detect_current_mode(self) -> NetworkMode:
         """Detect current network mode"""
-        print("Starting mode detection...")
+        # If we're in temporary mode, return the current mode without detection
+        if self._temp_mode_active:
+            logger.debug(f"In temporary mode, returning current mode: {self._current_mode}")
+            return self._current_mode
+        
         logger.debug("Starting mode detection...")
         
         try:
             # Check if hostapd is running (AP mode)
-            print("Checking hostapd status...")
             logger.debug("Checking hostapd status...")
             hostapd_result = await self._run_command([
                 'sudo', 'systemctl', 'is-active', 'hostapd'
             ])
-            print(f"Hostapd result: {hostapd_result.stdout}, {hostapd_result.returncode}")
             logger.debug(f"Hostapd check result: stdout='{hostapd_result.stdout.strip()}', "
                          f"returncode={hostapd_result.returncode}")
             
             if hostapd_result.returncode == 0:
-                print("Hostapd is running, setting AP mode")
                 logger.debug("Hostapd is running, setting AP mode")
                 self._current_mode = NetworkMode.AP
                 return self._current_mode
 
             # Check NetworkManager connection type
-            print("Checking NetworkManager connections...")
+            logger.debug("Checking NetworkManager connections...")
             nmcli_result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'TYPE,DEVICE', 'connection', 'show', '--active'
             ])
-            print(f"NMCLI result: {nmcli_result.stdout}")
             logger.debug(f"NMCLI check result: '{nmcli_result.stdout.strip()}'")
             
             # Check for either 'wifi' or '802-11-wireless' with wlan0
             if '802-11-wireless:wlan0' in nmcli_result.stdout:
-                print("Found wireless connection, setting CLIENT mode")
                 logger.debug("Active WiFi connection found on wlan0, setting CLIENT mode")
                 self._current_mode = NetworkMode.CLIENT
                 return self._current_mode
             
-            print(f"No wifi connection found in: {nmcli_result.stdout}")
             logger.debug(f"No wifi connection found in: '{nmcli_result.stdout}'")
             self._current_mode = NetworkMode.UNKNOWN
             return self._current_mode
             
         except Exception as e:
-            print(f"Error in detect_current_mode: {str(e)}")
             logger.error(f"Error in detect_current_mode: {str(e)}")
             logger.exception("Full traceback:")
             return NetworkMode.UNKNOWN

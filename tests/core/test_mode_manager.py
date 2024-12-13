@@ -80,6 +80,43 @@ async def test_scan_from_ap_mode(mode_manager):
     assert results[1]['signal_strength'] == 70
 
 @pytest.mark.asyncio
+async def test_detect_current_mode_temp_mode(mode_manager):
+    """Test mode detection respects temporary mode"""
+    # Setup temporary mode
+    mode_manager._current_mode = NetworkMode.CLIENT
+    mode_manager._temp_mode_active = True
+    
+    # Detect mode should return current mode without checking system
+    mode = await mode_manager.detect_current_mode()
+    assert mode == NetworkMode.CLIENT
+    
+    # Verify _run_command was not called
+    mode_manager._run_command.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_detect_current_mode_normal(mode_manager):
+    """Test normal mode detection without temporary mode"""
+    # Test AP mode detection
+    mode_manager._temp_mode_active = False
+    mode_manager._run_command.side_effect = [
+        MagicMock(returncode=0, stdout="active", stderr=""),  # hostapd active
+        MagicMock(returncode=0, stdout="", stderr="")  # nmcli check
+    ]
+    
+    mode = await mode_manager.detect_current_mode()
+    assert mode == NetworkMode.AP
+    
+    # Reset mock
+    mode_manager._run_command.reset_mock()
+    mode_manager._run_command.side_effect = [
+        MagicMock(returncode=1, stdout="inactive", stderr=""),  # hostapd inactive
+        MagicMock(returncode=0, stdout="802-11-wireless:wlan0\nloopback:lo", stderr="")  # nmcli shows wifi
+    ]
+    
+    mode = await mode_manager.detect_current_mode()
+    assert mode == NetworkMode.CLIENT
+
+@pytest.mark.asyncio
 async def test_temp_mode_timeout(mode_manager):
     """Test temporary mode timeout"""
     # Reduce timeout for testing
@@ -101,25 +138,6 @@ async def test_temp_mode_timeout(mode_manager):
     
     # Verify restore was called
     mode_manager.restore_previous_mode.assert_called_once()
-
-@pytest.mark.asyncio
-async def test_detect_current_mode(mode_manager):
-    """Test mode detection without actual system changes"""
-    # Test AP mode detection
-    mode_manager._run_command.side_effect = [
-        MagicMock(returncode=0, stdout="active", stderr=""),
-        MagicMock(returncode=0, stdout="", stderr="")
-    ]
-    mode = await mode_manager.detect_current_mode()
-    assert mode == NetworkMode.AP
-
-    # Test Client mode detection
-    mode_manager._run_command.side_effect = [
-        MagicMock(returncode=1, stdout="inactive", stderr=""),
-        MagicMock(returncode=0, stdout="802-11-wireless:wlan0\nloopback:lo", stderr="")
-    ]
-    mode = await mode_manager.detect_current_mode()
-    assert mode == NetworkMode.CLIENT
 
 @pytest.mark.asyncio
 async def test_switch_mode_mock(mode_manager):
