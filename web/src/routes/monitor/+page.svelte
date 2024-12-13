@@ -9,7 +9,9 @@
     ip: 'Loading...',
     cpuUsage: 'Loading...',
     diskSpace: 'Loading...',
-    temperature: 'Loading...'
+    temperature: 'Loading...',
+    networkMode: 'unknown',
+    is_switching: false
   };
 
   let services = [];
@@ -162,6 +164,27 @@
     <Card>
       <h3 class="text-sm font-medium text-gray-500">IP Address</h3>
       <p class="mt-1 text-lg">{systemInfo.ip}</p>
+    </Card>
+
+    <!-- Network Mode Card -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">Network Mode</h3>
+      <p class="mt-1 text-lg flex items-center gap-2">
+        <Badge
+          color={
+            systemInfo.networkMode === 'client' ? 'green' :
+            systemInfo.networkMode === 'ap' ? 'blue' :
+            'gray'
+          }
+        >
+          {systemInfo.networkMode === 'client' ? 'Client' :
+           systemInfo.networkMode === 'ap' ? 'Access Point' :
+           'Unknown'}
+        </Badge>
+        {#if systemInfo.is_switching}
+          <Badge color="yellow">Switching...</Badge>
+        {/if}
+      </p>
     </Card>
 
     <!-- CPU Usage Card -->

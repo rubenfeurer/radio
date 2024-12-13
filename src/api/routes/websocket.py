@@ -3,6 +3,7 @@ from typing import Dict, Set
 from src.core.singleton_manager import RadioManagerSingleton
 import logging
 from .monitor import get_system_info, get_services_status, check_web_access, get_recent_logs
+from src.core.mode_manager import mode_manager
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +69,20 @@ async def websocket_endpoint(websocket: WebSocket):
                     web_access = await check_web_access()
                     logs = await get_recent_logs()
                     
+                    # Get network mode info
+                    current_mode = await mode_manager.detect_current_mode()
+                    
+                    # Add network mode to system_info
+                    system_info_dict = system_info.dict() if hasattr(system_info, 'dict') else system_info
+                    system_info_dict.update({
+                        'networkMode': current_mode.value,
+                        'is_switching': mode_manager.is_switching
+                    })
+                    
                     monitor_data = {
                         "type": "monitor_update",
                         "data": {
-                            "systemInfo": system_info.dict() if hasattr(system_info, 'dict') else system_info,
+                            "systemInfo": system_info_dict,
                             "services": services_status,
                             "webAccess": web_access,
                             "logs": logs
