@@ -27,8 +27,8 @@ jobs:
           mpv libmpv-dev \
           python3-pip python3-venv \
           libasound2-dev \
-          network-manager  # Add NetworkManager
-        
+          network-manager wireless-tools
+
         # Download and build pigpio
         wget https://github.com/joan2937/pigpio/archive/master.zip
         unzip master.zip
@@ -40,12 +40,16 @@ jobs:
         sudo mkdir -p /var/run/pigpio
         sudo chmod 777 /var/run/pigpio
         
-        # Start services
-        sudo systemctl start NetworkManager  # Start NetworkManager
-        sudo pigpiod -l -t 0 || true
-        
-        # Verify NetworkManager is running
+        # Configure and start NetworkManager
+        sudo systemctl stop NetworkManager
+        sudo rm -f /etc/NetworkManager/system-connections/*
+        sudo cp /etc/NetworkManager/NetworkManager.conf /etc/NetworkManager/NetworkManager.conf.backup
+        echo -e "[main]\nplugins=ifupdown,keyfile\n\n[ifupdown]\nmanaged=true\n\n[device]\nwifi.scan-rand-mac-address=no" | sudo tee /etc/NetworkManager/NetworkManager.conf
+        sudo systemctl start NetworkManager
         sudo systemctl status NetworkManager
+        
+        # Start pigpio daemon
+        sudo pigpiod -l -t 0 || true
         
     - name: Install Python dependencies
       run: |
@@ -59,9 +63,15 @@ jobs:
         PYTHONPATH: .
         TEST_MODE: "CI"
         DISABLE_HARDWARE: "true"
-        # Add environment variable to skip NetworkManager checks in tests
         SKIP_NM_CHECK: "true"
+        # Add environment variables for NetworkManager testing
+        NM_TEST_MODE: "true"
+        NM_MOCK_WIFI: "true"
       run: |
+        # Create test wifi interface
+        sudo ip link add wlan0 type dummy || true
+        sudo ip link set wlan0 up || true
+        
         # Run pytest with detailed output
         pytest -v tests/ --cov=src --capture=no --log-cli-level=DEBUG
         
