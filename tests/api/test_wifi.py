@@ -7,6 +7,7 @@ from src.core.mode_manager import NetworkMode
 from starlette.websockets import WebSocketDisconnect
 from fastapi.testclient import TestClient
 import asyncio
+import subprocess
 
 # Create mock data
 mock_status = WiFiStatus(
@@ -380,3 +381,192 @@ BSS 66:77:88:99:aa:bb
         data = response.json()
         assert "networks" in data
         assert len(data["networks"]) == 2
+
+@pytest.mark.asyncio
+async def test_ap_mode_connect_success():
+    """Test successful connection from AP mode"""
+    async_temp_switch = AsyncMock(return_value=True)
+    async_connect = AsyncMock(return_value=True)
+    async_restore = AsyncMock(return_value=True)
+    
+    with patch('src.core.mode_manager.ModeManager.temp_switch_to_client_mode', async_temp_switch), \
+         patch('src.core.wifi_manager.WiFiManager.connect_to_network', async_connect), \
+         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore):
+        
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/wifi/ap/connect", 
+                json={"ssid": "TestNetwork", "password": "TestPassword"})
+            
+        assert response.status_code == 200
+        assert response.json() == {"status": "success"}
+        
+        # Verify correct sequence of calls
+        async_temp_switch.assert_called_once()
+        async_connect.assert_called_once_with("TestNetwork", "TestPassword")
+        async_restore.assert_not_called()  # Should not restore on success
+
+@pytest.mark.asyncio
+async def test_ap_mode_connect_failure():
+    """Test failed connection from AP mode"""
+    async_temp_switch = AsyncMock(return_value=True)
+    async_connect = AsyncMock(return_value=False)
+    async_restore = AsyncMock(return_value=True)
+    
+    with patch('src.core.mode_manager.ModeManager.temp_switch_to_client_mode', async_temp_switch), \
+         patch('src.core.wifi_manager.WiFiManager.connect_to_network', async_connect), \
+         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore):
+        
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/wifi/ap/connect", 
+                json={"ssid": "TestNetwork", "password": "TestPassword"})
+            
+        assert response.status_code == 400
+        assert "Failed to connect to network" in response.json()["detail"]
+        
+        # Verify correct sequence of calls
+        async_temp_switch.assert_called_once()
+        async_connect.assert_called_once_with("TestNetwork", "TestPassword")
+        assert async_restore.call_count >= 1, "restore_previous_mode should be called at least once"
+
+@pytest.mark.asyncio
+async def test_ap_mode_connect_mode_switch_failure():
+    """Test connection failure due to mode switch failure"""
+    async_temp_switch = AsyncMock(return_value=False)
+    async_connect = AsyncMock(return_value=True)
+    async_restore = AsyncMock(return_value=True)
+    
+    with patch('src.core.mode_manager.ModeManager.temp_switch_to_client_mode', async_temp_switch), \
+         patch('src.core.wifi_manager.WiFiManager.connect_to_network', async_connect), \
+         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore):
+        
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/wifi/ap/connect", 
+                json={"ssid": "TestNetwork", "password": "TestPassword"})
+            
+        assert response.status_code == 400
+        assert "Failed to switch to client mode" in response.json()["detail"]
+        
+        # Verify correct sequence of calls
+        async_temp_switch.assert_called_once()
+        async_connect.assert_not_called()  # Should not attempt connection
+        async_restore.assert_not_called()  # No need to restore
+
+@pytest.mark.asyncio
+async def test_ap_mode_connect_exception_handling():
+    """Test exception handling during AP mode connection"""
+    async_temp_switch = AsyncMock(return_value=True)
+    async_connect = AsyncMock(side_effect=Exception("Connection error"))
+    async_restore = AsyncMock(return_value=True)
+    
+    with patch('src.core.mode_manager.ModeManager.temp_switch_to_client_mode', async_temp_switch), \
+         patch('src.core.wifi_manager.WiFiManager.connect_to_network', async_connect), \
+         patch('src.core.mode_manager.ModeManager.restore_previous_mode', async_restore):
+        
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/wifi/ap/connect", 
+                json={"ssid": "TestNetwork", "password": "TestPassword"})
+            
+        assert response.status_code == 400
+        assert "Connection error" in response.json()["detail"]
+        
+        # Verify correct sequence of calls
+        async_temp_switch.assert_called_once()
+        async_connect.assert_called_once()
+        async_restore.assert_called_once()  # Should restore on exception
+
+@pytest.mark.asyncio
+async def test_ap_mode_scan():
+    """Test network scanning in AP mode"""
+    # Mock the mode detection to return AP mode
+    mock_mode = AsyncMock(return_value=NetworkMode.AP)
+    
+    # Mock the iw scan command result with proper format
+    mock_iw_scan = AsyncMock(return_value=subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout="""
+BSS 00:11:22:33:44:55(on wlan0)
+        signal: -50.00 dBm
+        SSID: Network1
+        WPA:     Version: 1
+                Group cipher: CCMP
+                Pairwise ciphers: CCMP
+                Authentication suites: PSK
+BSS 66:77:88:99:aa:bb(on wlan0)
+        signal: -70.00 dBm
+        SSID: Network2
+        WPA:     Version: 1
+                Group cipher: CCMP
+                Pairwise ciphers: CCMP
+                Authentication suites: PSK
+""",
+        stderr=""
+    ))
+    
+    with patch('src.core.mode_manager.ModeManager.detect_current_mode', mock_mode), \
+         patch('src.core.wifi_manager.WiFiManager._run_command', mock_iw_scan):
+        
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/wifi/scan")
+            
+        assert response.status_code == 200
+        data = response.json()
+        assert "networks" in data
+        assert len(data["networks"]) == 2
+        
+        # Check network details and order
+        networks = data["networks"]
+        assert networks[0]["ssid"] == "Network1"  # Stronger signal should be first
+        assert networks[1]["ssid"] == "Network2"  # Weaker signal should be second
+        
+        # Check signal strength conversion (-50 dBm should be stronger than -70 dBm)
+        assert networks[0]["signal_strength"] > networks[1]["signal_strength"]
+        
+        # Check security info
+        assert networks[0]["security"] == "WPA2"
+        assert networks[1]["security"] == "WPA2"
+        
+        # Verify the scan command was called
+        mock_iw_scan.assert_called_with(
+            ['sudo', 'iw', 'dev', 'wlan0', 'scan'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+@pytest.mark.asyncio
+async def test_client_mode_scan():
+    """Test network scanning in CLIENT mode"""
+    # Mock the mode detection to return CLIENT mode
+    mock_mode = AsyncMock(return_value=NetworkMode.CLIENT)
+    
+    # Mock WiFiManager's get_current_status
+    mock_status = AsyncMock(return_value=WiFiStatus(
+        ssid="TestNetwork",
+        signal_strength=70,
+        is_connected=True,
+        has_internet=True,
+        available_networks=[
+            WiFiNetwork(ssid="Network1", signal_strength=80, security="WPA2"),
+            WiFiNetwork(ssid="Network2", signal_strength=60, security=None)
+        ]
+    ))
+    
+    with patch('src.core.mode_manager.ModeManager.detect_current_mode', mock_mode), \
+         patch('src.core.wifi_manager.WiFiManager.get_current_status', mock_status):
+        
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/wifi/scan")
+            
+        assert response.status_code == 200
+        data = response.json()
+        assert "networks" in data
+        assert len(data["networks"]) == 2
+        assert data["networks"][0]["ssid"] == "Network1"
+        assert data["networks"][0]["security"] == "WPA2"
+        assert data["networks"][1]["ssid"] == "Network2"
+        assert data["networks"][1]["security"] is None
+        
+        # Verify the methods were called
+        mock_mode.assert_called_once()
+        mock_status.assert_called_once()
