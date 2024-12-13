@@ -336,3 +336,40 @@ async def mode_status_websocket(websocket: WebSocket):
             await websocket.close()
         except:
             pass 
+
+@router.post("/ap/connect", tags=["AP"])
+async def connect_from_ap_mode(request: WiFiConnectionRequest):
+    """Connect to a WiFi network from AP mode"""
+    try:
+        logger.debug(f"Attempting to connect to network: {request.ssid}")
+        
+        # First attempt to switch to client mode temporarily
+        success = await mode_manager.temp_switch_to_client_mode()
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to switch to client mode")
+        
+        try:
+            # Attempt connection
+            result = await wifi_manager.connect_to_network(request.ssid, request.password)
+            
+            if result:
+                # If connection successful, stay in client mode
+                logger.debug("Connection successful, staying in client mode")
+                return {"status": "success"}
+            else:
+                # If connection failed, revert to AP mode
+                logger.debug("Connection failed, reverting to AP mode")
+                await mode_manager.restore_previous_mode()
+                raise HTTPException(status_code=400, detail="Failed to connect to network")
+                
+        except Exception as e:
+            # On any error, ensure we revert to AP mode
+            logger.error(f"Error during connection attempt: {e}")
+            await mode_manager.restore_previous_mode()
+            raise HTTPException(status_code=400, detail=str(e))
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error in connect_from_ap_mode: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) 
