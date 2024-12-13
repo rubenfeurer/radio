@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from enum import Enum
-from typing import Optional
+from typing import Optional, List
 from config.config import settings
 from src.utils.logger import logger
 import os
@@ -15,8 +15,12 @@ class NetworkMode(Enum):
 class ModeManager:
     def __init__(self):
         self._current_mode: NetworkMode = NetworkMode.UNKNOWN
+        self._previous_mode: NetworkMode = NetworkMode.UNKNOWN
         self._mode_lock = asyncio.Lock()
         self._switching = False
+        self._temp_mode_active = False
+        self._temp_mode_timeout = 30  # seconds
+        self._scan_results = None
         
     @property
     def current_mode(self) -> NetworkMode:
@@ -25,6 +29,132 @@ class ModeManager:
     @property
     def is_switching(self) -> bool:
         return self._switching
+
+    @property
+    def is_temp_mode(self) -> bool:
+        return self._temp_mode_active
+
+    async def scan_from_ap_mode(self) -> Optional[List[dict]]:
+        """Temporarily switch to client mode, scan for networks, and return to AP mode"""
+        if self._current_mode != NetworkMode.AP:
+            logger.error("Can only scan from AP mode")
+            return None
+
+        try:
+            # Store scan results here
+            self._scan_results = None
+            
+            # Temporarily switch to client mode
+            success = await self.temp_switch_to_client_mode()
+            if not success:
+                logger.error("Failed to switch to client mode for scanning")
+                return None
+
+            # Wait for NetworkManager to initialize
+            await asyncio.sleep(2)
+
+            # Perform network scan using nmcli
+            scan_result = await self._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY',
+                'device', 'wifi', 'list'
+            ])
+            
+            if scan_result.returncode == 0:
+                self._scan_results = self._parse_scan_results(scan_result.stdout)
+
+            # Switch back to AP mode
+            await self.restore_previous_mode()
+            
+            return self._scan_results
+
+        except Exception as e:
+            logger.error(f"Error during network scan: {e}")
+            await self.restore_previous_mode()
+            return None
+
+    async def temp_switch_to_client_mode(self) -> bool:
+        """Temporarily switch to client mode"""
+        if self._temp_mode_active:
+            logger.warning("Already in temporary mode")
+            return False
+
+        async with self._mode_lock:
+            try:
+                self._temp_mode_active = True
+                self._previous_mode = self._current_mode
+                self._switching = True
+                self._timeout_task = None
+
+                # Switch to client mode
+                success = await self._switch_to_client()
+                if success:
+                    self._current_mode = NetworkMode.CLIENT
+                    
+                    # Start timeout timer
+                    self._timeout_task = asyncio.create_task(self._handle_temp_mode_timeout())
+                    
+                return success
+
+            finally:
+                self._switching = False
+
+    async def restore_previous_mode(self) -> bool:
+        """Restore the previous mode"""
+        if not self._temp_mode_active:
+            logger.warning("Not in temporary mode")
+            return False
+
+        async with self._mode_lock:
+            try:
+                self._switching = True
+                success = False
+
+                # Cancel timeout task if it exists
+                if hasattr(self, '_timeout_task') and self._timeout_task:
+                    self._timeout_task.cancel()
+                    try:
+                        await self._timeout_task
+                    except asyncio.CancelledError:
+                        pass
+                    self._timeout_task = None
+
+                if self._previous_mode == NetworkMode.AP:
+                    success = await self._switch_to_ap()
+                elif self._previous_mode == NetworkMode.CLIENT:
+                    success = await self._switch_to_client()
+
+                if success:
+                    self._current_mode = self._previous_mode
+                    self._temp_mode_active = False
+                    
+                return success
+
+            finally:
+                self._switching = False
+
+    async def _handle_temp_mode_timeout(self):
+        """Handle timeout for temporary mode"""
+        await asyncio.sleep(self._temp_mode_timeout)
+        if self._temp_mode_active:
+            logger.warning("Temporary mode timeout, restoring previous mode")
+            await self.restore_previous_mode()
+
+    def _parse_scan_results(self, scan_output: str) -> List[dict]:
+        """Parse nmcli scan results"""
+        networks = []
+        for line in scan_output.strip().split('\n'):
+            if line:
+                try:
+                    ssid, signal, security = line.split(':')
+                    if ssid:  # Skip empty SSIDs
+                        networks.append({
+                            'ssid': ssid,
+                            'signal_strength': int(signal),
+                            'security': security if security else None
+                        })
+                except Exception as e:
+                    logger.error(f"Error parsing network: {line} - {e}")
+        return networks
 
     async def detect_current_mode(self) -> NetworkMode:
         """Detect current network mode"""

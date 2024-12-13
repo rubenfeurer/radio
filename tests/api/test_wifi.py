@@ -235,7 +235,7 @@ async def test_get_network_status(mock_wifi_status, mock_detect_mode):
 
 @pytest.mark.asyncio
 async def test_websocket_mode_status():
-    """Test WebSocket mode status updates"""
+    """Test WebSocket mode status updates with scan information"""
     from fastapi.testclient import TestClient
     
     client = TestClient(app)
@@ -246,3 +246,68 @@ async def test_websocket_mode_status():
         assert "data" in data
         assert "mode" in data["data"]
         assert "is_switching" in data["data"]
+        assert "is_temp_mode" in data["data"]
+        assert "scan_in_progress" in data["data"]
+
+@pytest.mark.asyncio
+@patch('src.core.mode_manager.ModeManager.scan_from_ap_mode')
+@patch('src.core.mode_manager.ModeManager.detect_current_mode')
+async def test_trigger_scan_from_ap_mode(mock_detect_mode, mock_scan, initialized_wifi_manager):
+    """Test triggering network scan from AP mode"""
+    # Mock AP mode and successful scan
+    mock_detect_mode.return_value = NetworkMode.AP
+    mock_scan.return_value = [
+        {"ssid": "Network1", "signal_strength": 80, "security": "WPA2"},
+        {"ssid": "Network2", "signal_strength": 70, "security": "WPA2"}
+    ]
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/wifi/scan")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert len(data["networks"]) == 2
+
+@pytest.mark.asyncio
+@patch('src.core.mode_manager.ModeManager.detect_current_mode')
+async def test_trigger_scan_from_client_mode(mock_detect_mode, initialized_wifi_manager):
+    """Test attempting to scan from client mode (should fail)"""
+    # Set up the mock to return CLIENT mode
+    mock_detect_mode.return_value = NetworkMode.CLIENT
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/wifi/scan")
+    
+    assert response.status_code == 400
+    data = response.json()
+    assert "detail" in data
+    assert "Can only scan from AP mode" in data["detail"]
+
+@pytest.mark.asyncio
+async def test_get_scan_results_empty(initialized_wifi_manager):
+    """Test getting scan results when none available"""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/wifi/scan-results")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert "networks" in data
+    assert len(data["networks"]) == 0
+
+@pytest.mark.asyncio
+@patch('src.api.routes.wifi.mode_manager')
+async def test_get_scan_results_with_data(mock_mode_manager, initialized_wifi_manager):
+    """Test getting scan results with available data"""
+    mock_mode_manager._scan_results = [
+        {"ssid": "Network1", "signal_strength": 80, "security": "WPA2"},
+        {"ssid": "Network2", "signal_strength": 70, "security": "WPA2"}
+    ]
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/wifi/scan-results")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["networks"]) == 2
+    assert data["networks"][0]["ssid"] == "Network1"

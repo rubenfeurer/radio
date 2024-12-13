@@ -203,19 +203,54 @@ async def switch_mode(mode: str):
         logger.error(f"Error switching mode: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/scan", tags=["WiFi"])
+async def trigger_network_scan():
+    """Trigger a network scan from AP mode"""
+    try:
+        current_mode = await mode_manager.detect_current_mode()
+        if current_mode != NetworkMode.AP:
+            raise HTTPException(
+                status_code=400,
+                detail="Can only scan from AP mode"
+            )
+
+        results = await mode_manager.scan_from_ap_mode()
+        if results is None:
+            raise HTTPException(status_code=500, detail="Scan failed")
+
+        return {"status": "success", "networks": results}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error during network scan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/scan-results", tags=["WiFi"])
+async def get_scan_results():
+    """Get the latest scan results"""
+    try:
+        if not hasattr(mode_manager, '_scan_results'):
+            return {"networks": []}
+        return {"networks": mode_manager._scan_results or []}
+    except Exception as e:
+        logger.error(f"Error getting scan results: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # WebSocket endpoint for real-time updates
 @router.websocket("/ws/mode")
 async def mode_status_websocket(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            # Send current mode status every second
+            # Send current mode and scan status
             mode = await mode_manager.detect_current_mode()
             await websocket.send_json({
                 "type": "mode_status",
                 "data": {
                     "mode": mode.value,
-                    "is_switching": mode_manager.is_switching
+                    "is_switching": mode_manager.is_switching,
+                    "is_temp_mode": mode_manager.is_temp_mode if hasattr(mode_manager, 'is_temp_mode') else False,
+                    "scan_in_progress": mode_manager.is_switching and mode_manager.is_temp_mode if hasattr(mode_manager, 'is_temp_mode') else False
                 }
             })
             await asyncio.sleep(1)

@@ -1,6 +1,7 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from src.core.mode_manager import ModeManager, NetworkMode
+import asyncio
 
 @pytest.fixture
 async def mode_manager():
@@ -13,9 +14,93 @@ async def mode_manager():
         stdout="",
         stderr=""
     )
-    # Mock switch_mode to prevent actual switching
-    manager.switch_mode = AsyncMock()
     return manager
+
+@pytest.mark.asyncio
+async def test_temp_switch_to_client_mode(mode_manager):
+    """Test temporary switch to client mode"""
+    # Setup initial state
+    mode_manager._current_mode = NetworkMode.AP
+    
+    # Mock successful client mode switch
+    mode_manager._switch_to_client = AsyncMock(return_value=True)
+    
+    # Perform temporary switch
+    result = await mode_manager.temp_switch_to_client_mode()
+    
+    assert result is True
+    assert mode_manager._temp_mode_active is True
+    assert mode_manager._previous_mode == NetworkMode.AP
+    assert mode_manager.current_mode == NetworkMode.CLIENT
+
+@pytest.mark.asyncio
+async def test_restore_previous_mode(mode_manager):
+    """Test restoring previous mode"""
+    # Setup initial state
+    mode_manager._current_mode = NetworkMode.CLIENT
+    mode_manager._previous_mode = NetworkMode.AP
+    mode_manager._temp_mode_active = True
+    
+    # Mock successful AP mode switch
+    mode_manager._switch_to_ap = AsyncMock(return_value=True)
+    
+    # Restore previous mode
+    result = await mode_manager.restore_previous_mode()
+    
+    assert result is True
+    assert mode_manager._temp_mode_active is False
+    assert mode_manager.current_mode == NetworkMode.AP
+
+@pytest.mark.asyncio
+async def test_scan_from_ap_mode(mode_manager):
+    """Test scanning for networks from AP mode"""
+    # Setup initial state
+    mode_manager._current_mode = NetworkMode.AP
+    
+    # Mock scan results
+    scan_output = "MyNetwork1:80:WPA2\nMyNetwork2:70:WPA1"
+    mode_manager._run_command.return_value = MagicMock(
+        returncode=0,
+        stdout=scan_output,
+        stderr=""
+    )
+    
+    # Mock mode switching methods
+    mode_manager.temp_switch_to_client_mode = AsyncMock(return_value=True)
+    mode_manager.restore_previous_mode = AsyncMock(return_value=True)
+    
+    # Perform scan
+    results = await mode_manager.scan_from_ap_mode()
+    
+    assert results is not None
+    assert len(results) == 2
+    assert results[0]['ssid'] == 'MyNetwork1'
+    assert results[0]['signal_strength'] == 80
+    assert results[1]['ssid'] == 'MyNetwork2'
+    assert results[1]['signal_strength'] == 70
+
+@pytest.mark.asyncio
+async def test_temp_mode_timeout(mode_manager):
+    """Test temporary mode timeout"""
+    # Reduce timeout for testing
+    mode_manager._temp_mode_timeout = 0.1
+    
+    # Setup initial state
+    mode_manager._current_mode = NetworkMode.CLIENT
+    mode_manager._previous_mode = NetworkMode.AP
+    mode_manager._temp_mode_active = True
+    
+    # Mock restore_previous_mode
+    mode_manager.restore_previous_mode = AsyncMock()
+    
+    # Start timeout handler
+    await mode_manager._handle_temp_mode_timeout()
+    
+    # Wait for timeout
+    await asyncio.sleep(0.2)
+    
+    # Verify restore was called
+    mode_manager.restore_previous_mode.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_detect_current_mode(mode_manager):
@@ -39,7 +124,14 @@ async def test_detect_current_mode(mode_manager):
 @pytest.mark.asyncio
 async def test_switch_mode_mock(mode_manager):
     """Test mode switching without actual system changes"""
-    mode_manager.switch_mode.return_value = True
+    # Mock the switch methods
+    mode_manager._switch_to_ap = AsyncMock(return_value=True)
+    mode_manager._switch_to_client = AsyncMock(return_value=True)
+    
+    # Test switching to AP mode
     result = await mode_manager.switch_mode(NetworkMode.AP)
     assert result is True
-    mode_manager.switch_mode.assert_called_once_with(NetworkMode.AP)
+    
+    # Test switching to Client mode
+    result = await mode_manager.switch_mode(NetworkMode.CLIENT)
+    assert result is True
