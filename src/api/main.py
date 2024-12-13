@@ -6,6 +6,8 @@ from src.api.routes import stations, system, websocket, wifi, monitor
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 from src.core.wifi_manager import WiFiManager
+from src.core.mode_manager import mode_manager
+from src.utils.logger import logger
 import socket
 import logging
 from fastapi import WebSocket, WebSocketDisconnect
@@ -103,6 +105,19 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
         pass
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize application state"""
+    try:
+        logger.debug("Debug test message")
+        logger.info("Starting up application...")
+        logger.info("Initializing mode manager...")
+        initial_mode = await mode_manager.detect_current_mode()
+        logger.info(f"Initial mode detected: {initial_mode}")
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        logger.exception("Startup error details:")
 
 if __name__ == "__main__":
     import uvicorn

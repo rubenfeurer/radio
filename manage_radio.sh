@@ -51,6 +51,15 @@ radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi connect *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection up *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection delete *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show --active
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active hostapd
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl status hostapd
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl start hostapd
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop hostapd
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl start dnsmasq
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop dnsmasq
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl start NetworkManager
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop NetworkManager
 EOF
         sudo chmod 440 $SUDO_FILE
     fi

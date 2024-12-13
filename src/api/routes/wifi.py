@@ -5,6 +5,7 @@ from src.core.models import WiFiStatus, WiFiNetwork
 from src.api.models.requests import WiFiConnectionRequest
 from src.core.mode_manager import mode_manager, NetworkMode
 from src.core.models import NetworkStatus, ModeStatus
+from src.utils.logger import logger
 import logging
 import asyncio
 
@@ -171,31 +172,36 @@ async def get_network_status():
         mode_status=mode_status
     )
 
-@router.get("/mode", response_model=ModeStatus, tags=["WiFi"])
-async def get_current_mode():
-    """Get current network mode (AP/Client)"""
-    mode = await mode_manager.detect_current_mode()
-    return ModeStatus(
-        mode=mode.value,
-        is_switching=mode_manager.is_switching
-    )
-
-@router.post("/mode/{mode}", tags=["WiFi"])
-async def switch_mode(mode: str):
-    """Switch between AP and Client mode"""
+@router.get("/mode")
+async def get_mode():
+    """Get current network mode"""
     try:
-        target_mode = NetworkMode(mode.lower())
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid mode. Use 'ap' or 'client'")
-    
-    if mode_manager.is_switching:
-        raise HTTPException(status_code=409, detail="Mode switch already in progress")
-    
-    success = await mode_manager.switch_mode(target_mode)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to switch mode")
-    
-    return {"message": f"Successfully switched to {mode} mode"}
+        logger.debug("Mode request received")
+        current_mode = await mode_manager.detect_current_mode()
+        logger.debug(f"Mode detection result: {current_mode}")
+        return {
+            "mode": current_mode.value,
+            "is_switching": mode_manager.is_switching
+        }
+    except Exception as e:
+        logger.error(f"Error in get_mode endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/mode/{mode}")
+async def switch_mode(mode: str):
+    """Switch between AP and CLIENT modes"""
+    try:
+        logger.debug(f"Switching to mode: {mode}")
+        # Make case-insensitive by converting to uppercase
+        new_mode = NetworkMode[mode.upper()]
+        result = await mode_manager.switch_mode(new_mode)
+        logger.debug(f"Switch result: {result}")
+        return {"success": result}
+    except KeyError:
+        raise HTTPException(status_code=400, detail=f"Invalid mode: {mode}")
+    except Exception as e:
+        logger.error(f"Error switching mode: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # WebSocket endpoint for real-time updates
 @router.websocket("/ws/mode")
