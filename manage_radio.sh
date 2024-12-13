@@ -52,6 +52,9 @@ radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection up *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection delete *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show --active
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device status
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli radio wifi on
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli radio wifi off
 radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active hostapd
 radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl status hostapd
 radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl start hostapd
@@ -60,6 +63,10 @@ radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl start dnsmasq
 radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop dnsmasq
 radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl start NetworkManager
 radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop NetworkManager
+radio ALL=(ALL) NOPASSWD: /usr/bin/ip link set *
+radio ALL=(ALL) NOPASSWD: /usr/bin/ip addr flush *
+radio ALL=(ALL) NOPASSWD: /usr/bin/ip addr add *
+radio ALL=(ALL) NOPASSWD: /usr/sbin/sysctl *
 EOF
         sudo chmod 440 $SUDO_FILE
     fi

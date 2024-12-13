@@ -243,67 +243,58 @@ class WiFiManager:
     async def connect_to_network(self, ssid: str, password: Optional[str] = None) -> bool:
         """Connect to a WiFi network"""
         try:
-            self.logger.debug(f"Received connection request for SSID: {ssid} with password: {'(none)' if password is None else '****'}")
+            # Add detailed logging for connection state
+            self.logger.debug(f"Starting connection attempt to {ssid}")
             
-            # Force a rescan to ensure network list is up to date
-            await self._rescan_networks()
+            # Check if network exists in saved connections
+            is_saved = await self._is_network_saved(ssid)
+            self.logger.debug(f"Network saved status: {is_saved}")
             
-            # Check if network is saved
-            saved_result = await self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show'
-            ], capture_output=True, text=True)
-            
-            is_saved = False
-            if saved_result.returncode == 0:
-                for line in saved_result.stdout.strip().split('\n'):
-                    parts = line.split(':')
-                    if len(parts) >= 2 and parts[0].strip() == ssid:
-                        is_saved = True
-                        break
-
-            # Verify network exists
-            scan_result = await self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
-                'device', 'wifi', 'list'
-            ], capture_output=True, text=True)
-            
-            network_exists = False
-            if scan_result.returncode == 0:
-                for line in scan_result.stdout.strip().split('\n'):
-                    if line.startswith(f"{ssid}:"):
-                        network_exists = True
-                        break
-            
-            if not network_exists:
-                self.logger.error(f"Network {ssid} not found in scan results")
-                return False
-
-            # Connect to network
-            if is_saved:
-                self.logger.debug(f"Using saved connection for {ssid}")
+            if not is_saved:
+                # New connection attempt
+                self.logger.debug("Attempting new connection...")
+                connect_cmd = [
+                    'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid
+                ]
+                if password:
+                    connect_cmd.extend(['password', password])
+                
+                result = await self._run_command(connect_cmd, capture_output=True, text=True)
+                self.logger.debug(f"Connection command output: {result.stdout}")
+                self.logger.debug(f"Connection command error: {result.stderr}")
+                
+                if result.returncode != 0:
+                    self.logger.error(f"Connection command failed: {result.stderr}")
+                    return False
+            else:
+                # Connect to saved network
+                self.logger.debug("Connecting to saved network...")
                 result = await self._run_command([
                     'sudo', 'nmcli', 'connection', 'up', ssid
-                ], capture_output=True, text=True, timeout=30)
-            else:
-                if not password:
-                    self.logger.error("Password required for unsaved network")
-                    return False
-                
-                self.logger.debug(f"Creating new connection for {ssid}")
-                result = await self._run_command([
-                    'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
-                    'password', password
-                ], capture_output=True, text=True, timeout=30)
+                ], capture_output=True, text=True)
+                self.logger.debug(f"Saved connection result: {result.stdout}")
+                self.logger.debug(f"Saved connection error: {result.stderr}")
+
+            # Wait for connection to stabilize
+            await asyncio.sleep(5)
             
-            # Verify connection was successful
+            # Verify connection with detailed state information
             verify_result = await self._run_command([
+                'sudo', 'nmcli', 'device', 'status'
+            ], capture_output=True, text=True)
+            self.logger.debug(f"Device status after connection: {verify_result.stdout}")
+            
+            # Check specific connection state
+            conn_state = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'
             ], capture_output=True, text=True)
+            self.logger.debug(f"Connection state: {conn_state.stdout}")
             
-            success = verify_result.returncode == 0 and '100 (connected)' in verify_result.stdout
+            success = verify_result.returncode == 0 and 'connected' in verify_result.stdout
             self.logger.debug(f"Connection verification result: {success}")
             
             if not success and not is_saved:
+                self.logger.debug("Connection failed, cleaning up...")
                 await self._remove_connection(ssid)
             
             return success
@@ -357,16 +348,32 @@ class WiFiManager:
                 self.logger.error(f"Error parsing network: {line} - {e}")
         return networks
 
-    async def _rescan_networks(self) -> None:
-        """Force a rescan of available networks"""
+    async def _rescan_networks(self) -> bool:
+        """Rescan for available networks"""
         try:
-            result = await self._run_command([
-                'sudo', 'nmcli', 'device', 'wifi', 'rescan'
-            ], capture_output=True, text=True, timeout=5)
-            if result.returncode != 0:
-                self.logger.error(f"Network rescan failed: {result.stderr}")
+            logger.debug("Starting network scan...")
+            
+            # First check if interface is ready
+            device_status = await self._run_command([
+                'sudo', 'nmcli', 'device', 'status'
+            ])
+            logger.debug(f"Device status before scan: {device_status.stdout}")
+            
+            # Trigger scan
+            scan_result = await self._run_command([
+                'sudo', 'iw', 'dev', 'wlan0', 'scan'
+            ], capture_output=True, text=True, timeout=10)
+            
+            if scan_result.returncode != 0:
+                logger.error(f"Scan failed with error: {scan_result.stderr}")
+                return False
+            
+            logger.debug("Network scan completed successfully")
+            return True
+            
         except Exception as e:
-            self.logger.error(f"Error during network rescan: {e}")
+            logger.error(f"Network rescan failed: {str(e)}")
+            return False
 
     def _aggregate_networks(self, networks: List[WiFiNetwork]) -> List[WiFiNetwork]:
         """Aggregate networks with the same SSID, keeping the strongest signal"""
@@ -400,3 +407,23 @@ class WiFiManager:
         except Exception as e:
             self.logger.error(f"Error reading preconfigured network: {e}")
         return None
+
+    async def _is_network_saved(self, ssid: str) -> bool:
+        """Check if a network is already saved in NetworkManager"""
+        try:
+            result = await self._run_command([
+                'sudo', 'nmcli', '-t', '-f', 'NAME', 'connection', 'show'
+            ], capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                self.logger.error(f"Failed to check saved networks: {result.stderr}")
+                return False
+            
+            saved_networks = result.stdout.strip().split('\n')
+            self.logger.debug(f"Found saved networks: {saved_networks}")
+            
+            return ssid in saved_networks
+            
+        except Exception as e:
+            self.logger.error(f"Error checking saved networks: {e}")
+            return False

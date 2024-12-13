@@ -34,6 +34,15 @@
     connecting = true;
     error = null;
     try {
+      // First verify we're in AP mode (case-insensitive check)
+      const modeResponse = await fetch(`${API_BASE}/api/v1/wifi/mode`);
+      const { mode } = await modeResponse.json();
+      
+      if (mode.toLowerCase() !== 'ap') {
+        throw new Error('Not in AP mode');
+      }
+      
+      // Attempt connection
       const response = await fetch(`${API_BASE}/api/v1/wifi/ap/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -42,25 +51,20 @@
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Connection error details:', errorData);
         throw new Error(errorData.detail || 'Failed to connect');
       }
       
-      // Wait for mode switch and connection
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      // Wait longer for mode switch and connection (30 seconds)
+      await new Promise(resolve => setTimeout(resolve, 30000));
       
-      // Get new hostname for redirect
-      const hostnameResponse = await fetch(`${API_BASE}/api/v1/system/hostname`);
-      if (hostnameResponse.ok) {
-        const { hostname } = await hostnameResponse.json();
-        window.location.href = `http://${hostname}`;
-      }
+      // Only redirect on success
+      window.location.href = 'http://192.168.4.1';
+      
     } catch (err) {
       console.error('Connection error:', err);
       error = err.message || 'Failed to connect to network';
-      selectedNetwork = null;
-      password = '';
-      // Refresh network list after failed attempt
-      await scanNetworks();
+      // Don't clear form or rescan on error
     } finally {
       connecting = false;
     }

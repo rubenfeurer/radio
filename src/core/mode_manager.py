@@ -93,24 +93,57 @@ class ModeManager:
                 self._temp_mode_active = True
                 self._previous_mode = self._current_mode
                 self._switching = True
-                self._timeout_task = None
-
+                
                 logger.debug(f"Stored previous_mode as {self._previous_mode}")
-
-                # Switch to client mode
-                success = await self._switch_to_client()
-                if success:
-                    self._current_mode = NetworkMode.CLIENT
-                    logger.debug("Successfully switched to client mode")
-                    
-                    # Start timeout timer
-                    self._timeout_task = asyncio.create_task(self._handle_temp_mode_timeout())
-                    
-                return success
-
-            finally:
+                
+                # Stop AP services
+                await self._run_command(['sudo', 'systemctl', 'stop', 'hostapd'])
+                await self._run_command(['sudo', 'systemctl', 'stop', 'dnsmasq'])
+                await self._run_command(['sudo', 'sysctl', 'net.ipv4.ip_forward=0'])
+                
+                # Reset interface completely
+                logger.debug("Resetting interface...")
+                await self._run_command(['sudo', 'ip', 'link', 'set', settings.AP_INTERFACE, 'down'])
+                await self._run_command(['sudo', 'ip', 'addr', 'flush', 'dev', settings.AP_INTERFACE])
+                await asyncio.sleep(1)  # Give interface time to settle
+                
+                # Start NetworkManager
+                logger.debug("Starting NetworkManager...")
+                await self._run_command(['sudo', 'systemctl', 'start', 'NetworkManager'])
+                
+                # Wait for NetworkManager to be fully ready
+                for _ in range(10):  # Try for up to 10 seconds
+                    try:
+                        status = await self._run_command([
+                            'sudo', 'nmcli', 'device', 'status'
+                        ])
+                        logger.debug(f"Device status: {status.stdout}")
+                        
+                        if 'wlan0' in status.stdout and 'unavailable' not in status.stdout:
+                            logger.debug("NetworkManager is ready with wlan0 available")
+                            break
+                    except Exception as e:
+                        logger.debug(f"Error checking device status: {e}")
+                        pass
+                    await asyncio.sleep(1)
+                    logger.debug("Waiting for NetworkManager to be ready...")
+                
+                # Ensure wireless is enabled
+                await self._run_command(['sudo', 'nmcli', 'radio', 'wifi', 'on'])
+                await self._run_command(['sudo', 'ip', 'link', 'set', settings.AP_INTERFACE, 'up'])
+                await asyncio.sleep(2)  # Give interface time to initialize
+                
+                self._current_mode = NetworkMode.CLIENT
                 self._switching = False
-                logger.debug(f"Exiting temp_switch_to_client_mode. Success={success}, current_mode={self._current_mode}")
+                logger.debug("Successfully switched to client mode")
+                
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error switching to client mode: {e}")
+                self._switching = False
+                self._temp_mode_active = False
+                return False
 
     async def restore_previous_mode(self) -> bool:
         """Restore the previous mode"""
@@ -414,6 +447,108 @@ dhcp-range={settings.AP_DHCP_RANGE_START},{settings.AP_DHCP_RANGE_END},12h
         except Exception as e:
             logger.error(f"Error running command '{' '.join(command)}': {str(e)}")
             raise
+
+    async def _verify_connection(self, ssid: str) -> bool:
+        """Verify if connected to specified network"""
+        try:
+            for attempt in range(20):  # Increase timeout to 20 seconds
+                status = await self._run_command([
+                    'sudo', 'nmcli', 'connection', 'show', '--active'
+                ])
+                
+                if ssid in status.stdout and 'wlan0' in status.stdout:
+                    # Additional verification
+                    device_status = await self._run_command([
+                        'sudo', 'nmcli', 'device', 'status'
+                    ])
+                    if 'connected' in device_status.stdout:
+                        logger.debug(f"Connection verified after {attempt} attempts")
+                        return True
+                        
+                await asyncio.sleep(1)
+                logger.debug(f"Waiting for connection verification... ({attempt}/20)")
+                
+            logger.error("Connection verification timed out")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error verifying connection: {e}")
+            return False
+
+    async def _create_wifi_connection(self, ssid: str, password: str) -> bool:
+        """Create and activate a WiFi connection"""
+        try:
+            # First ensure WiFi is enabled
+            await self._run_command(['sudo', 'nmcli', 'radio', 'wifi', 'on'])
+            await asyncio.sleep(2)  # Give more time for wifi to initialize
+            
+            # Force a rescan
+            logger.debug("Forcing network rescan...")
+            try:
+                await self._run_command(['sudo', 'nmcli', 'device', 'wifi', 'rescan'])
+                await asyncio.sleep(5)  # Give more time for scan
+            except Exception as e:
+                logger.warning(f"Rescan failed (this is often normal): {e}")
+            
+            # List available networks to verify SSID is visible
+            networks = await self._run_command([
+                'sudo', 'nmcli', '--terse', '--fields', 'SSID', 'device', 'wifi', 'list'
+            ])
+            
+            if ssid not in networks.stdout:
+                logger.error(f"Network {ssid} not found in scan results")
+                return False
+            
+            # Try to connect directly
+            logger.debug(f"Attempting to connect to {ssid}")
+            connect_result = await self._run_command([
+                'sudo', 'nmcli', 'device', 'wifi', 'connect', ssid,
+                'password', password
+            ])
+            
+            if "successfully activated" in connect_result.stdout:
+                logger.debug("Connection command succeeded")
+                return True
+            
+            logger.error(f"Connection command failed: {connect_result.stdout}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error creating WiFi connection: {e}")
+            return False
+
+    async def connect_to_wifi(self, ssid: str, password: str) -> bool:
+        """Connect to a WiFi network"""
+        logger.debug(f"Received connection request for SSID: {ssid} with password: ****")
+        
+        # Get initial device status
+        status = await self._run_command(['sudo', 'nmcli', 'device', 'status'])
+        logger.debug(f"Device status before connection attempt: {status.stdout}")
+        
+        try:
+            # Create and activate connection
+            if await self._create_wifi_connection(ssid, password):
+                # Verify connection
+                if await self._verify_connection(ssid):
+                    logger.debug(f"Successfully connected to {ssid}")
+                    return True
+                
+            logger.debug("Connection verification failed")
+            
+            # Clean up failed connection
+            try:
+                logger.debug(f"Removing failed connection: {ssid}")
+                await self._run_command([
+                    'sudo', 'nmcli', 'connection', 'delete', ssid
+                ])
+            except Exception as e:
+                logger.error(f"Failed to remove connection: {e}")
+                
+            return False
+            
+        except Exception as e:
+            logger.error(f"Connection attempt failed: {e}")
+            return False
 
 # Create singleton instance
 mode_manager = ModeManager() 
