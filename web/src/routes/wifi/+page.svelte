@@ -14,6 +14,9 @@
       : '')
     : '';
 
+  // Add mode state
+  let currentMode = 'CLIENT';
+
   // SVG icons
   const Icons = {
     arrowLeft: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,6 +71,18 @@
   let preconfiguredSSID: string | null = null;
 
   onMount(async () => {
+    try {
+      // Check current mode first
+      const modeResponse = await fetch(`${API_BASE}/api/v1/wifi/mode`);
+      if (modeResponse.ok) {
+        const { mode } = await modeResponse.json();
+        currentMode = mode.toUpperCase();
+        console.log('Current mode:', currentMode);
+      }
+    } catch (error) {
+      console.error('Error fetching mode:', error);
+    }
+
     await Promise.all([
       fetchNetworks(),
       fetchCurrentConnection()
@@ -87,23 +102,40 @@
   async function fetchNetworks() {
     loading = true;
     try {
-      const response = await fetch(`${API_BASE}/api/v1/wifi/networks`);
-      if (!response.ok) throw new Error('Failed to fetch networks');
-      const rawNetworks = await response.json();
+      let networkData;
       
-      // Fetch preconfigured SSID
-      const statusResponse = await fetch(`${API_BASE}/api/v1/wifi/status`);
-      if (statusResponse.ok) {
-        const status = await statusResponse.json();
-        preconfiguredSSID = status.preconfigured_ssid;
+      // In AP mode, handle scanning first
+      if (currentMode === 'AP') {
+        console.log('Triggering AP mode scan...');
+        // Trigger scan
+        await fetch(`${API_BASE}/api/v1/wifi/ap/scan`, { method: 'POST' });
+        // Wait for scan to complete
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        // Get scan results
+        const scanResponse = await fetch(`${API_BASE}/api/v1/wifi/ap/scan-results`);
+        if (!scanResponse.ok) throw new Error('Failed to get scan results');
+        const scanResults = await scanResponse.json();
+        networkData = scanResults.networks;
+      } else {
+        // CLIENT mode - use normal endpoint
+        console.log('Fetching CLIENT mode networks...');
+        const response = await fetch(`${API_BASE}/api/v1/wifi/networks`);
+        if (!response.ok) throw new Error('Failed to fetch networks');
+        networkData = await response.json();
+        
+        // Fetch preconfigured SSID (only in CLIENT mode)
+        const statusResponse = await fetch(`${API_BASE}/api/v1/wifi/status`);
+        if (statusResponse.ok) {
+          const status = await statusResponse.json();
+          preconfiguredSSID = status.preconfigured_ssid;
+        }
       }
 
-      // Filter out networks with empty SSIDs
-      networks = rawNetworks.filter(network => 
+      // Process networks (same for both modes)
+      networks = networkData.filter(network => 
         network.ssid && network.ssid.trim() !== ''
       );
       
-      // Mark current network as in_use and saved
       if (currentConnection?.ssid) {
         networks = networks.map(network => ({
           ...network,
@@ -112,12 +144,10 @@
         }));
       }
       
-      // Sort networks by signal strength (highest first)
       networks.sort((a, b) => b.signal_strength - a.signal_strength);
-      
-      // Split networks into saved and other
       savedNetworks = networks.filter(n => n.saved || n.in_use);
       otherNetworks = networks.filter(n => !n.saved && !n.in_use);
+      
     } catch (error) {
       console.error('Error fetching networks:', error);
     } finally {
@@ -126,36 +156,22 @@
   }
 
   async function connectToNetwork(network: WiFiNetwork) {
-    if (network.ssid === preconfiguredSSID) {
-        // Use the dedicated preconfigured endpoint
-        connecting = true;
-        try {
-            const response = await fetch(`${API_BASE}/api/v1/wifi/connect/preconfigured`, {
-                method: 'POST'
-            });
-
-            if (!response.ok) throw new Error('Failed to connect');
-            
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            
-            const hostnameResponse = await fetch(`${API_BASE}/api/v1/system/hostname`);
-            if (hostnameResponse.ok) {
-                const { hostname } = await hostnameResponse.json();
-                window.location.href = `http://${hostname}`;
-            } else {
-                goto('/');
-            }
-        } catch (error) {
-            console.error('Connection error:', error);
-            alert('Failed to connect to preconfigured network');
-        } finally {
-            connecting = false;
-        }
-    } else if (!network.security) {
+    if (currentMode === 'AP') {
+      if (!network.security) {
         // Connect without password
-        await attemptConnection(network.ssid, '');
-    } else {
+        await attemptAPConnection(network.ssid, '');
+      } else {
         selectedNetwork = network;
+      }
+    } else {
+      // Existing CLIENT mode logic
+      if (network.ssid === preconfiguredSSID) {
+        await connectToPreconfigured();
+      } else if (!network.security) {
+        await attemptConnection(network.ssid, '');
+      } else {
+        selectedNetwork = network;
+      }
     }
   }
 
@@ -221,6 +237,37 @@
         connecting = false;
     }
   }
+
+  // Add new function for AP mode connection
+  async function attemptAPConnection(ssid: string, password: string) {
+    connecting = true;
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/wifi/ap/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ssid, password })
+      });
+
+      if (!response.ok) throw new Error('Failed to connect');
+      
+      // Wait for connection
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      // Get new hostname if available
+      const hostnameResponse = await fetch(`${API_BASE}/api/v1/system/hostname`);
+      if (hostnameResponse.ok) {
+        const { hostname } = await hostnameResponse.json();
+        window.location.href = `http://${hostname}`;
+      } else {
+        goto('/');
+      }
+    } catch (error) {
+      console.error('Connection error:', error);
+      alert('Failed to connect to network');
+    } finally {
+      connecting = false;
+    }
+  }
 </script>
 
 <div class="container mx-auto p-4 max-w-2xl">
@@ -231,7 +278,12 @@
     </Button>
   </a>
 
-  <h1 class="text-2xl font-bold mb-4">WiFi Settings</h1>
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">WiFi Settings</h1>
+    <Badge color={currentMode === 'AP' ? 'purple' : 'blue'}>
+      {currentMode} Mode
+    </Badge>
+  </div>
 
   {#if selectedNetwork}
     <Card class="w-full">
