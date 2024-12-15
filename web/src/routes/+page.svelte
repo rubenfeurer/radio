@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { wsStore } from '$lib/stores/websocket';
+  import { networkMode } from '$lib/stores/network';
 
   // Types
   interface RadioStation {
@@ -28,6 +29,17 @@
     security: string | null;
     in_use: boolean;
   }
+
+  let currentMode = 'CLIENT';
+  let isSwitching = false;
+
+  // Subscribe to network mode store
+  networkMode.subscribe(value => {
+    if (value) {
+      currentMode = value.mode;
+      isSwitching = value.is_switching;
+    }
+  });
 
   let stations: RadioStation[] = [];
   let volume = 50;
@@ -171,6 +183,11 @@
             updateStatus(data.data);
           } else if (data.type === 'wifi_status') {
             wifiStatus = data.data;
+          } else if (data.type === 'monitor_update' && data.data?.systemInfo) {
+            networkMode.set({
+              mode: data.data.systemInfo.networkMode || 'unknown',
+              is_switching: data.data.systemInfo.is_switching || false
+            });
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -357,6 +374,70 @@
           Open Monitor
         </Button>
       </a>
+    </div>
+  </Card>
+
+  <!-- Mode Switch Card -->
+  <Card class="mt-4">
+    <div class="flex flex-col gap-2">
+      <h3 class="text-lg font-semibold">Network Mode</h3>
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="text-gray-600">Current: {currentMode} Mode</span>
+          {#if isSwitching}
+            <Badge color="yellow" class="ml-2">Switching...</Badge>
+          {/if}
+        </div>
+        <Button
+          color="purple"
+          disabled={isSwitching}
+          on:click={async () => {
+            try {
+              const newMode = currentMode === 'AP' ? 'CLIENT' : 'AP';
+              
+              networkMode.set({
+                mode: currentMode,
+                is_switching: true
+              });
+              
+              if (currentMode === 'CLIENT' && ws) {
+                ws.send(JSON.stringify({ 
+                  type: 'mode_change',
+                  data: { mode: 'AP' }
+                }));
+              }
+              
+              const response = await fetch(`${API_BASE}/api/v1/wifi/mode`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ mode: newMode })
+              });
+
+              if (!response.ok) {
+                throw new Error('Failed to switch mode');
+              }
+
+              if (newMode === 'AP') {
+                setTimeout(() => {
+                  window.location.href = 'http://192.168.4.1';
+                }, 5000);
+              }
+              
+            } catch (error) {
+              console.error('Error switching mode:', error);
+              alert('Failed to switch mode. Please try again.');
+              networkMode.set({
+                mode: currentMode,
+                is_switching: false
+              });
+            }
+          }}
+        >
+          Change to {currentMode === 'AP' ? 'WiFi' : 'AP'} Mode
+        </Button>
+      </div>
     </div>
   </Card>
 </div>
