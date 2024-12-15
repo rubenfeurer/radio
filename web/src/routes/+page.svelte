@@ -4,7 +4,6 @@
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { wsStore } from '$lib/stores/websocket';
-  import NetworkMode from '$lib/components/NetworkMode.svelte';
 
   // Types
   interface RadioStation {
@@ -359,10 +358,5 @@
         </Button>
       </a>
     </div>
-  </Card>
-
-  <!-- Network Mode Card -->
-  <Card class="mt-4">
-    <NetworkMode />
   </Card>
 </div>

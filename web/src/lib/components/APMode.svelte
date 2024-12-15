@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Card, Button, Badge, Input } from 'flowbite-svelte';
-  import type { WiFiNetwork } from './types';
-  import { Icons, getWifiIcon } from './icons';
+  import type { WiFiNetwork, CurrentConnection } from '$lib/types';
+  import { Icons, getWifiIcon } from '$lib/icons';
   
   export let API_BASE: string;
   export let networks: WiFiNetwork[] = [];

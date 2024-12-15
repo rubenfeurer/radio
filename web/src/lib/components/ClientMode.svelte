@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { Card, Button, Badge, Input } from 'flowbite-svelte';
   import type { WiFiNetwork, CurrentConnection } from '$lib/types';
-  import { Icons, getWifiIcon } from '../../routes/wifi/icons';
+  import { Icons, getWifiIcon } from '$lib/icons';
   
   export let API_BASE: string;
   export let networks: WiFiNetwork[] = [];

@@ -2,9 +2,9 @@
   import { onMount } from 'svelte';
   import { Button, Badge } from 'flowbite-svelte';
   import { browser } from '$app/environment';
-  import APMode from './APMode.svelte';
-  import ClientMode from './ClientMode.svelte';
-  import { Icons } from './icons';
+  import APMode from '$lib/components/APMode.svelte';
+  import ClientMode from '$lib/components/ClientMode.svelte';
+  import { Icons } from '$lib/icons';
   import type { NetworkStatus } from '$lib/types';
   
   // Get the current hostname (IP or domain)
