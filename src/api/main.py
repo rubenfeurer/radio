@@ -45,6 +45,18 @@ app.include_router(wifi.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router, prefix=settings.API_V1_STR)
 app.include_router(monitor.router, prefix=settings.API_V1_STR)
 
+# API endpoints first (before static files and catch-all)
+@app.get(f"{settings.API_V1_STR}/")
+async def api_root():
+    """Root API endpoint"""
+    return {"message": "Radio API"}
+
+@app.get("/health")
+@app.get(f"{settings.API_V1_STR}/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
+
 # Mount the built frontend files
 frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "web/build")
 if os.path.exists(frontend_path):
@@ -65,12 +77,6 @@ else:
 
 logger = logging.getLogger(__name__)
 
-@app.get("/health", tags=["Health"])
-@app.head("/health", tags=["Health"])
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy"}
-
 @app.get(f"{settings.API_V1_STR}/health", tags=["Health"])
 @app.head(f"{settings.API_V1_STR}/health", tags=["Health"])
 async def api_health_check():
@@ -84,11 +90,6 @@ async def internal_error_handler(request, exc):
         status_code=500,
         content={"detail": "Internal Server Error. Check server logs for details."}
     )
-
-@app.get(f"{settings.API_V1_STR}/", tags=["System"])
-async def api_root():
-    """Root API endpoint"""
-    return {"message": "Radio API"}
 
 @app.websocket(f"{settings.API_V1_STR}{settings.WS_PATH}")
 async def websocket_endpoint(websocket: WebSocket):

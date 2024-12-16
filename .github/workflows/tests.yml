@@ -27,7 +27,7 @@ jobs:
           mpv libmpv-dev \
           python3-pip python3-venv \
           libasound2-dev \
-          network-manager  # Add NetworkManager
+          network-manager
         
         # Download and build pigpio
         wget https://github.com/joan2937/pigpio/archive/master.zip
@@ -41,7 +41,7 @@ jobs:
         sudo chmod 777 /var/run/pigpio
         
         # Start services
-        sudo systemctl start NetworkManager  # Start NetworkManager
+        sudo systemctl start NetworkManager
         sudo pigpiod -l -t 0 || true
         
         # Verify NetworkManager is running
@@ -51,7 +51,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install httpx pytest pytest-asyncio pytest-cov pytest-mock
+        pip install httpx pytest pytest-asyncio pytest-cov pytest-mock pytest-timeout
         
     - name: Run tests with mocked hardware
       env:
@@ -59,11 +59,17 @@ jobs:
         PYTHONPATH: .
         TEST_MODE: "CI"
         DISABLE_HARDWARE: "true"
-        # Add environment variable to skip NetworkManager checks in tests
         SKIP_NM_CHECK: "true"
+        PYTEST_TIMEOUT: "10"
+        PYTEST_ASYNCIO_MODE: "auto"
       run: |
-        # Run pytest with detailed output
-        pytest -v tests/ --cov=src --capture=no --log-cli-level=DEBUG
+        # Run pytest with detailed output and specific settings
+        pytest -v tests/ \
+          --cov=src \
+          --capture=no \
+          --log-cli-level=DEBUG \
+          --asyncio-mode=auto \
+          -p no:warnings
         
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
