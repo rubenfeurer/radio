@@ -7,6 +7,7 @@ LOG_FILE="/home/radio/radio/logs/radio.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
 API_PORT=80
 DEV_PORT=5173
+NODE_ENV="production"
 
 check_ports() {
     # Check and kill any existing processes on API_PORT
