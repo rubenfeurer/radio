@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { onMount } from 'svelte';
+  import { ws } from '$lib/stores/websocket';  // Import the WebSocket store
 
   // Types
   interface RadioStation {
@@ -27,11 +28,31 @@
       : '')
     : '';
 
-  onMount(async () => {
-    await loadInitialStations();
+  // Subscribe to WebSocket and handle messages
+  ws.subscribe(socket => {
+    if (socket) {
+      socket.addEventListener('message', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'status_response' || data.type === 'status_update') {
+            // Update current playing slot based on status
+            currentPlayingSlot = data.data.current_station?.slot || null;
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      });
+    }
   });
 
-  async function loadInitialStations() {
+  onMount(() => {
+    // Request initial status when component mounts
+    ws.sendMessage({ type: "status_request" });
+    // Load initial stations
+    loadInitialStations();
+  });
+
+  export async function loadInitialStations() {
     try {
         console.log("Fetching assigned stations...");
         const assignedResponse = await fetch(`${API_BASE}/api/v1/stations/assigned`);
