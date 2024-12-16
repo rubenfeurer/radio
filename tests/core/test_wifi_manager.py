@@ -47,11 +47,13 @@ async def test_connect_to_network():
         
         mock_connect.return_value = True
         mock_status.return_value = WiFiStatus(
-            ssid="Salt_2GHz_D8261F",
+            ssid="TestNetwork",
             signal_strength=70,
             is_connected=True,
             has_internet=True,
-            available_networks=[]
+            available_networks=[
+                WiFiNetwork(ssid="TestNetwork", signal_strength=80, security="WPA2", in_use=True)
+            ]
         )
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -61,7 +63,7 @@ async def test_connect_to_network():
         assert response.status_code == 200
         assert response.json() == {
             "status": "success",
-            "connected_ssid": "Salt_2GHz_D8261F"
+            "connected_ssid": "TestNetwork"
         }
         mock_connect.assert_called_once_with("TestNetwork", "TestPassword")
 
@@ -92,12 +94,15 @@ async def test_connect_to_saved_network(wifi_manager):
     wifi_manager._run_command = mock_cmd
     
     wifi_manager.get_current_status = AsyncMock(return_value=WiFiStatus(
+        ssid="SavedNetwork",
+        is_connected=True,
+        signal_strength=80,
         available_networks=[
             WiFiNetwork(
                 ssid="SavedNetwork",
                 signal_strength=80,
                 security="WPA2",
-                in_use=False,
+                in_use=True,
                 saved=True
             )
         ]

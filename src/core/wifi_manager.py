@@ -265,16 +265,12 @@ class WiFiManager:
                 await self._remove_connection(ssid)
                 return False
             
-            # 3. Verify connection
+            # 3. Verify connection using get_current_status
             self.logger.debug("3. Verifying connection...")
-            verify_result = await self._run_command([
-                'sudo', 'nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'
-            ])
+            await asyncio.sleep(2)  # Wait for connection to stabilize
             
-            self.logger.debug(f"Verification result: {verify_result.stdout}")
-            
-            # Check for "100" in the state output, which indicates connected
-            if verify_result.returncode == 0 and 'GENERAL.STATE:100' in verify_result.stdout:
+            verify_status = await self.get_current_status()
+            if verify_status.is_connected and verify_status.ssid == ssid:
                 self.logger.debug("Connection successful!")
                 return True
             else:
