@@ -5,6 +5,7 @@
   import { browser } from '$app/environment';
   import { wsStore } from '$lib/stores/websocket';
   import { networkMode } from '$lib/stores/network';
+  import ModeSwitch from '$lib/components/ModeSwitch.svelte';
 
   // Types
   interface RadioStation {
@@ -378,65 +379,8 @@
   </Card>
 
   <!-- Mode Switch Card -->
-  <Card class="mt-4">
-    <div class="flex flex-col gap-2">
-      <h3 class="text-lg font-semibold">Network Mode</h3>
-      <div class="flex items-center justify-between">
-        <div>
-          <span class="text-gray-600">Current: {currentMode} Mode</span>
-          {#if isSwitching}
-            <Badge color="yellow" class="ml-2">Switching...</Badge>
-          {/if}
-        </div>
-        <Button
-          color="purple"
-          disabled={isSwitching}
-          on:click={async () => {
-            try {
-              const newMode = currentMode === 'AP' ? 'CLIENT' : 'AP';
-              
-              networkMode.set({
-                mode: currentMode,
-                is_switching: true
-              });
-              
-              if (currentMode === 'CLIENT' && ws) {
-                ws.send(JSON.stringify({ 
-                  type: 'mode_change',
-                  data: { mode: 'AP' }
-                }));
-              }
-              
-              const response = await fetch(`${API_BASE}/api/v1/wifi/mode/${newMode.toLowerCase()}`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                }
-              });
-
-              if (!response.ok) {
-                throw new Error('Failed to switch mode');
-              }
-
-              if (newMode === 'AP') {
-                setTimeout(() => {
-                  window.location.href = 'http://192.168.4.1';
-                }, 5000);
-              }
-              
-            } catch (error) {
-              console.error('Error switching mode:', error);
-              alert('Failed to switch mode. Please try again.');
-              networkMode.set({
-                mode: currentMode,
-                is_switching: false
-              });
-            }
-          }}
-        >
-          Change to {currentMode === 'AP' ? 'WiFi' : 'AP'} Mode
-        </Button>
-      </div>
-    </div>
-  </Card>
+  <ModeSwitch 
+    API_BASE={API_BASE}
+    ws={ws}
+  />
 </div>
