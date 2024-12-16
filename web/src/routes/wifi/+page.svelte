@@ -94,16 +94,13 @@
   async function fetchNetworks() {
     loading = true;
     try {
-      const response = await fetch(`${API_BASE}/api/v1/wifi/networks`);
-      if (!response.ok) throw new Error('Failed to fetch networks');
-      const rawNetworks = await response.json();
-      
-      // Fetch preconfigured SSID
       const statusResponse = await fetch(`${API_BASE}/api/v1/wifi/status`);
-      if (statusResponse.ok) {
-        const status = await statusResponse.json();
-        preconfiguredSSID = status.preconfigured_ssid;
-      }
+      if (!statusResponse.ok) throw new Error('Failed to fetch status');
+      const status = await statusResponse.json();
+      
+      // Get networks from status response
+      const rawNetworks = status.available_networks;
+      preconfiguredSSID = status.preconfigured_ssid;
 
       // Filter out networks with empty SSIDs
       networks = rawNetworks.filter(network => 
