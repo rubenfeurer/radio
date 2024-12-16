@@ -302,10 +302,12 @@ class ModeManager:
         try:
             logger.debug("Switching to client mode...")
             
-            # Stop AP services first
-            logger.debug("Stopping AP mode services...")
+            # Stop AP services first and disable them
+            logger.debug("Stopping and disabling AP mode services...")
             await self._run_command(['sudo', 'systemctl', 'stop', 'hostapd'])
+            await self._run_command(['sudo', 'systemctl', 'disable', 'hostapd'])
             await self._run_command(['sudo', 'systemctl', 'stop', 'dnsmasq'])
+            await self._run_command(['sudo', 'systemctl', 'disable', 'dnsmasq'])
             await asyncio.sleep(2)
             
             # Reset network interface
@@ -315,8 +317,9 @@ class ModeManager:
             await self._run_command(['sudo', 'ip', 'link', 'set', settings.AP_INTERFACE, 'up'])
             await asyncio.sleep(1)
             
-            # Start NetworkManager and verify
-            logger.debug("Starting NetworkManager...")
+            # Start and enable NetworkManager
+            logger.debug("Starting and enabling NetworkManager...")
+            await self._run_command(['sudo', 'systemctl', 'enable', 'NetworkManager'])
             await self._run_command(['sudo', 'systemctl', 'start', 'NetworkManager'])
             await asyncio.sleep(5)  # Increased wait time
             
@@ -325,8 +328,9 @@ class ModeManager:
                 logger.error("NetworkManager failed to start")
                 return False
             
-            # Start wpa_supplicant
-            logger.debug("Starting wpa_supplicant...")
+            # Start and enable wpa_supplicant
+            logger.debug("Starting and enabling wpa_supplicant...")
+            await self._run_command(['sudo', 'systemctl', 'enable', 'wpa_supplicant'])
             await self._run_command(['sudo', 'systemctl', 'start', 'wpa_supplicant'])
             await asyncio.sleep(3)
             
