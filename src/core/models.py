@@ -1,5 +1,11 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
+from enum import Enum
+
+class NetworkMode(str, Enum):
+    """Network operation mode"""
+    AP = "ap"
+    CLIENT = "client"
 
 class RadioStation(BaseModel):
     name: str

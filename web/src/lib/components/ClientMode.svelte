@@ -70,26 +70,34 @@
   async function attemptConnection(ssid: string, password: string) {
     connecting = true;
     try {
-      const response = await fetch(`${API_BASE}/api/v1/wifi/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ssid, password })
-      });
+        console.log(`Attempting to connect to ${ssid}...`);
+        
+        const response = await fetch(`${API_BASE}/api/v1/wifi/connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ssid, password })
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to connect');
-      }
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Connection error details:', errorData);
+            throw new Error(errorData.detail || 'Failed to connect');
+        }
 
-      await fetchNetworks();
-      selectedNetwork = null;
-      password = '';
-      
-    } catch (error) {
-      console.error('Connection error:', error);
-      alert(error.message || 'Failed to connect to network');
+        // Add delay to allow connection to establish
+        console.log('Connection successful, waiting for network to stabilize...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log('Refreshing network list...');
+        await fetchNetworks();
+        selectedNetwork = null;
+        password = '';
+        
+    } catch (error: any) {
+        console.error('Connection error:', error);
+        alert(error.message || 'Failed to connect to network');
     } finally {
-      connecting = false;
+        connecting = false;
     }
   }
 

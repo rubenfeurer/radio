@@ -18,17 +18,33 @@ logger = logging.getLogger(__name__)
 async def connect_to_network(request: WiFiConnectionRequest):
     """Connect to a WiFi network"""
     try:
-        logger.debug(f"Attempting to connect to SSID: {request.ssid}")
+        logger.debug(f"\n=== Connection request received for SSID: {request.ssid} ===")
         
+        # Get current status before connection attempt
+        current_status = await wifi_manager.get_current_status()
+        logger.debug(f"Current status before connection: {current_status}")
+        
+        # Attempt connection
         result = await wifi_manager.connect_to_network(request.ssid, request.password)
         
-        if result:
-            return {"status": "success"}
-        raise HTTPException(status_code=400, detail="Failed to connect to network")
+        # Get status after connection attempt
+        new_status = await wifi_manager.get_current_status()
+        logger.debug(f"Status after connection attempt: {new_status}")
         
+        if result:
+            return {"status": "success", "connected_ssid": new_status.ssid}
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Failed to connect to {request.ssid}. Please check password and try again."
+            )
+            
     except Exception as e:
-        logger.error(f"Error connecting to network: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Connection error: {str(e)}"
+        )
 
 @router.get("/current", tags=["WiFi"])
 async def get_current_connection():

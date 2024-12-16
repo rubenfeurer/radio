@@ -67,6 +67,11 @@ radio ALL=(ALL) NOPASSWD: /usr/bin/ip link set *
 radio ALL=(ALL) NOPASSWD: /usr/bin/ip addr flush *
 radio ALL=(ALL) NOPASSWD: /usr/bin/ip addr add *
 radio ALL=(ALL) NOPASSWD: /usr/sbin/sysctl *
+# Add these new lines for wpa_supplicant
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl start wpa_supplicant
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop wpa_supplicant
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active wpa_supplicant
+radio ALL=(ALL) NOPASSWD: /usr/bin/systemctl status wpa_supplicant
 EOF
         sudo chmod 440 $SUDO_FILE
     fi
@@ -78,11 +83,24 @@ ensure_client_mode() {
     sudo systemctl stop hostapd || true
     sudo systemctl stop dnsmasq || true
     
+    # Start wpa_supplicant if not running
+    if ! systemctl is-active --quiet wpa_supplicant; then
+        echo "Starting wpa_supplicant..."
+        sudo systemctl start wpa_supplicant
+        sleep 2
+    fi
+    
     # Start NetworkManager if not running
     if ! systemctl is-active --quiet NetworkManager; then
+        echo "Starting NetworkManager..."
         sudo systemctl start NetworkManager
         sleep 2
     fi
+    
+    # Verify services
+    echo "Verifying network services..."
+    systemctl is-active --quiet wpa_supplicant && echo "wpa_supplicant: running" || echo "wpa_supplicant: not running"
+    systemctl is-active --quiet NetworkManager && echo "NetworkManager: running" || echo "NetworkManager: not running"
 }
 
 open_monitor() {

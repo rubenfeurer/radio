@@ -11,7 +11,7 @@ from src.utils.logger import logger
 import socket
 import logging
 from fastapi import WebSocket, WebSocketDisconnect
-from src.core.models import SystemStatus
+from src.core.models import SystemStatus, NetworkMode
 import asyncio
 
 app = FastAPI(title="Internet Radio API")
@@ -112,9 +112,33 @@ async def startup_event():
     try:
         logger.debug("Debug test message")
         logger.info("Starting up application...")
+        
+        # Verify required services
+        logger.info("Verifying required services...")
+        services = {
+            'NetworkManager': await mode_manager._run_command(['systemctl', 'is-active', 'NetworkManager']),
+            'wpa_supplicant': await mode_manager._run_command(['systemctl', 'is-active', 'wpa_supplicant']),
+            'hostapd': await mode_manager._run_command(['systemctl', 'is-active', 'hostapd']),
+            'dnsmasq': await mode_manager._run_command(['systemctl', 'is-active', 'dnsmasq'])
+        }
+        for service, status in services.items():
+            logger.info(f"{service} status: {status.stdout.strip()}")
+        
         logger.info("Initializing mode manager...")
         initial_mode = await mode_manager.detect_current_mode()
         logger.info(f"Initial mode detected: {initial_mode}")
+        
+        # Verify mode is properly set
+        if not await mode_manager._verify_services(initial_mode):
+            logger.warning(f"Services not properly configured for {initial_mode} mode")
+            # Force reconfiguration if needed
+            if initial_mode == NetworkMode.CLIENT:
+                logger.info("Reconfiguring CLIENT mode...")
+                await mode_manager._switch_to_client()
+            else:
+                logger.info("Reconfiguring AP mode...")
+                await mode_manager._switch_to_ap()
+                
     except Exception as e:
         logger.error(f"Error during startup: {e}")
         logger.exception("Startup error details:")
