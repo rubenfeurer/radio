@@ -24,15 +24,23 @@ radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadc
 
 # Get the hostname and add .local suffix for mDNS
 hostname = f"{socket.gethostname()}.local"
+ip_address = socket.gethostbyname(socket.gethostname())
 
 # Construct the allowed origins
 allowed_origins = [
-    f"http://{hostname}:5173",    # Dev server
-    f"http://{hostname}",         # Production
-    f"ws://{hostname}",          # WebSocket production
-    f"ws://{hostname}:80",       # WebSocket explicit port
-    "http://localhost:5173",      # Local development
-    "ws://localhost:80",         # Local WebSocket
+    f"http://{hostname}:5173",    # Dev server with mDNS
+    f"http://{hostname}",         # Production with mDNS
+    f"ws://{hostname}",          # WebSocket with mDNS
+    f"ws://{hostname}:80",       # WebSocket explicit port with mDNS
+    f"http://{ip_address}:5173", # Dev server with IP
+    f"http://{ip_address}",      # Production with IP
+    f"ws://{ip_address}",       # WebSocket with IP
+    f"ws://{ip_address}:80",    # WebSocket explicit port with IP
+    "http://localhost:5173",     # Local development
+    "ws://localhost:80",        # Local WebSocket
+    "http://192.168.4.1:5173", # AP mode access
+    "ws://192.168.4.1:80",     # AP mode WebSocket
+    "*",                        # Allow all origins (for development)
 ]
 
 app.add_middleware(
@@ -41,6 +49,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex="http://.*:5173"  # Allow any host on port 5173
 )
 
 # Include routers
@@ -124,21 +133,25 @@ async def startup_event():
         for service, status in services.items():
             logger.info(f"{service} status: {status.stdout.strip()}")
         
-        logger.info("Initializing mode manager...")
-        initial_mode = await mode_manager.detect_current_mode()
-        logger.info(f"Initial mode detected: {initial_mode}")
+        # Force client mode on startup
+        logger.info("Ensuring client mode on startup...")
+        if not await mode_manager._verify_services(NetworkMode.CLIENT):
+            logger.info("Switching to client mode...")
+            success = await mode_manager._switch_to_client()
+            if not success:
+                logger.error("Failed to switch to client mode")
+                return
+            
+        # Wait for network
+        logger.info("Waiting for network connectivity...")
+        for _ in range(10):  # Try for 10 seconds
+            try:
+                await mode_manager._run_command(['ping', '-c', '1', '8.8.8.8'])
+                logger.info("Network connectivity verified")
+                break
+            except:
+                await asyncio.sleep(1)
         
-        # Verify mode is properly set
-        if not await mode_manager._verify_services(initial_mode):
-            logger.warning(f"Services not properly configured for {initial_mode} mode")
-            # Force reconfiguration if needed
-            if initial_mode == NetworkMode.CLIENT:
-                logger.info("Reconfiguring CLIENT mode...")
-                await mode_manager._switch_to_client()
-            else:
-                logger.info("Reconfiguring AP mode...")
-                await mode_manager.switch_to_ap_mode()
-                
     except Exception as e:
         logger.error(f"Error during startup: {e}")
         logger.exception("Startup error details:")

@@ -79,33 +79,45 @@ EOF
 
 ensure_client_mode() {
     echo "Ensuring system starts in CLIENT mode..."
-    # Stop AP mode services
-    sudo systemctl stop hostapd || true
-    sudo systemctl stop dnsmasq || true
+    
+    # Stop AP mode services first
+    sudo systemctl stop hostapd
+    sudo systemctl stop dnsmasq
+    sleep 2
     
     # Reset network interface
     sudo ip addr flush dev wlan0
+    sudo ip link set wlan0 down
+    sleep 1
     sudo ip link set wlan0 up
+    sleep 2
     
     # Start client mode services in correct order
     echo "Starting client mode services..."
     sudo systemctl start wpa_supplicant
     sleep 2
     sudo systemctl start NetworkManager
-    sleep 2
+    sleep 5  # Increased wait time for NetworkManager
     
-    # Enable WiFi
+    # Enable WiFi explicitly
     sudo nmcli radio wifi on
-    sleep 1
+    sleep 2
     
     # Verify services
     echo "Verifying network services..."
-    systemctl is-active --quiet wpa_supplicant && echo "wpa_supplicant: running" || echo "wpa_supplicant: not running"
-    systemctl is-active --quiet NetworkManager && echo "NetworkManager: running" || echo "NetworkManager: not running"
+    if ! systemctl is-active --quiet NetworkManager; then
+        echo "ERROR: NetworkManager failed to start"
+        exit 1
+    fi
+    if ! systemctl is-active --quiet wpa_supplicant; then
+        echo "ERROR: wpa_supplicant failed to start"
+        exit 1
+    fi
     
     # Show network status
     echo "Network status:"
     sudo nmcli device status
+    sudo nmcli connection show --active
 }
 
 open_monitor() {

@@ -52,9 +52,26 @@ class ModeManager:
                 return None
 
             logger.debug("Successfully switched to client mode, waiting for NetworkManager")
+            await asyncio.sleep(5)  # Increased delay for NetworkManager
+
+            # Enable WiFi explicitly
+            logger.debug("Enabling WiFi radio")
+            await self._run_command(['sudo', 'nmcli', 'radio', 'wifi', 'on'])
             await asyncio.sleep(2)
 
-            logger.debug("Performing network scan")
+            # Force a rescan first
+            logger.debug("Forcing network rescan")
+            rescan_result = await self._run_command([
+                'sudo', 'nmcli', 'device', 'wifi', 'rescan'
+            ])
+            if rescan_result.returncode != 0:
+                logger.error(f"Rescan failed: {rescan_result.stderr}")
+            
+            # Wait for rescan to complete
+            await asyncio.sleep(3)
+
+            # Now get the scan results
+            logger.debug("Getting scan results")
             scan_result = await self._run_command([
                 'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY',
                 'device', 'wifi', 'list'
@@ -63,23 +80,18 @@ class ModeManager:
             if scan_result.returncode == 0:
                 self._scan_results = self._parse_scan_results(scan_result.stdout)
                 logger.debug(f"Scan successful, found {len(self._scan_results)} networks")
+                logger.debug(f"Networks found: {[n['ssid'] for n in self._scan_results]}")
             else:
-                logger.error("Scan command failed")
+                logger.error(f"Scan command failed: {scan_result.stderr}")
 
-            logger.debug("Attempting to restore AP mode")
-            restore_success = await self.restore_previous_mode()
-            if not restore_success:
-                logger.error("Failed to restore AP mode")
-            else:
-                logger.debug("Successfully restored AP mode")
-            
             return self._scan_results
 
         except Exception as e:
             logger.error(f"Error during network scan: {e}")
-            logger.debug("Attempting to restore AP mode after error")
-            await self.restore_previous_mode()
             return None
+        finally:
+            logger.debug("Attempting to restore AP mode")
+            await self.restore_previous_mode()
 
     async def temp_switch_to_client_mode(self) -> bool:
         """Temporarily switch to client mode"""
@@ -288,31 +300,51 @@ class ModeManager:
     async def _switch_to_client(self) -> bool:
         """Switch to client mode"""
         try:
-            self.logger.debug("Switching to client mode...")
+            logger.debug("Switching to client mode...")
             
-            # 1. Stop AP services
+            # Stop AP services first
+            logger.debug("Stopping AP mode services...")
             await self._run_command(['sudo', 'systemctl', 'stop', 'hostapd'])
             await self._run_command(['sudo', 'systemctl', 'stop', 'dnsmasq'])
-            
-            # 2. Flush IP configuration and restore wlan0
-            await self._run_command(['sudo', 'ip', 'addr', 'flush', 'dev', 'wlan0'])
-            await asyncio.sleep(1)  # Wait for interface
-            
-            # 3. Start client mode services
-            await self._run_command(['sudo', 'systemctl', 'start', 'wpa_supplicant'])
-            await self._run_command(['sudo', 'systemctl', 'start', 'NetworkManager'])
-            
-            # 4. Wait for NetworkManager to initialize
             await asyncio.sleep(2)
             
-            # 5. Ensure WiFi is enabled
-            await self._run_command(['sudo', 'nmcli', 'radio', 'wifi', 'on'])
+            # Reset network interface
+            logger.debug("Resetting network interface...")
+            await self._run_command(['sudo', 'ip', 'link', 'set', settings.AP_INTERFACE, 'down'])
+            await asyncio.sleep(1)
+            await self._run_command(['sudo', 'ip', 'link', 'set', settings.AP_INTERFACE, 'up'])
+            await asyncio.sleep(1)
             
-            self.logger.debug("Successfully switched to client mode")
+            # Start NetworkManager and verify
+            logger.debug("Starting NetworkManager...")
+            await self._run_command(['sudo', 'systemctl', 'start', 'NetworkManager'])
+            await asyncio.sleep(5)  # Increased wait time
+            
+            nm_status = await self._run_command(['sudo', 'systemctl', 'is-active', 'NetworkManager'])
+            if nm_status.returncode != 0:
+                logger.error("NetworkManager failed to start")
+                return False
+            
+            # Start wpa_supplicant
+            logger.debug("Starting wpa_supplicant...")
+            await self._run_command(['sudo', 'systemctl', 'start', 'wpa_supplicant'])
+            await asyncio.sleep(3)
+            
+            # Enable WiFi explicitly
+            logger.debug("Enabling WiFi radio...")
+            await self._run_command(['sudo', 'nmcli', 'radio', 'wifi', 'on'])
+            await asyncio.sleep(2)
+            
+            # Verify services are running
+            if not await self._verify_services(NetworkMode.CLIENT):
+                logger.error("Failed to verify client mode services")
+                return False
+            
+            logger.debug("Successfully switched to client mode")
             return True
             
         except Exception as e:
-            self.logger.error(f"Error switching to client mode: {e}")
+            logger.error(f"Error switching to client mode: {e}")
             return False
 
     async def _verify_services(self, mode: NetworkMode) -> bool:
