@@ -3,6 +3,7 @@
   import { Card, Button, Badge, Input, Skeleton } from 'flowbite-svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
+  import { ws } from '$lib/stores/websocket';
 
   // Get the current hostname (IP or domain)
   const currentHost = browser ? window.location.hostname : '';
@@ -66,12 +67,18 @@
   let connecting = false;
   let loading = true;
   let preconfiguredSSID: string | null = null;
+  let wsConnected = false;
+  ws.subscribe(socket => {
+    wsConnected = socket !== null;
+  });
 
   onMount(async () => {
     await Promise.all([
       fetchNetworks(),
       fetchCurrentConnection()
     ]);
+    // Request initial WiFi status
+    ws.sendMessage({ type: "wifi_status_request" });
   });
 
   async function fetchCurrentConnection() {

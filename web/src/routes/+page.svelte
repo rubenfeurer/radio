@@ -3,7 +3,7 @@
   import { Card, Button, Range, Badge } from 'flowbite-svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
-  import { wsStore } from '$lib/stores/websocket';
+  import { ws as wsStore } from '$lib/stores/websocket';
 
   // Types
   interface RadioStation {
@@ -41,9 +41,11 @@
     available_networks: []
   };
 
-  // WebSocket setup
-  let ws: WebSocket;
-  
+  // Subscribe to WebSocket connection status
+  wsStore.subscribe(socket => {
+    wsConnected = socket !== null;
+  });
+
   // Get the current hostname (IP or domain)
   const currentHost = browser ? window.location.hostname : '';
   
@@ -58,8 +60,8 @@
     loadInitialStations();
     fetchVolume();
     fetchWiFiStatus();
-    connectWebSocket();
-    return () => ws?.close();
+    // Request initial status
+    wsStore.sendMessage({ type: "status_request" });
   });
 
   async function loadInitialStations() {
@@ -140,41 +142,6 @@
     } catch (error) {
       console.error("Failed to fetch WiFi status:", error);
     }
-  }
-
-  function connectWebSocket() {
-    if (!browser) return;
-    
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = currentHost;
-    const wsPort = window.location.port === '5173' ? '80' : window.location.port;
-    
-    // Fix WebSocket URL to match backend route
-    const wsUrl = `${wsProtocol}//${wsHost}${wsPort ? ':' + wsPort : ''}/api/v1/ws`;
-    console.log('Connecting to WebSocket:', wsUrl);
-    
-    ws = new WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-      wsConnected = true;
-      // Request initial status
-      ws?.send(JSON.stringify({ type: "status_request" }));
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'status_response' || data.type === 'status_update') {
-        updateStatus(data.data);
-      } else if (data.type === 'wifi_status') {
-        wifiStatus = data.data;
-      }
-    };
-
-    ws.onclose = () => {
-      wsConnected = false;
-      // Reconnect after 1 second
-      setTimeout(connectWebSocket, 1000);
-    };
   }
 
   function updateStatus(data: any) {

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { Card, Button, Badge, Table, TableBody, TableBodyRow, TableBodyCell, TableHead, TableHeadCell, Alert } from 'flowbite-svelte';
+  import { ws } from '$lib/stores/websocket';
 
   // State for system info and processes
   let systemInfo = {
@@ -13,8 +14,10 @@
   };
 
   let services = [];
-  let ws: WebSocket;
   let wsConnected = false;
+  ws.subscribe(socket => {
+    wsConnected = socket !== null;
+  });
 
   // Get the current hostname (IP or domain)
   const currentHost = browser ? window.location.hostname : '';
@@ -97,7 +100,13 @@
       console.log('Component mounted, initializing WebSocket');
       const ws = connectWebSocket();
       
-      // Set up periodic monitor requests
+      // Initial monitor request
+      ws.send(JSON.stringify({ 
+        type: "monitor_request",
+        data: { requestType: "full" }
+      }));
+
+      // Set up periodic updates
       const interval = setInterval(() => {
         if (ws && ws.readyState === WebSocket.OPEN) {
           console.log('Sending periodic monitor request');
