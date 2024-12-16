@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { Card, Button, Badge, Table, TableBody, TableBodyRow, TableBodyCell, TableHead, TableHeadCell, Alert } from 'flowbite-svelte';
-  import { ws } from '$lib/stores/websocket';
+  import { ws as wsConnection } from '$lib/stores/websocket';
 
   // State for system info and processes
   let systemInfo = {
@@ -15,7 +15,7 @@
 
   let services = [];
   let wsConnected = false;
-  ws.subscribe(socket => {
+  wsConnection.subscribe(socket => {
     wsConnected = socket !== null;
   });
 
