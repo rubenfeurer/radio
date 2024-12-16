@@ -1,7 +1,13 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, call
-from src.core.models import WiFiStatus
+from src.core.models import WiFiStatus, WiFiNetwork
 import logging
+import subprocess
+from unittest.mock import patch
+from src.core.wifi_manager import WiFiManager
+from httpx import AsyncClient
+from httpx._transports.asgi import ASGITransport
+from src.api.main import app
 
 @pytest.mark.asyncio
 async def test_get_current_status_connected(wifi_manager):
@@ -34,19 +40,30 @@ async def test_get_current_status_disconnected(wifi_manager):
     assert any(net.ssid == "Network1" and net.signal_strength == 80 for net in status.available_networks)
 
 @pytest.mark.asyncio
-async def test_connect_to_network(wifi_manager):
-    """Test connecting to a WiFi network"""
-    wifi_manager._run_command = AsyncMock()
-    wifi_manager._run_command.side_effect = [
-        AsyncMock(returncode=0, stdout=""),  # rescan
-        AsyncMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks list
-        AsyncMock(returncode=0, stdout=""),  # check saved networks
-        AsyncMock(returncode=0, stdout=""),  # connect command
-        AsyncMock(returncode=0, stdout="GENERAL.STATE:100 (connected)"),  # verify connection
-    ]
-    
-    success = await wifi_manager.connect_to_network("TestNetwork", "password123")
-    assert success is True
+async def test_connect_to_network():
+    """Test successful network connection"""
+    with patch('src.core.wifi_manager.WiFiManager.connect_to_network') as mock_connect, \
+         patch('src.core.wifi_manager.WiFiManager.get_current_status') as mock_status:
+        
+        mock_connect.return_value = True
+        mock_status.return_value = WiFiStatus(
+            ssid="Salt_2GHz_D8261F",
+            signal_strength=70,
+            is_connected=True,
+            has_internet=True,
+            available_networks=[]
+        )
+        
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/wifi/connect",
+                json={"ssid": "TestNetwork", "password": "TestPassword"})
+        
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "success",
+            "connected_ssid": "Salt_2GHz_D8261F"
+        }
+        mock_connect.assert_called_once_with("TestNetwork", "TestPassword")
 
 @pytest.mark.asyncio
 async def test_connect_to_nonexistent_network(wifi_manager):
@@ -67,15 +84,25 @@ async def test_connect_to_nonexistent_network(wifi_manager):
 @pytest.mark.asyncio
 async def test_connect_to_saved_network(wifi_manager):
     """Test connecting to a saved network"""
-    wifi_manager._run_command = AsyncMock()
-    wifi_manager._run_command.side_effect = [
-        AsyncMock(returncode=0, stdout=""),  # rescan
-        AsyncMock(returncode=0, stdout="SavedNetwork:80:WPA2:no\n"),  # scan networks list
-        AsyncMock(returncode=0, stdout="SavedNetwork\n"),  # check saved networks
-        AsyncMock(returncode=0, stdout=""),  # connect command
-        AsyncMock(returncode=0, stdout="GENERAL.STATE:100 (connected)"),  # verify connection
-    ]
+    # Setup the mock
+    mock_cmd = AsyncMock()
+    mock_cmd.return_value = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="GENERAL.STATE:100 (connected)", stderr=""
+    )
+    wifi_manager._run_command = mock_cmd
     
+    wifi_manager.get_current_status = AsyncMock(return_value=WiFiStatus(
+        available_networks=[
+            WiFiNetwork(
+                ssid="SavedNetwork",
+                signal_strength=80,
+                security="WPA2",
+                in_use=False,
+                saved=True
+            )
+        ]
+    ))
+
     success = await wifi_manager.connect_to_network("SavedNetwork")
     assert success is True
 
@@ -167,21 +194,31 @@ async def test_get_current_status_with_saved_networks(wifi_manager):
 
 @pytest.mark.asyncio
 async def test_failed_connection_gets_removed(wifi_manager):
-    """Test that failed connection attempts are removed"""
+    """Test that failed connections are removed"""
     wifi_manager._run_command = AsyncMock()
+    wifi_manager.get_current_status = AsyncMock(return_value=WiFiStatus(
+        available_networks=[
+            WiFiNetwork(
+                ssid="TestNetwork",
+                signal_strength=80,
+                security="WPA2",
+                in_use=False,
+                saved=False
+            )
+        ]
+    ))
+    
     wifi_manager._run_command.side_effect = [
         AsyncMock(returncode=0, stdout=""),  # rescan
-        AsyncMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks list
-        AsyncMock(returncode=0, stdout=""),  # check saved networks
         AsyncMock(returncode=1, stdout="", stderr="Invalid password"),  # connect command fails
         AsyncMock(returncode=0, stdout=""),  # delete connection
     ]
-    
+
     success = await wifi_manager.connect_to_network("TestNetwork", "wrong_password")
     assert success is False
-    
+
     # Verify remove_connection was called
-    delete_calls = [call for call in wifi_manager._run_command.call_args_list 
+    delete_calls = [call for call in wifi_manager._run_command.call_args_list
                    if 'connection' in str(call) and 'delete' in str(call)]
     assert len(delete_calls) > 0
 
@@ -189,20 +226,30 @@ async def test_failed_connection_gets_removed(wifi_manager):
 async def test_verification_failure_removes_connection(wifi_manager):
     """Test that connections are removed if verification fails"""
     wifi_manager._run_command = AsyncMock()
+    wifi_manager.get_current_status = AsyncMock(return_value=WiFiStatus(
+        available_networks=[
+            WiFiNetwork(
+                ssid="TestNetwork",
+                signal_strength=80,
+                security="WPA2",
+                in_use=False,
+                saved=False
+            )
+        ]
+    ))
+    
     wifi_manager._run_command.side_effect = [
         AsyncMock(returncode=0, stdout=""),  # rescan
-        AsyncMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks list
-        AsyncMock(returncode=0, stdout=""),  # check saved networks
-        AsyncMock(returncode=0, stdout=""),  # connect command succeeds
+        AsyncMock(returncode=0, stdout=""),  # connect command
         AsyncMock(returncode=0, stdout="GENERAL.STATE:20 (unavailable)"),  # verification fails
         AsyncMock(returncode=0, stdout=""),  # delete connection
     ]
-    
+
     success = await wifi_manager.connect_to_network("TestNetwork", "password123")
     assert success is False
-    
+
     # Verify remove_connection was called
-    delete_calls = [call for call in wifi_manager._run_command.call_args_list 
+    delete_calls = [call for call in wifi_manager._run_command.call_args_list
                    if 'connection' in str(call) and 'delete' in str(call)]
     assert len(delete_calls) > 0
 

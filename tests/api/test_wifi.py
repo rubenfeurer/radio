@@ -40,20 +40,30 @@ def mock_connect():
         yield mock
 
 @pytest.mark.asyncio
-async def test_connect_to_network(mock_connect):
+async def test_connect_to_network():
     """Test successful network connection"""
-    # Set up AsyncMock correctly
-    mock_connect.return_value = True  # AsyncMock will handle the awaiting
-    
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/api/v1/wifi/connect",
-            json={"ssid": "TestNetwork", "password": "TestPassword"})
-    
-    assert response.status_code == 200
-    assert response.json() == {"status": "success"}
-    
-    # Verify mock was called with correct parameters
-    mock_connect.assert_called_once_with("TestNetwork", "TestPassword")
+    with patch('src.core.wifi_manager.WiFiManager.connect_to_network') as mock_connect, \
+         patch('src.core.wifi_manager.WiFiManager.get_current_status') as mock_status:
+        
+        mock_connect.return_value = True
+        mock_status.return_value = WiFiStatus(
+            ssid="Salt_2GHz_D8261F",
+            signal_strength=70,
+            is_connected=True,
+            has_internet=True,
+            available_networks=[]
+        )
+        
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/v1/wifi/connect",
+                json={"ssid": "TestNetwork", "password": "TestPassword"})
+        
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "success",
+            "connected_ssid": "Salt_2GHz_D8261F"
+        }
+        mock_connect.assert_called_once_with("TestNetwork", "TestPassword")
 
 @pytest.mark.asyncio
 @patch('src.core.wifi_manager.WiFiManager.connect_to_network')
