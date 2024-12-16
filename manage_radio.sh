@@ -8,6 +8,57 @@ PID_FILE="/tmp/${APP_NAME}.pid"
 API_PORT=80
 DEV_PORT=5173
 
+# Add new function for hosts configuration
+configure_hosts() {
+    echo "Configuring hosts file..."
+    HOSTNAME="radiod"
+    
+    # Check if entries already exist
+    if ! grep -q "${HOSTNAME}.local" /etc/hosts; then
+        echo "Adding ${HOSTNAME}.local to /etc/hosts..."
+        # Add both localhost and AP mode IPs
+        echo "127.0.0.1       ${HOSTNAME}.local" | sudo tee -a /etc/hosts
+        echo "192.168.4.1     ${HOSTNAME}.local" | sudo tee -a /etc/hosts
+    else
+        echo "${HOSTNAME}.local already configured in hosts file"
+    fi
+    
+    # Ensure hostname is set correctly in the system
+    if [ "$(hostname)" != "$HOSTNAME" ]; then
+        echo "Setting system hostname to $HOSTNAME..."
+        echo "$HOSTNAME" | sudo tee /etc/hostname
+        sudo hostnamectl set-hostname "$HOSTNAME"
+    fi
+}
+
+# Add new function for checking hostname
+check_hostname() {
+    HOSTNAME="radiod"
+    CURRENT_HOSTNAME=$(hostname)
+    
+    if [ "$CURRENT_HOSTNAME" != "$HOSTNAME" ]; then
+        echo "Setting hostname to $HOSTNAME..."
+        echo "$HOSTNAME" | sudo tee /etc/hostname
+        sudo hostnamectl set-hostname "$HOSTNAME"
+    else
+        echo "Hostname already set to $HOSTNAME"
+    fi
+}
+
+# Update start() function to include new checks
+start() {
+    echo "Starting $APP_NAME..."
+    check_ports
+    check_pigpiod
+    check_nmcli_permissions
+    check_hostname      # Add this line
+    configure_hosts     # Add this line
+    ensure_client_mode
+    source $VENV_PATH/bin/activate
+    echo "Virtual environment activated"
+}
+
+
 check_ports() {
     # Check and kill any existing processes on API_PORT
     if sudo lsof -Pi :$API_PORT -sTCP:LISTEN -t >/dev/null ; then

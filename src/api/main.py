@@ -143,15 +143,13 @@ async def startup_event():
         for service, status in services.items():
             logger.info(f"{service} status: {status.stdout.strip()}")
         
-        # Force client mode on startup
-        logger.info("Ensuring client mode on startup...")
-        if not await mode_manager._verify_services(NetworkMode.CLIENT):
-            logger.info("Switching to client mode...")
-            success = await mode_manager._switch_to_client()
-            if not success:
-                logger.error("Failed to switch to client mode")
-                return
-            
+        # Force client mode on startup without temporary timeout
+        logger.info("Forcing client mode on startup...")
+        success = await mode_manager.force_client_mode()
+        if not success:
+            logger.error("Failed to switch to client mode")
+            return
+        
         # Wait for network
         logger.info("Waiting for network connectivity...")
         for _ in range(10):  # Try for 10 seconds

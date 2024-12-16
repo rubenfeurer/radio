@@ -93,30 +93,26 @@ class ModeManager:
             logger.debug("Attempting to restore AP mode")
             await self.restore_previous_mode()
 
-    async def temp_switch_to_client_mode(self) -> bool:
-        """Temporarily switch to client mode"""
-        logger.debug(f"Entering temp_switch_to_client_mode. Current state: temp_active={self._temp_mode_active}, current_mode={self._current_mode}")
-        
-        if self._temp_mode_active:
-            logger.warning("Already in temporary mode")
-            return False
-
+    async def temp_switch_to_client_mode(self, timeout: int = None) -> bool:
         async with self._mode_lock:
+            if self._temp_mode_active:
+                return False
+            
             try:
                 self._previous_mode = self._current_mode
-                success = await self._switch_to_client()
+                if timeout:
+                    self._temp_mode_timeout = timeout
                 
+                success = await self._switch_to_client()
                 if success:
                     self._temp_mode_active = True
-                    self._current_mode = NetworkMode.CLIENT
-                    # Start timeout handler
-                    self._timeout_task = asyncio.create_task(self._handle_temp_mode_timeout())
-                    return True
-                return False
-                
+                    self._timeout_task = asyncio.create_task(
+                        self._handle_temp_mode_timeout()
+                    )
+                return success
             except Exception as e:
-                logger.error(f"Error switching to client mode: {e}")
-                self._temp_mode_active = False
+                logger.error(f"Temp switch failed: {e}")
+                await self._cleanup_failed_transition(NetworkMode.CLIENT)
                 return False
 
     async def restore_previous_mode(self) -> bool:
@@ -232,11 +228,10 @@ class ModeManager:
 
     async def switch_mode(self, target_mode: NetworkMode) -> bool:
         """Switch between AP and Client modes"""
-        if self._switching:
-            logger.warning("Mode switch already in progress")
-            return False
-            
         async with self._mode_lock:
+            if self._switching:
+                logger.warning("Mode switch already in progress")
+                return False
             self._switching = True
             try:
                 current = await self.detect_current_mode()
@@ -378,24 +373,24 @@ class ModeManager:
             logger.error(f"Error verifying services: {e}")
             return False
 
-    async def _cleanup_failed_transition(self, target_mode: NetworkMode) -> None:
-        """Clean up after a failed mode transition"""
-        try:
-            logger.debug(f"Cleaning up failed transition to {target_mode}")
-            if target_mode == NetworkMode.AP:
-                # Stop all services and restart in client mode
-                await self._run_command(['sudo', 'systemctl', 'stop', 'hostapd'])
-                await self._run_command(['sudo', 'systemctl', 'stop', 'dnsmasq'])
-                await self._run_command(['sudo', 'systemctl', 'start', 'wpa_supplicant'])
-                await self._run_command(['sudo', 'systemctl', 'start', 'NetworkManager'])
-            else:
-                # Stop all services and restart in AP mode
-                await self._run_command(['sudo', 'systemctl', 'stop', 'NetworkManager'])
-                await self._run_command(['sudo', 'systemctl', 'stop', 'wpa_supplicant'])
-                await self._run_command(['sudo', 'systemctl', 'start', 'hostapd'])
-                await self._run_command(['sudo', 'systemctl', 'start', 'dnsmasq'])
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+    async def _cleanup_failed_transition(self, target_mode: NetworkMode) -> bool:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                await self._stop_all_services()
+                await self._reset_interface()
+                await self._start_fallback_services(target_mode)
+                
+                if await self._verify_services(target_mode):
+                    return True
+                    
+                logger.warning(f"Cleanup attempt {attempt + 1} failed")
+                await asyncio.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"Cleanup attempt {attempt + 1} failed: {e}")
+                
+        return False
 
     async def _configure_hostapd(self) -> None:
         """Configure hostapd with the AP settings"""
@@ -435,6 +430,7 @@ ieee80211n=1
         config = f"""
 interface={settings.AP_INTERFACE}
 dhcp-range={settings.AP_DHCP_RANGE_START},{settings.AP_DHCP_RANGE_END},12h
+address=/radiod.local/{settings.AP_IP_ADDRESS}
 """
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
             temp_file.write(config)
@@ -515,9 +511,16 @@ dhcp-range={settings.AP_DHCP_RANGE_START},{settings.AP_DHCP_RANGE_END},12h
             raise
 
     async def _verify_connection(self, ssid: str) -> bool:
-        """Verify if connected to specified network"""
+        """Verify if connected to specified network with extended checks"""
         try:
-            for attempt in range(20):  # Increase timeout to 20 seconds
+            for attempt in range(30):  # 30 second timeout
+                # Check if NetworkManager is running
+                nm_status = await self._run_command(['sudo', 'systemctl', 'is-active', 'NetworkManager'])
+                if nm_status.returncode != 0:
+                    logger.error("NetworkManager not running during verification")
+                    return False
+                    
+                # Check active connection
                 status = await self._run_command([
                     'sudo', 'nmcli', 'connection', 'show', '--active'
                 ])
@@ -528,11 +531,16 @@ dhcp-range={settings.AP_DHCP_RANGE_START},{settings.AP_DHCP_RANGE_END},12h
                         'sudo', 'nmcli', 'device', 'status'
                     ])
                     if 'connected' in device_status.stdout:
-                        logger.debug(f"Connection verified after {attempt} attempts")
-                        return True
-                        
+                        # Test internet connectivity
+                        ping_result = await self._run_command([
+                            'ping', '-c', '1', '-W', '2', '8.8.8.8'
+                        ])
+                        if ping_result.returncode == 0:
+                            logger.debug(f"Connection verified after {attempt} attempts")
+                            return True
+                            
                 await asyncio.sleep(1)
-                logger.debug(f"Waiting for connection verification... ({attempt}/20)")
+                logger.debug(f"Waiting for connection verification... ({attempt}/30)")
                 
             logger.error("Connection verification timed out")
             return False
@@ -583,42 +591,81 @@ dhcp-range={settings.AP_DHCP_RANGE_START},{settings.AP_DHCP_RANGE_END},12h
             logger.error(f"Error creating WiFi connection: {e}")
             return False
 
-    async def connect_to_wifi(self, ssid: str, password: str) -> bool:
+    async def connect_to_wifi(self, ssid: str, password: str = None) -> bool:
         """Connect to a WiFi network"""
-        logger.debug(f"Received connection request for SSID: {ssid} with password: ****")
-        
-        # Get initial device status
-        status = await self._run_command(['sudo', 'nmcli', 'device', 'status'])
-        logger.debug(f"Device status before connection attempt: {status.stdout}")
+        logger.debug(f"Received connection request for SSID: {ssid}")
         
         try:
-            # Create and activate connection
-            if await self._create_wifi_connection(ssid, password):
-                # Verify connection
-                if await self._verify_connection(ssid):
-                    logger.debug(f"Successfully connected to {ssid}")
-                    # Make the connection permanent by disabling temp mode
-                    self._temp_mode_active = False
-                    self._previous_mode = NetworkMode.CLIENT
-                    self._current_mode = NetworkMode.CLIENT
-                    return True
-                
-            logger.debug("Connection verification failed")
+            # Check if this is a preconfigured or saved network
+            is_preconfigured = ssid == settings.PRECONFIGURED_SSID
+            is_saved = await self._wifi_manager.is_network_saved(ssid)
             
-            # Clean up failed connection
-            try:
-                logger.debug(f"Removing failed connection: {ssid}")
-                await self._run_command([
-                    'sudo', 'nmcli', 'connection', 'delete', ssid
-                ])
-            except Exception as e:
-                logger.error(f"Failed to remove connection: {e}")
-                
-            return False
+            logger.debug(f"Network status - Preconfigured: {is_preconfigured}, Saved: {is_saved}")
             
+            # For saved/preconfigured networks, switch directly to permanent client mode
+            if is_preconfigured or is_saved:
+                logger.debug("Using permanent client mode for saved/preconfigured network")
+                if not await self._switch_to_client():
+                    logger.error("Failed to switch to permanent client mode")
+                    return False
+                    
+                # Create and activate connection
+                if await self._create_wifi_connection(ssid, password):
+                    if await self._verify_connection(ssid):
+                        logger.debug(f"Successfully connected to saved network {ssid}")
+                        return True
+                        
+                logger.error("Failed to connect to saved network")
+                await self._switch_to_ap()
+                return False
+                
+            else:
+                # For new networks, use temporary mode initially
+                logger.debug("Using temporary client mode for new network")
+                if not await self.temp_switch_to_client_mode():
+                    logger.error("Failed to switch to temporary client mode")
+                    return False
+                    
+                # Try connecting
+                if await self._create_wifi_connection(ssid, password):
+                    if await self._verify_connection(ssid):
+                        logger.debug("New network connected successfully, making permanent")
+                        await self._wifi_manager.save_network(ssid)
+                        self._temp_mode_active = False
+                        self._current_mode = NetworkMode.CLIENT
+                        self._previous_mode = NetworkMode.CLIENT
+                        await self._enable_client_services()
+                        return True
+                        
+                logger.debug("Connection verification failed")
+                await self._switch_to_ap()
+                return False
+                
         except Exception as e:
             logger.error(f"Connection attempt failed: {e}")
+            await self._switch_to_ap()
             return False
+
+    async def _enable_client_services(self):
+        """Enable client mode services for boot persistence"""
+        await self._run_command(['sudo', 'systemctl', 'enable', 'NetworkManager'])
+        await self._run_command(['sudo', 'systemctl', 'enable', 'wpa_supplicant'])
+        await self._run_command(['sudo', 'systemctl', 'disable', 'hostapd'])
+        await self._run_command(['sudo', 'systemctl', 'disable', 'dnsmasq'])
+
+    async def force_client_mode(self) -> bool:
+        """Force switch to client mode without temporary timeout"""
+        async with self._mode_lock:
+            try:
+                self._switching = True
+                success = await self._switch_to_client()
+                if success:
+                    self._current_mode = NetworkMode.CLIENT
+                    self._temp_mode_active = False  # Ensure temp mode is off
+                    await self._enable_client_services()
+                return success
+            finally:
+                self._switching = False
 
 # Create singleton instance
 mode_manager = ModeManager() 
