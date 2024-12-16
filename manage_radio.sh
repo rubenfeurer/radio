@@ -157,7 +157,7 @@ start() {
     # Clear the log file
     echo "" > $LOG_FILE
     
-    # Start FastAPI server with nohup
+    # Start FastAPI server with nohup and sudo for port 80
     echo "Starting FastAPI server on port $API_PORT..."
     nohup sudo -E env "PATH=$PATH" "$VENV_PATH/bin/uvicorn" src.api.main:app \
         --host 0.0.0.0 \

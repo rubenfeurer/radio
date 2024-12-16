@@ -112,27 +112,44 @@ async def connect_to_preconfigured():
     """Connect to the preconfigured network directly"""
     try:
         logger.debug("Attempting to connect to preconfigured network")
-        result = await wifi_manager._run_command([
-            'sudo', 'nmcli', 'connection', 'up', 'preconfigured'
-        ], capture_output=True, text=True, timeout=30)
         
-        if result.returncode != 0:
-            logger.error(f"Failed to connect to preconfigured network: {result.stderr}")
-            raise HTTPException(status_code=400, detail="Failed to connect to preconfigured network")
+        # First get the preconfigured SSID
+        preconfigured_ssid = await wifi_manager.get_preconfigured_ssid()
+        if not preconfigured_ssid:
+            raise HTTPException(
+                status_code=400, 
+                detail="No preconfigured network found"
+            )
             
-        # Verify connection was successful
-        verify_result = await wifi_manager._run_command([
-            'sudo', 'nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'
-        ], capture_output=True, text=True)
+        # Attempt connection
+        result = await wifi_manager.connect_to_network(preconfigured_ssid)
         
-        if verify_result.returncode == 0 and '100 (connected)' in verify_result.stdout:
-            return {"message": "Successfully connected to preconfigured network"}
+        if not result:
+            logger.error("Failed to connect to preconfigured network")
+            raise HTTPException(
+                status_code=400, 
+                detail="Failed to connect to preconfigured network"
+            )
+            
+        # Get new status to verify connection
+        new_status = await wifi_manager.get_current_status()
+        if not new_status.is_connected or new_status.ssid != preconfigured_ssid:
+            raise HTTPException(
+                status_code=400, 
+                detail="Connection verification failed"
+            )
+            
+        return {
+            "status": "success",
+            "message": "Successfully connected to preconfigured network",
+            "ssid": preconfigured_ssid
+        }
         
-        raise HTTPException(status_code=400, detail="Failed to verify connection")
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error connecting to preconfigured network: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/forget/{ssid}", tags=["WiFi"])
 async def forget_network(ssid: str):

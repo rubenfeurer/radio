@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,11 +62,21 @@ app.include_router(monitor.router, prefix="/api/v1")
 logger = logging.getLogger(__name__)
 
 @app.get("/")
-async def root():
+async def root(request: Request):
     """
     Root endpoint that redirects to frontend
     """
-    return RedirectResponse(url=f"http://{hostname}:5173")
+    # Try to get the client's requested host
+    request_host = request.headers.get("host", "").split(":")[0]
+    
+    # If it's an IP address, use that, otherwise use hostname.local
+    if request_host and not request_host.endswith('.local'):
+        redirect_host = request_host
+    else:
+        redirect_host = f"{socket.gethostname()}.local"
+    
+    # Always redirect to port 5173 for development server
+    return RedirectResponse(url=f"http://{redirect_host}:5173")
 
 @app.get("/health", tags=["Health"])
 @app.head("/health", tags=["Health"])
@@ -158,4 +168,4 @@ async def startup_event():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=80)
