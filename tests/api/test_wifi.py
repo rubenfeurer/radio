@@ -650,3 +650,69 @@ async def test_ap_mode_connect_preconfigured():
         async_run_command.assert_called_with(['sudo', 'nmcli', 'connection', 'up', 'preconfigured'], 
             capture_output=True, text=True, timeout=30)
         async_restore.assert_not_called()  # Should not restore on success
+
+@pytest.mark.asyncio
+@patch('src.core.mode_manager.ModeManager.detect_current_mode')
+@patch('src.core.mode_manager.ModeManager.switch_mode')
+async def test_toggle_mode_client_to_ap(mock_switch, mock_detect):
+    """Test mode toggle from CLIENT to AP mode"""
+    # Setup mocks
+    mock_detect.return_value = NetworkMode.CLIENT
+    mock_switch.return_value = True
+    
+    async with AsyncClient(
+        transport=ASGITransport(app=app), 
+        base_url="http://test",
+        follow_redirects=True
+    ) as client:
+        # Update the endpoint URL to match the actual API endpoint
+        response = await client.post("/api/v1/wifi/mode/toggle")  # Changed from /mode/toggle
+        print(f"Response status: {response.status_code}")
+        print(f"Response body: {response.json()}")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["previous_mode"] == "client"
+        assert data["new_mode"] == "ap"
+        
+        # Verify correct mode was switched to
+        mock_switch.assert_called_once_with(NetworkMode.AP)
+
+@pytest.mark.asyncio
+@patch('src.core.mode_manager.ModeManager.detect_current_mode')
+@patch('src.core.mode_manager.ModeManager.switch_mode')
+async def test_toggle_mode_ap_to_client(mock_switch, mock_detect):
+    """Test mode toggle from AP to CLIENT mode"""
+    # Setup mocks
+    mock_detect.return_value = NetworkMode.AP
+    mock_switch.return_value = True
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/wifi/mode/toggle")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["previous_mode"] == "ap"
+        assert data["new_mode"] == "client"
+        
+        # Verify correct mode was switched to
+        mock_switch.assert_called_once_with(NetworkMode.CLIENT)
+
+@pytest.mark.asyncio
+@patch('src.core.mode_manager.ModeManager.detect_current_mode')
+@patch('src.core.mode_manager.ModeManager.switch_mode')
+async def test_toggle_mode_failure(mock_switch, mock_detect):
+    """Test mode toggle failure handling"""
+    # Setup mocks
+    mock_detect.return_value = NetworkMode.CLIENT
+    mock_switch.return_value = False
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/wifi/mode/toggle")
+        
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
+        assert "Failed to switch mode" in data["detail"]

@@ -159,6 +159,35 @@ async def get_network_status():
             detail="Internal Server Error. Check server logs for details."
         )
 
+@router.post("/mode/toggle", tags=["Mode"])
+async def toggle_mode():
+    """Toggle between AP and CLIENT modes"""
+    try:
+        logger.debug("Toggling network mode")
+        current_mode = await mode_manager.detect_current_mode()
+        
+        # Determine new mode
+        new_mode = NetworkMode.AP if current_mode == NetworkMode.CLIENT else NetworkMode.CLIENT
+        
+        logger.debug(f"Current mode: {current_mode}, switching to: {new_mode}")
+        result = await mode_manager.switch_mode(new_mode)
+        
+        if result:
+            return {
+                "success": True,
+                "previous_mode": current_mode.value,
+                "new_mode": new_mode.value
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to switch mode"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error toggling mode: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) 
+
 @router.get("/mode", tags=["Mode"])
 async def get_mode():
     """Get current network mode"""
@@ -425,3 +454,4 @@ async def connect_from_ap_mode(request: WiFiConnectionRequest):
     except Exception as e:
         logger.error(f"Error in connect_from_ap_mode: {e}")
         raise HTTPException(status_code=500, detail=str(e)) 
+

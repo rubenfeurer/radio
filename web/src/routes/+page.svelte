@@ -407,12 +407,11 @@
                 }));
               }
               
-              const response = await fetch(`${API_BASE}/api/v1/wifi/mode`, {
+              const response = await fetch(`${API_BASE}/api/v1/wifi/mode/${newMode.toLowerCase()}`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ mode: newMode })
+                }
               });
 
               if (!response.ok) {
