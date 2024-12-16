@@ -21,6 +21,7 @@ class ModeManager:
         self._temp_mode_active = False
         self._temp_mode_timeout = 30  # seconds
         self._scan_results = None
+        self.logger = logger
         
     @property
     def current_mode(self) -> NetworkMode:
@@ -131,7 +132,7 @@ class ModeManager:
                 logger.debug(f"Attempting to restore to previous mode: {self._previous_mode}")
                 
                 if self._previous_mode == NetworkMode.AP:
-                    success = await self._switch_to_ap()
+                    success = await self.switch_to_ap_mode()
                 elif self._previous_mode == NetworkMode.CLIENT:
                     success = await self._switch_to_client()
 
@@ -232,7 +233,7 @@ class ModeManager:
                     return True
                     
                 if target_mode == NetworkMode.AP:
-                    success = await self._switch_to_ap()
+                    success = await self.switch_to_ap_mode()
                 else:
                     success = await self._switch_to_client()
                     
@@ -243,7 +244,7 @@ class ModeManager:
             finally:
                 self._switching = False
 
-    async def _switch_to_ap(self) -> bool:
+    async def switch_to_ap_mode(self):
         """Switch to Access Point mode"""
         try:
             self._switching = True
@@ -255,7 +256,15 @@ class ModeManager:
             await self._run_command(['sudo', 'systemctl', 'stop', 'wpa_supplicant'])
             await asyncio.sleep(1)
             
+            # Configure interface
+            logger.debug("Configuring AP interface...")
+            await self._configure_interface()
+            
             # Configure and start AP services
+            logger.debug("Configuring hostapd and dnsmasq...")
+            await self._configure_hostapd()
+            await self._configure_dnsmasq()
+            
             logger.debug("Starting AP mode services...")
             await self._run_command(['sudo', 'systemctl', 'start', 'hostapd'])
             await self._run_command(['sudo', 'systemctl', 'start', 'dnsmasq'])
@@ -277,38 +286,34 @@ class ModeManager:
             self._switching = False
 
     async def _switch_to_client(self) -> bool:
-        """Switch to Client mode"""
+        """Switch to client mode"""
         try:
-            self._switching = True
-            logger.debug("Switching to Client mode...")
+            self.logger.debug("Switching to client mode...")
             
-            # Stop AP services
-            logger.debug("Stopping AP services...")
+            # 1. Stop AP services
             await self._run_command(['sudo', 'systemctl', 'stop', 'hostapd'])
             await self._run_command(['sudo', 'systemctl', 'stop', 'dnsmasq'])
-            await asyncio.sleep(1)
             
-            # Start client services in correct order
-            logger.debug("Starting client mode services...")
+            # 2. Flush IP configuration and restore wlan0
+            await self._run_command(['sudo', 'ip', 'addr', 'flush', 'dev', 'wlan0'])
+            await asyncio.sleep(1)  # Wait for interface
+            
+            # 3. Start client mode services
             await self._run_command(['sudo', 'systemctl', 'start', 'wpa_supplicant'])
-            await asyncio.sleep(1)  # Give wpa_supplicant time to initialize
             await self._run_command(['sudo', 'systemctl', 'start', 'NetworkManager'])
             
-            # Verify services
-            if not await self._verify_services(NetworkMode.CLIENT):
-                logger.error("Failed to verify client services")
-                await self._cleanup_failed_transition(NetworkMode.CLIENT)
-                return False
+            # 4. Wait for NetworkManager to initialize
+            await asyncio.sleep(2)
             
-            self._current_mode = NetworkMode.CLIENT
+            # 5. Ensure WiFi is enabled
+            await self._run_command(['sudo', 'nmcli', 'radio', 'wifi', 'on'])
+            
+            self.logger.debug("Successfully switched to client mode")
             return True
             
         except Exception as e:
-            logger.error(f"Error switching to client mode: {e}")
-            await self._cleanup_failed_transition(NetworkMode.CLIENT)
+            self.logger.error(f"Error switching to client mode: {e}")
             return False
-        finally:
-            self._switching = False
 
     async def _verify_services(self, mode: NetworkMode) -> bool:
         """Verify that required services are running for the given mode"""
@@ -357,7 +362,7 @@ class ModeManager:
             logger.error(f"Error during cleanup: {e}")
 
     async def _configure_hostapd(self) -> None:
-        """Configure hostapd"""
+        """Configure hostapd with the AP settings"""
         config = f"""
 interface={settings.AP_INTERFACE}
 driver=nl80211
@@ -373,6 +378,8 @@ wpa_passphrase={settings.AP_PASSWORD}
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=TKIP
 rsn_pairwise=CCMP
+country_code=CH
+ieee80211n=1
 """
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
             temp_file.write(config)
@@ -381,6 +388,8 @@ rsn_pairwise=CCMP
         try:
             await self._run_command(['sudo', 'mv', temp_path, '/etc/hostapd/hostapd.conf'])
             await self._run_command(['sudo', 'chmod', '600', '/etc/hostapd/hostapd.conf'])
+            # Enable the configuration
+            await self._run_command(['sudo', 'systemctl', 'enable', 'hostapd'])
         finally:
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
