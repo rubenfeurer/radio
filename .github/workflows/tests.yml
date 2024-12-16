@@ -50,6 +50,9 @@ jobs:
         
         # Start pigpio daemon
         sudo pigpiod -l -t 0 || true
+
+        # Ensure port 80 is free
+        sudo lsof -t -i:80 | xargs -r sudo kill -9
         
     - name: Install Python dependencies
       run: |
@@ -67,13 +70,16 @@ jobs:
         # Add environment variables for NetworkManager testing
         NM_TEST_MODE: "true"
         NM_MOCK_WIFI: "true"
+        # Add environment variable for port 80 testing
+        TEST_PORT: "80"
+        SUDO_ALLOWED: "true"
       run: |
         # Create test wifi interface
         sudo ip link add wlan0 type dummy || true
         sudo ip link set wlan0 up || true
         
-        # Run pytest with detailed output
-        pytest -v tests/ --cov=src --capture=no --log-cli-level=DEBUG
+        # Run pytest with sudo for port 80 access
+        sudo -E env "PATH=$PATH" pytest -v tests/ --cov=src --capture=no --log-cli-level=DEBUG
         
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3

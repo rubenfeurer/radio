@@ -593,6 +593,10 @@ dhcp-range={settings.AP_DHCP_RANGE_START},{settings.AP_DHCP_RANGE_END},12h
                 # Verify connection
                 if await self._verify_connection(ssid):
                     logger.debug(f"Successfully connected to {ssid}")
+                    # Make the connection permanent by disabling temp mode
+                    self._temp_mode_active = False
+                    self._previous_mode = NetworkMode.CLIENT
+                    self._current_mode = NetworkMode.CLIENT
                     return True
                 
             logger.debug("Connection verification failed")
