@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
   import { Card, Button, Badge, Table, TableBody, TableBodyRow, TableBodyCell, TableHead, TableHeadCell, Alert } from 'flowbite-svelte';
-  import { ws as wsConnection } from '$lib/stores/websocket';
+  import { ws as wsStore } from '$lib/stores/websocket';
 
   // State for system info and processes
   let systemInfo = {
@@ -15,43 +14,19 @@
 
   let services = [];
   let wsConnected = false;
-  wsConnection.subscribe(socket => {
+
+  // Subscribe to WebSocket connection status
+  wsStore.subscribe(socket => {
     wsConnected = socket !== null;
-  });
-
-  // Get the current hostname (IP or domain)
-  const currentHost = browser ? window.location.hostname : '';
-  
-  function connectWebSocket() {
-    if (!browser) return;
     
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = currentHost;
-    const wsPort = window.location.port === '5173' ? '80' : window.location.port;
-    
-    // Use the main WebSocket endpoint
-    const wsUrl = `${wsProtocol}//${wsHost}${wsPort ? ':' + wsPort : ''}/api/v1/ws`;
-    console.log('Connecting to WebSocket:', wsUrl);
-    
-    try {
-      ws = new WebSocket(wsUrl);
-      
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        wsConnected = true;
-        // Request initial monitor data
-        ws.send(JSON.stringify({ type: "monitor_request" }));
-      };
-
-      ws.onmessage = (event) => {
-        console.log('Raw WebSocket message received:', event.data);
+    if (socket) {
+      // Listen for WebSocket messages
+      socket.addEventListener('message', (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('Parsed monitor data:', data);
           
           switch(data.type) {
             case 'monitor_update':
-              console.log('Received monitor update:', data.data);
               if (data.data.systemInfo) {
                 systemInfo = data.data.systemInfo;
               }
@@ -61,70 +36,37 @@
               break;
             
             case 'status_response':
-              console.log('Received initial status, requesting monitor data');
-              ws.send(JSON.stringify({ 
+              wsStore.sendMessage({ 
                 type: "monitor_request",
-                data: { requestType: "full" }  // Add more context to request
-              }));
+                data: { requestType: "full" }
+              });
               break;
-            
-            default:
-              console.log('Unknown message type:', data.type);
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
         }
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket closed');
-        wsConnected = false;
-        // Reconnect after 1 second
-        setTimeout(connectWebSocket, 1000);
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        wsConnected = false;
-      };
-
-      return ws;
-    } catch (error) {
-      console.error('Error creating WebSocket:', error);
-      wsConnected = false;
+      });
     }
-  }
+  });
 
   onMount(() => {
-    if (browser) {
-      console.log('Component mounted, initializing WebSocket');
-      const ws = connectWebSocket();
-      
-      // Initial monitor request
-      ws.send(JSON.stringify({ 
+    // Request initial monitor data
+    wsStore.sendMessage({ 
+      type: "monitor_request",
+      data: { requestType: "full" }
+    });
+
+    // Set up periodic updates
+    const interval = setInterval(() => {
+      wsStore.sendMessage({ 
         type: "monitor_request",
-        data: { requestType: "full" }
-      }));
+        data: { requestType: "update" }
+      });
+    }, 5000);
 
-      // Set up periodic updates
-      const interval = setInterval(() => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          console.log('Sending periodic monitor request');
-          ws.send(JSON.stringify({ 
-            type: "monitor_request",
-            data: { requestType: "update" }
-          }));
-        }
-      }, 5000);
-
-      return () => {
-        clearInterval(interval);
-        if (ws) {
-          ws.close();
-          wsConnected = false;
-        }
-      };
-    }
+    return () => {
+      clearInterval(interval);
+    };
   });
 
   // Add explicit props for Flowbite components
@@ -143,21 +85,6 @@
       System temperature is {systemInfo.temperature} - This is above safe operating levels. Please check system cooling.
     </Alert>
   {/if}
-
-  <!-- Header with Back Button and Connection Status -->
-  <div class="mb-6 flex justify-between items-center">
-    <div class="flex items-center gap-4">
-      <a href="/" class="text-gray-500 hover:text-gray-700">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-      </a>
-      <h1 class="text-2xl font-bold">System Monitor</h1>
-    </div>
-    <div class="text-sm">
-      Status: <span class={wsConnected ? 'text-green-600' : 'text-red-600'}>{wsConnected ? 'Connected' : 'Disconnected'}</span>
-    </div>
-  </div>
 
   <!-- System Info Cards -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
