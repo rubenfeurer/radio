@@ -137,7 +137,7 @@ async def startup_event():
                 await mode_manager._switch_to_client()
             else:
                 logger.info("Reconfiguring AP mode...")
-                await mode_manager._switch_to_ap()
+                await mode_manager.switch_to_ap_mode()
                 
     except Exception as e:
         logger.error(f"Error during startup: {e}")
