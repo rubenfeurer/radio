@@ -4,7 +4,9 @@ from typing import Optional, Dict
 class Settings(BaseModel):
     # API Settings
     API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "Internet Radio"
+    WS_PATH: str = "/ws"
+    API_PORT: int = 80
+    DEV_PORT: int = 5173
     
     # Default Station Settings
     DEFAULT_STATIONS: Dict[int, str] = {
