@@ -34,21 +34,41 @@
       socket.addEventListener('message', (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
+
           if (data.type === 'status_response' || data.type === 'status_update') {
-            // Update current playing slot based on status
-            currentPlayingSlot = data.data.current_station?.slot || null;
+            console.log('Previous playing slot:', currentPlayingSlot);
+            console.log('Status data:', {
+              current_station: data.data.current_station,
+              is_playing: data.data.is_playing
+            });
+
+            // Handle current_station whether it's a number or an object
+            if (data.data.is_playing) {
+              currentPlayingSlot = typeof data.data.current_station === 'object' 
+                ? data.data.current_station.slot 
+                : data.data.current_station;
+            } else {
+              currentPlayingSlot = null;
+            }
+
+            console.log('Updated playing slot:', currentPlayingSlot);
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
         }
       });
+
+      socket.addEventListener('open', () => {
+        console.log('WebSocket connected, requesting initial status');
+        ws.sendMessage({ type: "status_request" });
+      });
     }
   });
 
   onMount(() => {
-    // Request initial status when component mounts
+    console.log('Component mounted, requesting initial status');
     ws.sendMessage({ type: "status_request" });
-    // Load initial stations
     loadInitialStations();
   });
 
