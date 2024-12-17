@@ -1,10 +1,10 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { websocketStore } from '$lib/stores/websocket';
+    import { currentMode } from '$lib/stores/mode';
     import { Card, Badge, Button } from 'flowbite-svelte';
     import { browser } from '$app/environment';
 
-    let currentMode: 'ap' | 'client' = 'client';
     let isLoading = false;
     let error: string | null = null;
 
@@ -18,7 +18,7 @@
     // Subscribe to WebSocket updates
     const unsubscribe = websocketStore.subscribe(($ws) => {
         if ($ws?.data?.type === 'mode_update') {
-            currentMode = $ws.data.mode;
+            $currentMode = $ws.data.mode;
             isLoading = false;
         }
     });
@@ -30,7 +30,7 @@
                 throw new Error('Failed to fetch mode');
             }
             const data = await response.json();
-            currentMode = data.mode;
+            $currentMode = data.mode;
         } catch (err) {
             error = 'Failed to get current mode';
             console.error('Error fetching mode:', err);

@@ -4,6 +4,7 @@
   import { browser } from '$app/environment';
   import { onMount } from 'svelte';
   import { ws } from '$lib/stores/websocket';  // Import the WebSocket store
+  import { currentMode } from '$lib/stores/mode';  // Import mode store
 
   // Types
   interface RadioStation {
@@ -27,6 +28,9 @@
       ? `http://${currentHost}:80`
       : '')
     : '';
+
+  export let hideInAP = false;
+  let error: string | null = null;
 
   // Subscribe to WebSocket and handle messages
   ws.subscribe(socket => {
@@ -66,10 +70,15 @@
     }
   });
 
-  onMount(() => {
-    console.log('Component mounted, requesting initial status');
-    ws.sendMessage({ type: "status_request" });
-    loadInitialStations();
+  onMount(async () => {
+    try {
+      console.log('Component mounted, requesting initial status');
+      ws.sendMessage({ type: "status_request" });
+      await loadInitialStations();
+    } catch (err) {
+      console.error("Failed to initialize:", err);
+      error = "Failed to load stations";
+    }
   });
 
   export async function loadInitialStations() {
@@ -136,34 +145,42 @@
   }
 </script>
 
-<div class="grid gap-4 md:grid-cols-3 mb-8">
-  {#each stations as station, i (station.slot || i)}
-    <Card padding="xl">
-      <div class="flex flex-col gap-4">
-        <div class="flex justify-between items-center">
-          <h5 class="text-xl font-bold">Slot {station.slot}</h5>
-          <Badge color={currentPlayingSlot === station.slot ? "green" : "gray"}>
-            {currentPlayingSlot === station.slot ? "Playing" : "Stopped"}
-          </Badge>
-        </div>
-        <p class="text-gray-700">{station.name || 'No station assigned'}</p>
-        <div class="flex flex-col gap-2">
-          <Button
-            color={currentPlayingSlot === station.slot ? "red" : "primary"}
-            class="w-full"
-            on:click={() => toggleStation(station.slot)}
-          >
-            {currentPlayingSlot === station.slot ? 'Stop' : 'Play'}
-          </Button>
-          <Button
-            color="alternative"
-            class="w-full"
-            on:click={() => chooseStation(station.slot)}
-          >
-            Choose Station
-          </Button>
-        </div>
-      </div>
-    </Card>
-  {/each}
-</div> 
+{#if !hideInAP || $currentMode !== 'ap'}
+  <div class="grid gap-4 md:grid-cols-3">
+    {#if error}
+      <Card>
+        <p class="text-red-500">{error}</p>
+      </Card>
+    {:else}
+      {#each stations as station, i (station.slot || i)}
+        <Card>
+          <div class="flex flex-col gap-4">
+            <div class="flex justify-between items-center">
+              <h5 class="text-xl font-bold">Slot {station.slot}</h5>
+              <Badge color={currentPlayingSlot === station.slot ? "green" : "gray"}>
+                {currentPlayingSlot === station.slot ? "Playing" : "Stopped"}
+              </Badge>
+            </div>
+            <p class="text-gray-700">{station.name || 'No station assigned'}</p>
+            <div class="flex flex-col gap-2">
+              <Button
+                color={currentPlayingSlot === station.slot ? "red" : "primary"}
+                class="w-full"
+                on:click={() => toggleStation(station.slot)}
+              >
+                {currentPlayingSlot === station.slot ? 'Stop' : 'Play'}
+              </Button>
+              <Button
+                color="alternative"
+                class="w-full"
+                on:click={() => chooseStation(station.slot)}
+              >
+                Choose Station
+              </Button>
+            </div>
+          </div>
+        </Card>
+      {/each}
+    {/if}
+  </div>
+{/if} 
