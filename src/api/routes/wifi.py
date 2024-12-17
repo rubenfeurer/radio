@@ -9,16 +9,6 @@ router = APIRouter(prefix="/wifi")
 wifi_manager = WiFiManager()
 logger = logging.getLogger(__name__)
 
-@router.get("/networks", response_model=List[WiFiNetwork], tags=["WiFi"])
-async def get_networks():
-    """Get list of available WiFi networks"""
-    try:
-        status = wifi_manager.get_current_status()
-        return status.available_networks
-    except Exception as e:
-        logger.error(f"Error getting networks: {e}")
-        return []
-
 @router.get("/status", response_model=WiFiStatus, tags=["WiFi"])
 async def get_wifi_status():
     """Get current WiFi status including connection state and available networks"""

@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { WS_URL } from '$lib/config';
 
 interface WSMessage {
     type: string;
@@ -22,7 +23,7 @@ export const createWebSocketStore = () => {
             ws.close();
         }
 
-        ws = new WebSocket(`ws://${window.location.hostname}/api/v1/ws`);
+        ws = new WebSocket(WS_URL);
         
         ws.onopen = () => {
             console.log('WebSocket connected');
