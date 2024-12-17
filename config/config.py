@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, Dict
+import socket
 
 class Settings(BaseModel):
     # API Settings
@@ -7,6 +8,11 @@ class Settings(BaseModel):
     WS_PATH: str = "/ws"
     API_PORT: int = 80
     DEV_PORT: int = 5173
+    
+    # Network Settings
+    HOSTNAME: str = socket.gethostname()  # Dynamically get system hostname
+    AP_PASSWORD: str = "radio@1234"
+    AP_CHANNEL: int = 6  # Fix: Add value for AP_CHANNEL
     
     # Default Station Settings
     DEFAULT_STATIONS: Dict[int, str] = {
@@ -23,7 +29,7 @@ class Settings(BaseModel):
     # Hardware Settings - Rotary Encoder
     ROTARY_CLK: int = 11    # GPIO11 (Pin 23)
     ROTARY_DT: int = 9      # GPIO9  (Pin 21)
-    ROTARY_SW: int = 10     # GPIO10 (Pin 19)
+    ROTARY_SW: int = 10     # GPIO10 (Pin 19)¨
     ROTARY_CLOCKWISE_INCREASES: bool = True  # True = clockwise increases volume
     
     # Audio Settings

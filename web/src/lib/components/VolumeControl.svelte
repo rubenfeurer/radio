@@ -52,7 +52,7 @@
   }
 </script>
 
-<Card class="mb-4">
+<Card>
   <div class="flex flex-col gap-2">
     <h3 class="text-lg font-semibold">Volume Control</h3>
     <div class="flex items-center gap-4">

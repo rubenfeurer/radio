@@ -2,7 +2,7 @@
   import { Card, Button } from 'flowbite-svelte';
 </script>
 
-<Card class="mt-4">
+<Card>
   <div class="flex flex-col gap-2">
     <h3 class="text-lg font-semibold">System Monitor</h3>
     <a href="/monitor" class="w-full">

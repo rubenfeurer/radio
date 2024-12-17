@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.routes import stations, system, websocket, wifi, monitor
+from src.api.routes import stations, system, websocket, wifi, monitor, mode
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 import socket
@@ -11,6 +11,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from src.core.models import SystemStatus
 from config.config import settings
 import os
+from src.core.mode_manager import ModeManagerSingleton
 
 app = FastAPI(title="Internet Radio API")
 
@@ -38,12 +39,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize mode manager and ensure client mode
+mode_manager = ModeManagerSingleton.get_instance()
+@app.on_event("startup")
+async def startup_event():
+    """Ensure client mode on startup"""
+    try:
+        current_mode = mode_manager.detect_current_mode()
+        if current_mode != "client":
+            logger.info("Switching to client mode on startup...")
+            await mode_manager.enable_client_mode()
+        else:
+            logger.info("Already in client mode")
+    except Exception as e:
+        logger.error(f"Error ensuring client mode on startup: {e}")
+
 # Include routers with configured prefix
 app.include_router(stations.router, prefix=settings.API_V1_STR)
 app.include_router(system.router, prefix=settings.API_V1_STR)
 app.include_router(wifi.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router, prefix=settings.API_V1_STR)
 app.include_router(monitor.router, prefix=settings.API_V1_STR)
+app.include_router(mode.router, prefix=settings.API_V1_STR)
 
 # API endpoints first (before static files and catch-all)
 @app.get(f"{settings.API_V1_STR}/")

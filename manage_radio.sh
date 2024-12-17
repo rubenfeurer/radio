@@ -64,6 +64,26 @@ EOF
     fi
 }
 
+ensure_client_mode() {
+    echo "Ensuring client mode on startup..."
+    source $VENV_PATH/bin/activate
+    python3 -c "
+from src.core.mode_manager import ModeManagerSingleton
+import asyncio
+
+async def ensure_client():
+    manager = ModeManagerSingleton.get_instance()
+    current_mode = manager.detect_current_mode()
+    if current_mode != 'client':
+        print('Switching to client mode...')
+        await manager.enable_client_mode()
+    else:
+        print('Already in client mode')
+
+asyncio.run(ensure_client())
+"
+}
+
 open_monitor() {
     echo "Opening monitor website..."
     # Wait for services to be fully up
@@ -94,6 +114,7 @@ start() {
     check_ports
     check_pigpiod
     check_nmcli_permissions
+    ensure_client_mode
     source $VENV_PATH/bin/activate
     echo "Virtual environment activated"
     
@@ -104,7 +125,7 @@ start() {
     echo "Starting FastAPI server on port $API_PORT..."
     nohup sudo -E env "PATH=$PATH" "$VENV_PATH/bin/uvicorn" src.api.main:app \
         --host 0.0.0.0 \
-        --port $API_PORT \
+        --port "$API_PORT" \
         --reload \
         --log-level debug > $LOG_FILE 2>&1 &
     API_PID=$!
@@ -116,8 +137,8 @@ start() {
     # Start development server with nohup
     echo "Starting development server on port $DEV_PORT..."
     cd web && nohup npm run dev -- \
-        --host 0.0.0.0 \
-        --port $DEV_PORT \
+        --host "0.0.0.0" \
+        --port "$DEV_PORT" \
         >> $LOG_FILE 2>&1 &
     DEV_PID=$!
     echo $DEV_PID >> $PID_FILE

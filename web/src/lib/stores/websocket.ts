@@ -3,7 +3,7 @@ import { browser } from '$app/environment';
 import { WS_URL } from '$lib/config';
 
 interface WSMessage {
-    type: string;
+    type: 'status_update' | 'mode_update' | 'wifi_update';
     data?: any;
 }
 
@@ -14,10 +14,8 @@ export const createWebSocketStore = () => {
     let isIntentionalClose = false;
 
     const connect = () => {
-        // Only connect in browser environment
         if (!browser) return;
 
-        // Clear any existing connection
         if (ws) {
             isIntentionalClose = true;
             ws.close();
@@ -31,11 +29,21 @@ export const createWebSocketStore = () => {
             isIntentionalClose = false;
         };
 
+        ws.onmessage = (event) => {
+            try {
+                const message: WSMessage = JSON.parse(event.data);
+                if (message.type === 'mode_update') {
+                    console.log('Mode update received:', message.data);
+                }
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
+        };
+
         ws.onclose = (event) => {
             console.log(`WebSocket closed: ${event.code}`);
             set(null);
             
-            // Only reconnect if not intentionally closed and in browser
             if (!isIntentionalClose && browser) {
                 reconnectTimer = setTimeout(connect, 1000);
             }
@@ -53,12 +61,10 @@ export const createWebSocketStore = () => {
         }
     };
 
-    // Start initial connection only in browser
     if (browser) {
         connect();
     }
 
-    // Cleanup on unmount
     return {
         subscribe,
         sendMessage,
@@ -71,5 +77,30 @@ export const createWebSocketStore = () => {
     };
 };
 
-// Create the store
+// Create and export the store
 export const ws = createWebSocketStore();
+
+// Create a derived store for WebSocket data
+export const websocketStore = writable<{
+    data?: {
+        type: string;
+        mode?: 'ap' | 'client';
+        [key: string]: any;
+    };
+}>({});
+
+// Update websocketStore when messages are received
+if (browser) {
+    ws.subscribe(($ws) => {
+        if ($ws) {
+            $ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    websocketStore.set({ data: message });
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
+                }
+            };
+        }
+    });
+}
