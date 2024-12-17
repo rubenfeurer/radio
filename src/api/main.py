@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.routes import stations, system, websocket, wifi, monitor, mode
+from src.api.routes import stations, system, websocket, wifi, monitor, mode, ap  # Import the ap router
 from src.core.singleton_manager import RadioManagerSingleton
 from src.api.routes.websocket import broadcast_status_update
 import socket
@@ -61,6 +61,7 @@ app.include_router(wifi.router, prefix=settings.API_V1_STR)
 app.include_router(websocket.router, prefix=settings.API_V1_STR)
 app.include_router(monitor.router, prefix=settings.API_V1_STR)
 app.include_router(mode.router, prefix=settings.API_V1_STR)
+app.include_router(ap.router, prefix="/api/v1")
 
 # API endpoints first (before static files and catch-all)
 @app.get(f"{settings.API_V1_STR}/")

@@ -51,25 +51,6 @@ async def enable_client_mode():
         logger.error(f"Error enabling client mode: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/scan")
-async def scan_networks_in_ap_mode():
-    """Temporarily switch to client mode, scan networks, and restore AP mode"""
-    try:
-        current_mode = mode_manager.detect_current_mode()
-        if current_mode != NetworkMode.AP:
-            raise HTTPException(status_code=400, detail="Device must be in AP mode to use this endpoint")
-
-        # Perform scan (this will temporarily disable AP)
-        networks = await mode_manager.scan_networks_in_ap_mode()
-        
-        return {
-            "status": "success",
-            "networks": networks
-        }
-    except Exception as e:
-        logger.error(f"Error scanning networks: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/toggle")
 async def toggle_network_mode():
     """Toggle between AP and Client modes"""
