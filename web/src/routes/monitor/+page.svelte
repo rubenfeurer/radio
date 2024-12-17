@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { Card, Button, Badge, Table, TableBody, TableBodyRow, TableBodyCell, TableHead, TableHeadCell, Alert } from 'flowbite-svelte';
   import { ws as wsStore } from '$lib/stores/websocket';
+  import { currentMode } from '$lib/stores/mode';  // Import mode store
 
   // State for system info and processes
   let systemInfo = {
@@ -88,6 +89,17 @@
 
   <!-- System Info Cards -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+    <!-- Network Mode Card -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">Network Mode</h3>
+      <div class="mt-1 flex items-center gap-2">
+        <p class="text-lg">{$currentMode === 'ap' ? 'Access Point' : 'Client'}</p>
+        <Badge color={$currentMode === 'ap' ? 'red' : 'blue'}>
+          {$currentMode === 'ap' ? 'AP' : 'Client'}
+        </Badge>
+      </div>
+    </Card>
+
     <!-- Hostname Card -->
     <Card>
       <h3 class="text-sm font-medium text-gray-500">Hostname</h3>
