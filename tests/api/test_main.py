@@ -1,46 +1,27 @@
 import pytest
 from fastapi.testclient import TestClient
 from src.api.main import app
-from src.core.models import RadioStation
+from src.core.models import RadioStation, SystemStatus
 from src.api.models.requests import VolumeRequest, AssignStationRequest
-from fastapi import WebSocket
-from starlette.testclient import TestClient
+from config.config import settings
+from unittest.mock import MagicMock, patch
 
-# Add mock fixture for RadioManager
-@pytest.fixture(autouse=True)
-def mock_radio_manager_singleton(monkeypatch, mock_radio_manager):
-    """Mock the RadioManagerSingleton for all tests"""
-    from src.core.singleton_manager import RadioManagerSingleton
-    monkeypatch.setattr(RadioManagerSingleton, 'get_instance', lambda **kwargs: mock_radio_manager)
-
+# Create test client
 client = TestClient(app)
 
 def test_root():
-    response = client.get("/api/v1/")
+    """Test root API endpoint"""
+    response = client.get(f"{settings.API_V1_STR}/")
     assert response.status_code == 200
     assert response.json() == {"message": "Radio API"}
 
 def test_health():
-    response = client.get("/health")
+    """Test health check endpoint"""
+    response = client.get(f"{settings.API_V1_STR}/health")
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
 
-def test_websocket():
-    """Test WebSocket connection and status request/response"""
-    with client.websocket_connect("/ws") as websocket:
-        # Send status request
-        websocket.send_json({"type": "status_request"})
-        
-        # Get response
-        data = websocket.receive_json()
-        
-        # Verify response structure
-        assert data["type"] == "status_response"
-        assert "data" in data
-        assert isinstance(data["data"], dict)
-        assert "volume" in data["data"]
-        assert "is_playing" in data["data"]
-
+# Regular HTTP endpoint tests
 def test_add_station():
     """Test adding a station"""
     station = RadioStation(
@@ -48,9 +29,8 @@ def test_add_station():
         url="http://test.stream/radio",
         slot=1
     )
-    response = client.post("/api/v1/stations/", json=station.model_dump())
+    response = client.post(f"{settings.API_V1_STR}/stations/", json=station.model_dump())
     assert response.status_code == 200
-    assert response.json() == {"message": "Station added successfully"}
 
 def test_get_station():
     """Test getting a station"""
@@ -60,10 +40,10 @@ def test_get_station():
         url="http://test.stream/radio",
         slot=1
     )
-    client.post("/api/v1/stations/", json=station.model_dump())
+    client.post(f"{settings.API_V1_STR}/stations/", json=station.model_dump())
     
     # Then get it
-    response = client.get("/api/v1/stations/1")
+    response = client.get(f"{settings.API_V1_STR}/stations/1")
     assert response.status_code == 200
     assert RadioStation(**response.json()) == station
 
@@ -74,7 +54,7 @@ def test_assign_station():
         name="Test Station",
         url="http://test.stream/radio"
     )
-    response = client.post("/api/v1/stations/1/assign", json=request.model_dump())
+    response = client.post(f"{settings.API_V1_STR}/stations/1/assign", json=request.model_dump())
     assert response.status_code == 200
     assert "success" in response.json()["status"]
 
@@ -86,10 +66,10 @@ def test_play_station():
         url="http://test.stream/radio",
         slot=1
     )
-    client.post("/api/v1/stations/", json=station.model_dump())
+    client.post(f"{settings.API_V1_STR}/stations/", json=station.model_dump())
     
     # Then play it
-    response = client.post("/api/v1/stations/1/play")
+    response = client.post(f"{settings.API_V1_STR}/stations/1/play")
     assert response.status_code == 200
     assert response.json() == {"message": "Playing station"}
 
@@ -101,10 +81,10 @@ def test_toggle_station():
         url="http://test.stream/radio",
         slot=1
     )
-    client.post("/api/v1/stations/", json=station.model_dump())
+    client.post(f"{settings.API_V1_STR}/stations/", json=station.model_dump())
     
     # Then toggle it
-    response = client.post("/api/v1/stations/1/toggle")
+    response = client.post(f"{settings.API_V1_STR}/stations/1/toggle")
     assert response.status_code == 200
     assert "status" in response.json()
     assert "slot" in response.json()

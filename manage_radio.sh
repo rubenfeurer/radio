@@ -5,10 +5,18 @@ VENV_PATH="/home/radio/radio/venv"
 APP_PATH="/home/radio/radio/src/api/main.py"
 LOG_FILE="/home/radio/radio/logs/radio.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
-API_PORT=80
-DEV_PORT=5173
+NODE_ENV="production"
+
+# Get port numbers from Python config
+get_ports() {
+    source $VENV_PATH/bin/activate
+    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)")
+    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)")
+}
 
 check_ports() {
+    get_ports
+    
     # Check and kill any existing processes on API_PORT
     if sudo lsof -Pi :$API_PORT -sTCP:LISTEN -t >/dev/null ; then
         echo "Port $API_PORT is already in use. Stopping existing process..."
@@ -75,7 +83,7 @@ open_monitor() {
             --noerrdialogs \
             --disable-session-crashed-bubble \
             --no-first-run \
-            "http://localhost:5173/monitor" > /dev/null 2>&1 &
+            "http://localhost:$DEV_PORT/monitor" > /dev/null 2>&1 &
     else
         echo "Monitor already open in browser"
     fi
@@ -166,10 +174,13 @@ restart() {
 }
 
 status() {
+    get_ports
     if [ -f $PID_FILE ]; then
         PID=$(cat $PID_FILE)
         if ps -p $PID > /dev/null; then
             echo "$APP_NAME is running with PID $PID"
+            echo "API Port: $API_PORT"
+            echo "Dev Port: $DEV_PORT"
             echo "Recent logs:"
             tail -n 5 $LOG_FILE
         else
