@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { websocketStore } from '$lib/stores/websocket';
-    import { currentMode } from '$lib/stores/mode';
+    import { currentMode, type NetworkMode } from '$lib/stores/mode';
     import { Card, Badge, Button } from 'flowbite-svelte';
     import { browser } from '$app/environment';
 
@@ -17,9 +17,12 @@
 
     // Subscribe to WebSocket updates
     const unsubscribe = websocketStore.subscribe(($ws) => {
-        if ($ws?.data?.type === 'mode_update') {
-            $currentMode = $ws.data.mode;
-            isLoading = false;
+        if ($ws?.data?.type === 'monitor_update' && $ws.data?.systemInfo?.mode) {
+            const mode = $ws.data.systemInfo.mode.toLowerCase() as NetworkMode;
+            if (mode === 'ap' || mode === 'client') {
+                currentMode.set(mode);
+                isLoading = false;
+            }
         }
     });
 
@@ -30,7 +33,12 @@
                 throw new Error('Failed to fetch mode');
             }
             const data = await response.json();
-            $currentMode = data.mode;
+            const mode = data.mode.toLowerCase() as NetworkMode;
+            if (mode === 'ap' || mode === 'client') {
+                currentMode.set(mode);
+            } else {
+                throw new Error(`Invalid mode: ${mode}`);
+            }
         } catch (err) {
             error = 'Failed to get current mode';
             console.error('Error fetching mode:', err);
@@ -52,7 +60,7 @@
             
             // Mode update will come through WebSocket
         } catch (err) {
-            error = err.message || 'Failed to toggle mode';
+            error = err instanceof Error ? err.message : 'Failed to toggle mode';
             isLoading = false;
             console.error('Error toggling mode:', err);
         }
@@ -81,13 +89,17 @@
     <div class="flex flex-col gap-2">
         <span class="text-sm text-gray-500">Network Mode</span>
         <div class="flex items-center gap-2">
-            <h3 class="text-lg font-semibold">
-                {currentMode === 'ap' ? 'Access Point' : 'Client'}
-            </h3>
-            <Badge color={currentMode === 'ap' ? 'red' : 'blue'}>
-                {@html currentMode === 'ap' ? ModeIcons.ap : ModeIcons.client}
-                {currentMode === 'ap' ? 'AP' : 'Client'}
-            </Badge>
+            {#if $currentMode}
+                <h3 class="text-lg font-semibold">
+                    {$currentMode === 'ap' ? 'Access Point' : 'Client'}
+                </h3>
+                <Badge color={$currentMode === 'ap' ? 'red' : 'blue'}>
+                    {@html $currentMode === 'ap' ? ModeIcons.ap : ModeIcons.client}
+                    {$currentMode === 'ap' ? 'AP' : 'Client'}
+                </Badge>
+            {:else}
+                <h3 class="text-lg font-semibold">Loading...</h3>
+            {/if}
         </div>
 
         {#if error}
@@ -97,7 +109,7 @@
         <Button 
             color="alternative" 
             class="w-full mt-2"
-            disabled={isLoading}
+            disabled={isLoading || !$currentMode}
             on:click={toggleMode}
         >
             {#if isLoading}
@@ -106,7 +118,7 @@
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
                 </svg>
             {/if}
-            Switch to {currentMode === 'ap' ? 'Client' : 'AP'} Mode
+            Switch to {$currentMode === 'ap' ? 'Client' : 'AP'} Mode
         </Button>
     </div>
 </Card> 

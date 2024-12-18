@@ -115,6 +115,8 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_json()
+            logger.debug(f"WS received: {data}")
+            
             if data.get("type") == "status_request":
                 status = radio_manager.get_status()
                 status_dict = SystemStatus(
@@ -127,8 +129,27 @@ async def websocket_endpoint(websocket: WebSocket):
                     "type": "status_response",
                     "data": status_dict
                 })
+            elif data.get("type") == "monitor_request":
+                # Get mode info
+                mode_manager = ModeManagerSingleton.get_instance()
+                current_mode = mode_manager.detect_current_mode()
+                logger.debug(f"Current mode detected as: {current_mode}")
+                
+                # Send mode update first
+                await websocket.send_json({
+                    "type": "mode_update",
+                    "data": {"mode": current_mode.value}
+                })
+                
+                # Then send monitor update
+                monitor_data = await monitor.router.get_monitor_data()
+                await websocket.send_json({
+                    "type": "monitor_update",
+                    "data": monitor_data
+                })
             elif data.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
+                
     except WebSocketDisconnect:
         pass
 

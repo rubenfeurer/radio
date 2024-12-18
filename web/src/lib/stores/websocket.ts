@@ -1,9 +1,10 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { WS_URL } from '$lib/config';
+import { currentMode } from './mode';  // Import the mode store
 
 interface WSMessage {
-    type: 'status_update' | 'mode_update' | 'wifi_update';
+    type: 'status_update' | 'mode_update' | 'wifi_update' | 'monitor_update';
     data?: any;
 }
 
@@ -21,10 +22,11 @@ export const createWebSocketStore = () => {
             ws.close();
         }
 
+        console.log('Connecting to WebSocket URL:', WS_URL);
         ws = new WebSocket(WS_URL);
         
         ws.onopen = () => {
-            console.log('WebSocket connected');
+            console.log('WebSocket connected to:', WS_URL);
             set(ws);
             isIntentionalClose = false;
         };
@@ -32,9 +34,23 @@ export const createWebSocketStore = () => {
         ws.onmessage = (event) => {
             try {
                 const message: WSMessage = JSON.parse(event.data);
-                if (message.type === 'mode_update') {
-                    console.log('Mode update received:', message.data);
+                console.log('WebSocket message received:', message);
+
+                if (message.type === 'monitor_update' && message.data?.systemInfo?.mode) {
+                    const rawMode = message.data.systemInfo.mode;
+                    const mode = rawMode.toLowerCase();
+                    console.log('Mode update:', { rawMode, normalizedMode: mode });
+                    
+                    if (mode === 'ap' || mode === 'client') {
+                        currentMode.set(mode);
+                        console.log('Current mode set to:', mode);
+                    } else {
+                        console.error('Invalid mode received:', rawMode);
+                    }
                 }
+
+                // Update websocketStore
+                websocketStore.set({ data: message });
             } catch (error) {
                 console.error('Error parsing WebSocket message:', error);
             }

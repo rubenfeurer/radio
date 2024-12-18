@@ -102,35 +102,36 @@ class GPIOController:
             logger.error(f"Error handling rotation: {e}")
 
     def _handle_button(self, gpio, level, tick):
-        """Handle button press/release events."""
+        """Handle button press events."""
         try:
-            # Only process if it's a button pin
-            if gpio not in self.button_pins:
-                return
-            
-            button_number = self.button_pins[gpio]
             current_time = time.time()
             
-            logger.debug(f"Raw button event - GPIO: {gpio}, Level: {level}, Tick: {tick}")
+            # Determine which button was pressed
+            button_number = self.button_pins.get(gpio, None)
+            if gpio == self.rotary_sw:
+                button_number = self.rotary_sw
+            
+            logger.debug(f"GPIO {gpio} (Button {button_number}) changed to level {level} at {current_time}")
             
             # Button pressed (level = 0)
             if level == 0:
                 self.press_start_time[gpio] = current_time
-                logger.debug(f"Button {button_number} pressed down at {current_time}")
+                logger.debug(f"Button {button_number} press started")
                 
             # Button released (level = 1)
             elif level == 1 and gpio in self.press_start_time:
                 duration = current_time - self.press_start_time[gpio]
-                logger.debug(f"Button {button_number} released. Duration: {duration}")
+                logger.info(f"Button {button_number} released after {duration:.2f} seconds")
                 
                 # Handle long press first
                 if duration >= settings.LONG_PRESS_DURATION:
                     if self.long_press_callback and self.loop:
-                        logger.info(f"Long press detected on button {button_number}")
+                        logger.info(f"Long press callback triggered for button {button_number}")
                         asyncio.run_coroutine_threadsafe(
                             self.long_press_callback(button_number), 
                             self.loop
                         )
+                        logger.debug("Long press callback executed")
                 else:
                     # Check for double press (ignore debounce for second press of double press)
                     if gpio in self.last_press_time:
@@ -162,7 +163,7 @@ class GPIOController:
                 logger.debug(f"Updated last press time for button {button_number}")
                 
         except Exception as e:
-            logger.error(f"Error handling button event: {e}")
+            logger.error(f"Error in button handler: {e}", exc_info=True)
 
     def _handle_rotary_turn(self, way):
         """Handle rotary encoder rotation events."""

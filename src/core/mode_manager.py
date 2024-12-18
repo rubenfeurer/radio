@@ -5,10 +5,14 @@ import json
 from pathlib import Path
 from typing import Optional
 from config.config import settings
+import os
 
-class NetworkMode(str, Enum):
-    CLIENT = "client"
-    AP = "ap"
+# Set up logger
+logger = logging.getLogger(__name__)
+
+class NetworkMode(Enum):
+    AP = "AP"
+    CLIENT = "CLIENT"
 
 class ModeManagerSingleton:
     _instance = None
@@ -19,7 +23,9 @@ class ModeManagerSingleton:
         self.logger = logging.getLogger(__name__)
         self.AP_SSID = settings.HOSTNAME
         self.AP_PASS = settings.AP_PASSWORD
-        self.state_file = Path("/tmp/radio_mode.json")
+        self._MODE_FILE = Path('/tmp/radio/radio_mode.json')
+        self._current_mode = None
+        self._load_state()
 
     @classmethod
     def get_instance(cls):
@@ -30,43 +36,45 @@ class ModeManagerSingleton:
     def _save_state(self, mode: NetworkMode):
         """Save current mode to state file"""
         try:
-            self.state_file.write_text(json.dumps({"mode": mode}))
+            self._MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            self._MODE_FILE.write_text(json.dumps({"mode": mode.value}))
+            logger.debug(f"Saved mode state: {mode.value}")
         except Exception as e:
-            self.logger.error(f"Failed to save state: {e}")
+            logger.error(f"Failed to save state: {e}")
 
     def _load_state(self) -> Optional[NetworkMode]:
         """Load mode from state file"""
         try:
-            if self.state_file.exists():
-                data = json.loads(self.state_file.read_text())
-                return NetworkMode(data["mode"])
+            if self._MODE_FILE.exists():
+                data = json.loads(self._MODE_FILE.read_text())
+                mode = NetworkMode(data["mode"])
+                logger.debug(f"Loaded mode state: {mode.value}")
+                return mode
         except Exception as e:
-            self.logger.error(f"Failed to load state: {e}")
+            logger.error(f"Failed to load state: {e}")
         return None
 
     def detect_current_mode(self) -> NetworkMode:
-        """Detect current network mode"""
+        """Detect current network mode based on actual network configuration."""
         try:
-            # First check saved state
-            saved_mode = self._load_state()
-            if saved_mode and self._verify_mode(saved_mode):
-                return saved_mode
+            logger.debug("Starting mode detection...")
             
-            # Detect actual mode
-            result = subprocess.run(
-                ['nmcli', '-t', '-f', 'MODE', 'device', 'wifi', 'list', 'ifname', 'wlan0'],
-                capture_output=True, text=True
-            )
+            # Check if running as AP/Hotspot
+            result = subprocess.run(['nmcli', 'device', 'show', 'wlan0'], 
+                                  capture_output=True, text=True)
             
-            mode = NetworkMode.AP if 'AP' in result.stdout else NetworkMode.CLIENT
-            # Save detected state
-            self._save_state(mode)
-            return mode
+            logger.debug(f"Network status from nmcli: {result.stdout}")
             
-        except Exception as e:
-            self.logger.error(f"Mode detection failed: {e}")
-            # Default to client mode if detection fails
+            if 'AP' in result.stdout or 'Hotspot' in result.stdout:
+                logger.info("Detected AP/Hotspot mode from network status")
+                return NetworkMode.AP
+            
+            logger.info("Detected client mode from network status")
             return NetworkMode.CLIENT
+                
+        except Exception as e:
+            logger.error(f"Error detecting mode: {str(e)}", exc_info=True)
+            return NetworkMode.AP  # Default to AP mode
 
     def _verify_mode(self, mode: NetworkMode) -> bool:
         """Verify that saved mode matches actual mode"""
@@ -88,8 +96,9 @@ class ModeManagerSingleton:
             return False
 
     async def enable_ap_mode(self) -> bool:
-        """Switch to AP mode"""
+        """Enable AP mode"""
         try:
+            logger.info("Starting AP mode switch...")
             cmd = [
                 'sudo', 'nmcli', 'device', 'wifi', 'hotspot',
                 'ifname', 'wlan0',
@@ -99,12 +108,14 @@ class ModeManagerSingleton:
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
+                self._current_mode = NetworkMode.AP
                 self._save_state(NetworkMode.AP)
+                logger.info(f"AP mode enabled, saved state: {self._current_mode}")
                 return True
             return False
             
         except Exception as e:
-            self.logger.error(f"Failed to enable AP mode: {e}")
+            logger.error(f"Failed to enable AP mode: {e}")
             return False
 
     async def enable_client_mode(self) -> bool:

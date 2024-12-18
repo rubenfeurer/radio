@@ -7,6 +7,7 @@ from src.utils.station_loader import load_default_stations, load_assigned_statio
 from src.core.station_manager import StationManager
 import logging
 import asyncio
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class RadioManager:
         self._gpio = GPIOController(
             volume_change_callback=self._handle_volume_change,
             button_press_callback=self._handle_button_press,
+            long_press_callback=self._handle_long_press,
             event_loop=self.loop
         )
         logger.info("GPIO controller initialized")
@@ -143,3 +145,29 @@ class RadioManager:
             status_dict = self._status.model_dump()
             await self._status_update_callback(status_dict)
             logger.debug(f"Broadcasting status update: {status_dict}")
+
+    async def _handle_long_press(self, button: int) -> None:
+        """Handle long press events - toggle between AP and Client mode."""
+        try:
+            logger.debug(f"Long press handler called for button {button}")
+            logger.debug(f"Comparing with ROTARY_SW: {settings.ROTARY_SW}")
+            
+            # Only handle long press for rotary encoder button
+            if button != settings.ROTARY_SW:
+                logger.debug(f"Ignoring long press for non-rotary button (got {button}, expected {settings.ROTARY_SW})")
+                return
+            
+            logger.info(f"Long press confirmed on rotary encoder (pin {settings.ROTARY_SW}) - initiating mode toggle")
+            
+            # Call the mode toggle endpoint using httpx
+            async with httpx.AsyncClient() as client:
+                logger.debug("Sending mode toggle request to API")
+                response = await client.post('http://localhost:80/api/v1/mode/toggle')
+                
+                if response.status_code == 200:
+                    logger.info("Mode toggle successful - mode switch initiated")
+                else:
+                    logger.error(f"Mode toggle failed with status {response.status_code}: {response.text}")
+                    
+        except Exception as e:
+            logger.error(f"Error in long press handler: {str(e)}", exc_info=True)

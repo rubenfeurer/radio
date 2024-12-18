@@ -67,21 +67,51 @@ EOF
 ensure_client_mode() {
     echo "Ensuring client mode on startup..."
     source $VENV_PATH/bin/activate
+    
+    # Create directory and initial mode file if it doesn't exist
+    echo "Setting up mode state file..."
+    sudo mkdir -p /tmp/radio
+    if [ ! -f "/tmp/radio/radio_mode.json" ]; then
+        echo "Creating initial mode state file..."
+        echo '{"mode": "CLIENT"}' | sudo tee /tmp/radio/radio_mode.json > /dev/null
+    fi
+    
+    # Ensure correct permissions
+    sudo chown -R radio:radio /tmp/radio
+    sudo chmod 644 /tmp/radio/radio_mode.json
+    
+    # Add debug output
+    echo "Running mode check and switch..."
     python3 -c "
 from src.core.mode_manager import ModeManagerSingleton
 import asyncio
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('mode_switch')
 
 async def ensure_client():
-    manager = ModeManagerSingleton.get_instance()
-    current_mode = manager.detect_current_mode()
-    if current_mode != 'client':
-        print('Switching to client mode...')
-        await manager.enable_client_mode()
-    else:
-        print('Already in client mode')
+    try:
+        manager = ModeManagerSingleton.get_instance()
+        await manager.enable_client_mode()  # Force client mode
+        logger.info('Client mode switch completed')
+            
+    except Exception as e:
+        logger.error(f'Error in mode switch: {str(e)}', exc_info=True)
 
 asyncio.run(ensure_client())
 "
+    
+    # Wait for network to be ready
+    echo "Waiting for network..."
+    sleep 5
+    
+    # Verify network status
+    if nmcli networking connectivity check | grep -q "full"; then
+        echo "Network is ready"
+    else
+        echo "Warning: Network might not be fully connected"
+    fi
 }
 
 open_monitor() {
@@ -121,9 +151,17 @@ start() {
     # Clear the log file
     echo "" > $LOG_FILE
     
+    # Ensure /tmp/radio directory exists with correct permissions
+    echo "Setting up temporary directory with correct permissions..."
+    sudo mkdir -p /tmp/radio
+    sudo chown -R radio:radio /tmp/radio
+    
     # Start FastAPI server with nohup
     echo "Starting FastAPI server on port $API_PORT..."
-    nohup sudo -E env "PATH=$PATH" "$VENV_PATH/bin/uvicorn" src.api.main:app \
+    nohup sudo -E env "PATH=$PATH" \
+        "PYTHONPATH=/home/radio/radio" \
+        "TMPDIR=/tmp/radio" \
+        "$VENV_PATH/bin/uvicorn" src.api.main:app \
         --host 0.0.0.0 \
         --port "$API_PORT" \
         --reload \
@@ -133,6 +171,9 @@ start() {
     
     # Wait to ensure API server is up
     sleep 5
+    
+    # Ensure correct permissions for created files
+    sudo chown -R radio:radio /tmp/radio
     
     # Start development server with nohup
     echo "Starting development server on port $DEV_PORT..."

@@ -19,5 +19,7 @@ export const API_BASE_URL = browser ? (
 
 export const WS_URL = browser ? (
     import.meta.env.VITE_WS_URL || 
-    `ws://${hostname}${API_V1_STR}${WS_PATH}`
+    (window.location.port === DEV_PORT.toString()
+        ? `ws://${hostname}:${API_PORT}${API_V1_STR}${WS_PATH}`
+        : `ws://${hostname}${API_V1_STR}${WS_PATH}`)
 ) : '';
