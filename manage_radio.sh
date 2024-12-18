@@ -6,6 +6,7 @@ APP_PATH="/home/radio/radio/src/api/main.py"
 LOG_FILE="/home/radio/radio/logs/radio.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
 NODE_ENV="production"
+DEV_MODE=${DEV_MODE:-true}  # Changed default to true
 
 # Get port numbers from Python config
 get_ports() {
@@ -17,23 +18,34 @@ get_ports() {
 check_ports() {
     get_ports
     
-    # Check and kill any existing processes on API_PORT
-    if sudo lsof -Pi :$API_PORT -sTCP:LISTEN -t >/dev/null ; then
-        echo "Port $API_PORT is already in use. Stopping existing process..."
-        sudo kill -9 $(sudo lsof -t -i:$API_PORT)
-        sleep 2
-    fi
+    echo "Checking for processes using ports..."
     
-    # Check and kill any existing processes on DEV_PORT
-    if lsof -Pi :$DEV_PORT -sTCP:LISTEN -t >/dev/null ; then
-        echo "Port $DEV_PORT is already in use. Stopping existing process..."
-        sudo kill -9 $(lsof -t -i:$DEV_PORT)
-        sleep 2
-    fi
+    # More thorough port check for DEV_PORT (5173)
+    for pid in $(lsof -ti:$DEV_PORT); do
+        echo "Killing process $pid using port $DEV_PORT..."
+        sudo kill -9 $pid 2>/dev/null || true
+    done
+    
+    # More thorough port check for API_PORT (80)
+    for pid in $(sudo lsof -ti:$API_PORT); do
+        echo "Killing process $pid using port $API_PORT..."
+        sudo kill -9 $pid 2>/dev/null || true
+    done
 
-    # Additional check for any hanging processes
+    # Additional cleanup
+    echo "Cleaning up any remaining processes..."
     sudo pkill -f "uvicorn.*$APP_PATH" || true
     pkill -f "npm run dev" || true
+    pkill -f "vite" || true
+    
+    # Wait for ports to be freed
+    sleep 3
+    
+    # Verify ports are free
+    if lsof -Pi:$DEV_PORT -sTCP:LISTEN || sudo lsof -Pi:$API_PORT -sTCP:LISTEN; then
+        echo "Error: Ports still in use after cleanup"
+        exit 1
+    fi
 }
 
 check_pigpiod() {
@@ -203,11 +215,36 @@ check_hostapd() {
 setup_network_manager_config() {
     echo "Setting up NetworkManager configuration..."
     
+    # Stop NetworkManager first
+    echo "Stopping NetworkManager..."
+    sudo systemctl stop NetworkManager
+    sleep 2
+    
+    # Stop and disable potentially conflicting services
+    echo "Stopping and disabling conflicting services..."
+    local services=("hostapd" "wpa_supplicant" "iwd" "dhcpcd")
+    for service in "${services[@]}"; do
+        if systemctl list-unit-files | grep -q "^$service"; then
+            echo "Handling $service..."
+            sudo systemctl stop $service 2>/dev/null || true
+            sudo systemctl disable $service 2>/dev/null || true
+        fi
+    done
+
+    # Explicitly configure wpa_supplicant
+    echo "Configuring wpa_supplicant..."
+    sudo systemctl unmask wpa_supplicant
+    sudo systemctl enable wpa_supplicant
+    sudo systemctl start wpa_supplicant
+    sleep 2
+    
     # Create NetworkManager config file
+    echo "Creating NetworkManager configuration..."
     sudo tee /etc/NetworkManager/conf.d/10-wifi.conf << EOF
 [main]
 plugins=ifupdown,keyfile
 no-auto-default=*
+dhcp=internal
 
 [ifupdown]
 managed=true
@@ -219,19 +256,32 @@ wifi.backend=wpa_supplicant
 [connection]
 wifi.powersave=0
 connection.autoconnect=true
+ipv6.method=disabled
 
 [logging]
 level=DEBUG
-domains=WIFI,CORE,DEVICE
+domains=WIFI,CORE,DEVICE,SUPPLICANT
 EOF
 
     # Set correct permissions
     sudo chmod 644 /etc/NetworkManager/conf.d/10-wifi.conf
     
-    # Restart NetworkManager to apply changes
-    echo "Restarting NetworkManager to apply changes..."
+    # Start NetworkManager
+    echo "Starting NetworkManager..."
     sudo systemctl restart NetworkManager
     sleep 5
+
+    # Verify services
+    echo "Verifying services..."
+    if ! systemctl is-active --quiet wpa_supplicant; then
+        echo "Error: wpa_supplicant is not running"
+        sudo systemctl status wpa_supplicant
+    fi
+    
+    if ! systemctl is-active --quiet NetworkManager; then
+        echo "Error: NetworkManager is not running"
+        sudo systemctl status NetworkManager
+    fi
 }
 
 setup_wifi_interface() {
@@ -264,74 +314,184 @@ setup_wifi_interface() {
     fi
 }
 
+check_avahi() {
+    echo "Checking Avahi daemon..."
+    
+    # Get system hostname
+    HOSTNAME=$(hostname)
+    echo "Using hostname: $HOSTNAME"
+    
+    # Install avahi-daemon if not present
+    if ! dpkg -l | grep -q avahi-daemon; then
+        echo "Installing avahi-daemon..."
+        sudo apt-get update
+        sudo apt-get install -y avahi-daemon
+    fi
+    
+    # Configure Avahi
+    echo "Configuring Avahi..."
+    sudo tee /etc/avahi/avahi-daemon.conf << EOF
+[server]
+host-name=$HOSTNAME
+domain-name=local
+use-ipv4=yes
+use-ipv6=no
+enable-dbus=yes
+allow-interfaces=wlan0
+
+[publish]
+publish-addresses=yes
+publish-hinfo=yes
+publish-workstation=yes
+publish-domain=yes
+EOF
+    
+    # Restart Avahi daemon
+    echo "Restarting Avahi daemon..."
+    sudo systemctl restart avahi-daemon
+    
+    # Verify Avahi is running
+    if ! systemctl is-active --quiet avahi-daemon; then
+        echo "Error: Avahi daemon failed to start"
+        sudo systemctl status avahi-daemon
+        exit 1
+    else
+        echo "Avahi daemon is running"
+    fi
+    
+    # Test hostname resolution
+    echo "Testing hostname resolution..."
+    if ! ping -c 1 $HOSTNAME.local > /dev/null 2>&1; then
+        echo "Warning: $HOSTNAME.local is not resolving. Check your network configuration."
+    else
+        echo "Hostname resolution successful"
+    fi
+}
+
+setup_logrotate() {
+    echo "Setting up log rotation..."
+    
+    # Create logrotate configuration
+    sudo tee /etc/logrotate.d/radio << EOF
+/home/radio/radio/logs/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 radio radio
+    size 10M
+    postrotate
+        systemctl restart radio >/dev/null 2>&1 || true
+    endscript
+}
+EOF
+
+    # Set correct permissions
+    sudo chmod 644 /etc/logrotate.d/radio
+    
+    # Force logrotate to read the new config
+    sudo logrotate -f /etc/logrotate.d/radio
+}
+
 start() {
-    echo "Starting $APP_NAME..."
-    check_ports
+    echo "Starting $APP_NAME in ${DEV_MODE} mode..."
+    
+    # Setup log rotation before starting services
+    setup_logrotate
+    
+    # Create logs directory if it doesn't exist
+    mkdir -p "$(dirname $LOG_FILE)"
+    sudo chown -R radio:radio "$(dirname $LOG_FILE)"
+    
+    # Create web logs directory with proper permissions
+    WEB_LOG_FILE="/home/radio/radio/logs/web.log"
+    mkdir -p "$(dirname $WEB_LOG_FILE)"
+    sudo chown -R radio:radio "$(dirname $WEB_LOG_FILE)"
+    
+    # Ensure web directory permissions
+    sudo chown -R radio:radio /home/radio/radio/web
+    
+    # Add check_avahi to the startup sequence
     check_pigpiod
     check_network_manager
+    check_avahi
     setup_network_manager_config
     check_hostapd
     setup_wifi_interface
     check_nmcli_permissions
     ensure_client_mode
-    source $VENV_PATH/bin/activate
-    echo "Virtual environment activated"
     
-    # Clear the log file
-    echo "" > $LOG_FILE
-    
-    # Ensure /tmp/radio directory exists with correct permissions
+    # Create and set permissions for temp directory
     echo "Setting up temporary directory with correct permissions..."
     sudo mkdir -p /tmp/radio
     sudo chown -R radio:radio /tmp/radio
+    export TMPDIR=/tmp/radio
+    
+    # Activate virtual environment
+    echo "Virtual environment activated"
+    source $VENV_PATH/bin/activate
+    
+    # Check and kill any existing processes
+    check_ports
     
     # Start FastAPI server with nohup
     echo "Starting FastAPI server on port $API_PORT..."
-    nohup sudo -E env "PATH=$PATH" \
-        "PYTHONPATH=/home/radio/radio" \
-        "TMPDIR=/tmp/radio" \
-        "$VENV_PATH/bin/uvicorn" src.api.main:app \
-        --host 0.0.0.0 \
-        --port "$API_PORT" \
-        --reload \
-        --log-level debug > $LOG_FILE 2>&1 &
+    if [ "$DEV_MODE" = true ]; then
+        nohup sudo -E env "PATH=$PATH" \
+            "PYTHONPATH=/home/radio/radio" \
+            "$VENV_PATH/bin/uvicorn" src.api.main:app \
+            --host "0.0.0.0" \
+            --port "$API_PORT" \
+            --reload \
+            > $LOG_FILE 2>&1 &
+    else
+        nohup sudo -E env "PATH=$PATH" \
+            "PYTHONPATH=/home/radio/radio" \
+            "$VENV_PATH/bin/uvicorn" src.api.main:app \
+            --host "0.0.0.0" \
+            --port "$API_PORT" \
+            > $LOG_FILE 2>&1 &
+    fi
     API_PID=$!
     echo $API_PID > $PID_FILE
     
-    # Wait to ensure API server is up
-    sleep 5
-    
-    # Ensure correct permissions for created files
-    sudo chown -R radio:radio /tmp/radio
-    
-    # Start development server with nohup
-    echo "Starting development server on port $DEV_PORT..."
-    cd web && nohup npm run dev -- \
-        --host "0.0.0.0" \
-        --port "$DEV_PORT" \
-        >> $LOG_FILE 2>&1 &
-    DEV_PID=$!
-    echo $DEV_PID >> $PID_FILE
-    
-    # Wait to ensure both servers start
     sleep 3
     
-    # Check if processes are running
-    if ps -p $API_PID > /dev/null && ps -p $DEV_PID > /dev/null; then
-        echo "$APP_NAME started successfully"
-        echo "FastAPI PID: $API_PID"
-        echo "Dev Server PID: $DEV_PID"
-        echo "Initial log entries:"
-        tail -n 10 $LOG_FILE
-        
-        # Open monitor website
-        open_monitor
+    # Start web server based on mode
+    echo "Starting web server on port $DEV_PORT..."
+    
+    # Change to web directory as radio user
+    cd /home/radio/radio/web
+    if [ "$DEV_MODE" = true ]; then
+        echo "Starting in development mode..."
+        sudo -u radio NODE_ENV=development \
+            HOME=/home/radio \
+            npm run dev -- \
+            --host "0.0.0.0" \
+            --port "$DEV_PORT" \
+            >> "$WEB_LOG_FILE" 2>&1 &
     else
-        echo "Failed to start $APP_NAME. Check logs for details."
-        cat $LOG_FILE
-        rm -f $PID_FILE
-        exit 1
+        echo "Starting in production mode..."
+        sudo -u radio NODE_ENV=production \
+            HOME=/home/radio \
+            bash -c "npm run build && npm run preview -- \
+            --host \"0.0.0.0\" \
+            --port \"$DEV_PORT\"" \
+            >> "$WEB_LOG_FILE" 2>&1 &
     fi
+    DEV_PID=$!
+    echo $DEV_PID >> $PID_FILE
+    cd - # Return to original directory
+    
+    echo "$APP_NAME started successfully"
+    echo "FastAPI PID: $API_PID"
+    echo "Dev Server PID: $DEV_PID"
+    
+    # Show initial log entries
+    echo "Initial log entries:"
+    tail -n 5 $LOG_FILE
 }
 
 stop() {
