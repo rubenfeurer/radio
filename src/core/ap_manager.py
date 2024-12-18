@@ -18,7 +18,7 @@ class APManager:
         self.wifi_manager = WiFiManager()
         self.mode_manager = ModeManagerSingleton.get_instance()
         self.interface_stabilize_delay = 2  # seconds
-        self.required_services = ['hostapd', 'dnsmasq', 'avahi-daemon']
+        self.required_services = ['dnsmasq', 'avahi-daemon']
 
     async def verify_ap_mode(self) -> bool:
         """Verify that we're in AP mode"""
