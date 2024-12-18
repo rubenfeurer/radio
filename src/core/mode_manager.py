@@ -3,7 +3,7 @@ import subprocess
 import logging
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from config.config import settings
 import os
 import asyncio
@@ -161,21 +161,40 @@ class ModeManagerSingleton:
             logger.error(f"Error enabling AP mode: {str(e)}", exc_info=True)
             raise
 
-    async def enable_client_mode(self) -> bool:
-        """Switch to client mode"""
+    async def enable_client_mode(self) -> None:
+        """Enable client mode and connect to last known network if available"""
         try:
-            # Stop hotspot
-            cmd = ['sudo', 'nmcli', 'connection', 'down', 'Hotspot']
-            result = subprocess.run(cmd, capture_output=True)
+            logger.info("Enabling client mode...")
             
-            if result.returncode == 0:
-                self._save_state(NetworkMode.CLIENT)
-                return True
-            return False
+            # Set device to managed mode
+            subprocess.run(['sudo', 'nmcli', 'device', 'set', 'wlan0', 'managed'], 
+                          capture_output=True)
+            
+            # Get list of saved connections
+            result = subprocess.run(['sudo', 'nmcli', 'connection', 'show'], 
+                                  capture_output=True, text=True)
+            
+            if 'preconfigured' in result.stdout:
+                logger.info("Connecting to preconfigured network...")
+                subprocess.run(['sudo', 'nmcli', 'connection', 'up', 'preconfigured'], 
+                             capture_output=True)
+            
+            # Wait for connection
+            max_attempts = 15
+            for attempt in range(max_attempts):
+                check = subprocess.run(['nmcli', 'networking', 'connectivity', 'check'],
+                                     capture_output=True, text=True)
+                if 'full' in check.stdout:
+                    logger.info("Network connection established")
+                    break
+                await asyncio.sleep(1)
+                
+            self._save_state(NetworkMode.CLIENT)
+            logger.info("Client mode enabled successfully")
             
         except Exception as e:
-            self.logger.error(f"Failed to enable client mode: {e}")
-            return False
+            logger.error(f"Error enabling client mode: {e}")
+            raise
 
     async def toggle_mode(self) -> NetworkMode:
         """Toggle between AP and Client modes"""
@@ -198,6 +217,43 @@ class ModeManagerSingleton:
                 
         except Exception as e:
             self.logger.error(f"Failed to toggle mode: {e}")
+            raise
+
+    async def scan_wifi_networks(self) -> List[Dict[str, Any]]:
+        """Scan for available WiFi networks"""
+        try:
+            logger.info("Scanning for WiFi networks...")
+            current_mode = await self.detect_current_mode()
+            
+            # If in AP mode, temporarily switch to client mode for scanning
+            temp_switch = False
+            if current_mode == NetworkMode.AP:
+                logger.info("Temporarily switching to client mode for scanning")
+                temp_switch = True
+                # Don't disconnect yet, just prepare interface
+                subprocess.run(['sudo', 'nmcli', 'device', 'set', 'wlan0', 'managed'], 
+                             capture_output=True)
+            
+            # Perform the scan
+            subprocess.run(['sudo', 'nmcli', 'device', 'wifi', 'rescan'], 
+                          capture_output=True)
+            await asyncio.sleep(2)  # Wait for scan to complete
+            
+            result = subprocess.run(['sudo', 'nmcli', 'device', 'wifi', 'list'], 
+                                  capture_output=True, text=True)
+            
+            # If we temporarily switched modes, restore AP mode
+            if temp_switch:
+                logger.info("Restoring AP mode after scan")
+                subprocess.run(['sudo', 'nmcli', 'device', 'set', 'wlan0', 'ap'], 
+                             capture_output=True)
+            
+            # Parse the scan results
+            networks = self._parse_network_scan(result.stdout)
+            return networks
+            
+        except Exception as e:
+            logger.error(f"Error scanning networks: {e}")
             raise
 
 # For backwards compatibility

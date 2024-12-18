@@ -59,6 +59,13 @@ radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi connect *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection up *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection delete *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device set *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection add *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection modify *
+radio ALL=(ALL) NOPASSWD: /usr/bin/rfkill
+radio ALL=(ALL) NOPASSWD: /sbin/ip link set *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device disconnect *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli radio wifi *
 EOF
         sudo chmod 440 $SUDO_FILE
     fi
@@ -93,7 +100,7 @@ logger = logging.getLogger('mode_switch')
 async def ensure_client():
     try:
         manager = ModeManagerSingleton.get_instance()
-        await manager.enable_client_mode()  # Force client mode
+        await manager.enable_client_mode()  # This method already calls _save_state internally
         logger.info('Client mode switch completed')
             
     except Exception as e:
@@ -104,13 +111,26 @@ asyncio.run(ensure_client())
     
     # Wait for network to be ready
     echo "Waiting for network..."
-    sleep 5
+    max_attempts=30
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if nmcli networking connectivity check | grep -q "full"; then
+            echo "Network is ready"
+            break
+        fi
+        echo "Waiting for network... attempt $((attempt+1))/$max_attempts"
+        sleep 2
+        attempt=$((attempt+1))
+    done
     
-    # Verify network status
-    if nmcli networking connectivity check | grep -q "full"; then
-        echo "Network is ready"
-    else
-        echo "Warning: Network might not be fully connected"
+    if [ $attempt -eq $max_attempts ]; then
+        echo "Warning: Network connection timed out. Continuing anyway..."
+    fi
+    
+    # Verify network interface is up
+    if ! ip link show wlan0 | grep -q "UP"; then
+        echo "Bringing up wlan0 interface..."
+        sudo ip link set wlan0 up
     fi
 }
 
@@ -159,13 +179,88 @@ check_network_manager() {
 
 check_hostapd() {
     echo "Checking hostapd status..."
+    
     if systemctl is-active --quiet hostapd; then
-        echo "Stopping and disabling hostapd..."
+        echo "Stopping hostapd..."
         sudo systemctl stop hostapd
         sudo systemctl disable hostapd
+        
+        # Force kill any remaining hostapd processes
+        sudo pkill -9 hostapd || true
         sleep 2
+        
+        # Double check it's really stopped
+        if systemctl is-active --quiet hostapd; then
+            echo "Warning: hostapd is still running!"
+        else
+            echo "hostapd stopped successfully"
+        fi
     else
         echo "hostapd is already stopped"
+    fi
+}
+
+setup_network_manager_config() {
+    echo "Setting up NetworkManager configuration..."
+    
+    # Create NetworkManager config file
+    sudo tee /etc/NetworkManager/conf.d/10-wifi.conf << EOF
+[main]
+plugins=ifupdown,keyfile
+no-auto-default=*
+
+[ifupdown]
+managed=true
+
+[device]
+wifi.scan-rand-mac-address=no
+wifi.backend=wpa_supplicant
+
+[connection]
+wifi.powersave=0
+connection.autoconnect=true
+
+[logging]
+level=DEBUG
+domains=WIFI,CORE,DEVICE
+EOF
+
+    # Set correct permissions
+    sudo chmod 644 /etc/NetworkManager/conf.d/10-wifi.conf
+    
+    # Restart NetworkManager to apply changes
+    echo "Restarting NetworkManager to apply changes..."
+    sudo systemctl restart NetworkManager
+    sleep 5
+}
+
+setup_wifi_interface() {
+    echo "Setting up WiFi interface..."
+    
+    # Unblock WiFi if blocked
+    echo "Checking RF kill status..."
+    sudo rfkill unblock wifi
+    
+    # Reset interface
+    echo "Resetting WiFi interface..."
+    sudo ip link set wlan0 down
+    sleep 1
+    
+    # Set to managed mode
+    echo "Setting managed mode..."
+    sudo nmcli device set wlan0 managed yes
+    sleep 1
+    
+    # Bring interface up
+    echo "Bringing up interface..."
+    sudo ip link set wlan0 up
+    sleep 2
+    
+    # Verify interface status
+    if ip link show wlan0 | grep -q "UP"; then
+        echo "WiFi interface is up"
+    else
+        echo "Warning: Failed to bring up WiFi interface"
     fi
 }
 
@@ -174,7 +269,9 @@ start() {
     check_ports
     check_pigpiod
     check_network_manager
+    setup_network_manager_config
     check_hostapd
+    setup_wifi_interface
     check_nmcli_permissions
     ensure_client_mode
     source $VENV_PATH/bin/activate
