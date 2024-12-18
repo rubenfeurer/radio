@@ -11,8 +11,10 @@ class Settings(BaseModel):
     
     # Network Settings
     HOSTNAME: str = socket.gethostname()  # Dynamically get system hostname
+    AP_SSID: str = f"{HOSTNAME}"  # Use hostname as AP_SSID
     AP_PASSWORD: str = "radio@1234"
-    AP_CHANNEL: int = 6  # Fix: Add value for AP_CHANNEL
+    AP_CHANNEL: int = 6
+    AP_BAND: str = "bg"
     
     # Default Station Settings
     DEFAULT_STATIONS: Dict[int, str] = {

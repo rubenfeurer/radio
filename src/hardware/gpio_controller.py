@@ -38,7 +38,8 @@ class GPIOController:
         # Track button press times
         self.last_press_time = {}
         self.press_start_time = {}
-        self.long_press_triggered = {}  # Add this to track long press triggers per button
+        self.long_press_triggered = {}  # Track if long press was triggered
+        self.monitor_tasks = {}  # Track monitoring tasks
         
         try:
             # Initialize pigpio
@@ -107,55 +108,63 @@ class GPIOController:
         try:
             current_time = time.time()
             
-            # Determine which button was pressed
             button_number = self.button_pins.get(gpio, None)
             if gpio == self.rotary_sw:
                 button_number = self.rotary_sw
             
-            logger.debug(f"GPIO {gpio} (Button {button_number}) changed to level {level} at {current_time}")
-            
             # Button pressed (level = 0)
             if level == 0:
+                # Cancel any existing monitor task for this button
+                if gpio in self.monitor_tasks:
+                    self.monitor_tasks[gpio].cancel()
+                
                 self.press_start_time[gpio] = current_time
-                self.long_press_triggered[gpio] = False  # Reset the trigger flag
-                logger.debug(f"Button {button_number} press started")
-                # Start monitoring for long press
+                self.long_press_triggered[gpio] = False
+                
+                # Start new monitoring task
                 if self.loop:
-                    asyncio.run_coroutine_threadsafe(
+                    task = asyncio.run_coroutine_threadsafe(
                         self._monitor_long_press(gpio, button_number),
                         self.loop
                     )
+                    self.monitor_tasks[gpio] = task
             
             # Button released (level = 1)
             elif level == 1 and gpio in self.press_start_time:
+                # Cancel monitoring task
+                if gpio in self.monitor_tasks:
+                    self.monitor_tasks[gpio].cancel()
+                    del self.monitor_tasks[gpio]
+                
                 duration = current_time - self.press_start_time[gpio]
                 logger.info(f"Button {button_number} released after {duration:.2f} seconds")
                 
-                # Only handle short/double press if no long press was triggered
+                # Only handle short press if no long press was triggered
                 if not self.long_press_triggered.get(gpio, False):
-                    # Check for double press
-                    if gpio in self.last_press_time:
-                        time_since_last = current_time - self.last_press_time[gpio]
-                        if time_since_last < settings.DOUBLE_PRESS_INTERVAL:
-                            if self.double_press_callback and self.loop:
-                                logger.info(f"Double press detected on button {button_number}")
-                                asyncio.run_coroutine_threadsafe(
-                                    self.double_press_callback(button_number), 
-                                    self.loop
-                                )
-                                self.last_press_time[gpio] = current_time
+                    if duration < settings.LONG_PRESS_DURATION:
+                        # Check for double press
+                        if gpio in self.last_press_time:
+                            time_since_last = current_time - self.last_press_time[gpio]
+                            if time_since_last < settings.DOUBLE_PRESS_INTERVAL:
+                                if self.double_press_callback and self.loop:
+                                    logger.info(f"Double press detected on button {button_number}")
+                                    asyncio.run_coroutine_threadsafe(
+                                        self.double_press_callback(button_number), 
+                                        self.loop
+                                    )
+                                    self.last_press_time[gpio] = current_time
+                                    return
+                            elif time_since_last < 0.5:  # 500ms debounce
+                                logger.debug(f"Ignoring button {button_number} - too soon after last press ({time_since_last}s)")
                                 return
-                        elif time_since_last < 0.5:  # 500ms debounce
-                            logger.debug(f"Ignoring button {button_number} - too soon after last press ({time_since_last}s)")
-                            return
-                    
-                    # Handle single press
-                    if self.button_press_callback and self.loop:
-                        logger.info(f"Single press detected on button {button_number}")
-                        asyncio.run_coroutine_threadsafe(
-                            self.button_press_callback(button_number), 
-                            self.loop
-                        )
+                        
+                        # Handle single press
+                        if self.button_press_callback and self.loop:
+                            logger.info(f"Single press detected on button {button_number}")
+                            asyncio.run_coroutine_threadsafe(
+                                self.button_press_callback(button_number), 
+                                self.loop
+                            )
                 
                 self.last_press_time[gpio] = current_time
                 logger.debug(f"Updated last press time for button {button_number}")
@@ -177,10 +186,12 @@ class GPIOController:
                         logger.info(f"Long press threshold met for button {button_number}")
                         self.long_press_triggered[gpio] = True
                         await self.long_press_callback(button_number)
-                    break
+                    break  # Exit after triggering
                 
-                await asyncio.sleep(0.1)  # Check every 100ms
+                await asyncio.sleep(0.1)
                 
+        except asyncio.CancelledError:
+            logger.debug(f"Long press monitoring cancelled for button {button_number}")
         except Exception as e:
             logger.error(f"Error monitoring long press: {e}", exc_info=True)
 

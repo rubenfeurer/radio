@@ -139,10 +139,42 @@ open_monitor() {
     fi
 }
 
+check_network_manager() {
+    echo "Checking NetworkManager status..."
+    if ! systemctl is-active --quiet NetworkManager; then
+        echo "NetworkManager is not running. Starting it..."
+        sudo systemctl start NetworkManager
+        # Wait for NetworkManager to be fully up
+        sleep 5
+        if systemctl is-active --quiet NetworkManager; then
+            echo "NetworkManager started successfully"
+        else
+            echo "Failed to start NetworkManager"
+            exit 1
+        fi
+    else
+        echo "NetworkManager is running"
+    fi
+}
+
+check_hostapd() {
+    echo "Checking hostapd status..."
+    if systemctl is-active --quiet hostapd; then
+        echo "Stopping and disabling hostapd..."
+        sudo systemctl stop hostapd
+        sudo systemctl disable hostapd
+        sleep 2
+    else
+        echo "hostapd is already stopped"
+    fi
+}
+
 start() {
     echo "Starting $APP_NAME..."
     check_ports
     check_pigpiod
+    check_network_manager
+    check_hostapd
     check_nmcli_permissions
     ensure_client_mode
     source $VENV_PATH/bin/activate

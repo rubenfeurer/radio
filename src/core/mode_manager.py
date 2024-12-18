@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 from config.config import settings
 import os
+import asyncio
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -95,28 +96,70 @@ class ModeManagerSingleton:
             self.logger.error(f"Mode verification failed: {e}")
             return False
 
-    async def enable_ap_mode(self) -> bool:
-        """Enable AP mode"""
+    async def enable_ap_mode(self) -> None:
         try:
-            logger.info("Starting AP mode switch...")
+            logger.info(f"Enabling AP mode with SSID: {self.AP_SSID}, Password: {self.AP_PASS}")
+            
+            # First disconnect from current network
+            disconnect_result = subprocess.run(
+                ['sudo', 'nmcli', 'device', 'disconnect', 'wlan0'],
+                capture_output=True,
+                text=True
+            )
+            logger.debug(f"Disconnect result: {disconnect_result.stdout} {disconnect_result.stderr}")
+            
+            await asyncio.sleep(2)
+            
+            # Remove existing hotspot connection
+            delete_result = subprocess.run(
+                ['sudo', 'nmcli', 'connection', 'delete', 'Hotspot'], 
+                capture_output=True,
+                text=True
+            )
+            logger.debug(f"Delete result: {delete_result.stdout} {delete_result.stderr}")
+            
+            # Create new hotspot with explicit security settings
             cmd = [
-                'sudo', 'nmcli', 'device', 'wifi', 'hotspot',
+                'sudo', 'nmcli', 'connection', 'add',
+                'type', 'wifi',
                 'ifname', 'wlan0',
+                'con-name', 'Hotspot',
+                'autoconnect', 'yes',
                 'ssid', self.AP_SSID,
-                'password', self.AP_PASS
+                'mode', 'ap',
+                'ipv4.method', 'shared',
+                '802-11-wireless-security.key-mgmt', 'wpa-psk',
+                '802-11-wireless-security.psk', self.AP_PASS,
+                '802-11-wireless-security.proto', 'rsn',
+                '802-11-wireless-security.pairwise', 'ccmp',
+                '802-11-wireless-security.group', 'ccmp',
+                '802-11-wireless.band', settings.AP_BAND,
+                '802-11-wireless.channel', str(settings.AP_CHANNEL)
             ]
+            logger.debug(f"Running command: {' '.join(cmd)}")
+            
             result = subprocess.run(cmd, capture_output=True, text=True)
             
-            if result.returncode == 0:
-                self._current_mode = NetworkMode.AP
-                self._save_state(NetworkMode.AP)
-                logger.info(f"AP mode enabled, saved state: {self._current_mode}")
-                return True
-            return False
+            if result.returncode != 0:
+                error_msg = f"Failed to create AP connection. Return code: {result.returncode}\nStdout: {result.stdout}\nStderr: {result.stderr}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+            
+            # Activate the connection
+            activate_cmd = ['sudo', 'nmcli', 'connection', 'up', 'Hotspot']
+            activate_result = subprocess.run(activate_cmd, capture_output=True, text=True)
+            
+            if activate_result.returncode != 0:
+                error_msg = f"Failed to activate AP mode. Return code: {activate_result.returncode}\nStdout: {activate_result.stdout}\nStderr: {activate_result.stderr}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+            
+            logger.info("AP mode enabled successfully")
+            return True
             
         except Exception as e:
-            logger.error(f"Failed to enable AP mode: {e}")
-            return False
+            logger.error(f"Error enabling AP mode: {str(e)}", exc_info=True)
+            raise
 
     async def enable_client_mode(self) -> bool:
         """Switch to client mode"""

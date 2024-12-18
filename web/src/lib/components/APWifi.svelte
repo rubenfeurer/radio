@@ -28,6 +28,7 @@
   let connecting = false;
   let error: string | null = null;
   let apStatus: APStatus | null = null;
+  let scanWarningVisible = false;
 
   const currentHost = browser ? window.location.hostname : '';
   const API_BASE = browser 
@@ -91,17 +92,32 @@
   }
 
   async function scanNetworks() {
+    if (!scanWarningVisible) {
+      scanWarningVisible = true;
+      return;
+    }
+    
     scanning = true;
     error = null;
+    scanWarningVisible = false;
+    
     try {
+      networks = [{ ssid: 'Scanning...', security: null, signal_strength: 0, in_use: false, saved: false }];
+      
       const response = await fetch(`${API_BASE}/api/v1/ap/scan`, {
         method: 'POST'
       });
-      if (!response.ok) throw new Error('Failed to scan networks');
-      networks = await response.json();
+      
+      if (!response.ok) {
+        throw new Error('Failed to scan networks');
+      }
+      
+      const newNetworks = await response.json();
+      networks = newNetworks;
+      
     } catch (e) {
       console.error('Error scanning networks:', e);
-      error = 'Failed to scan networks';
+      error = 'Failed to scan networks. Please try again.';
     } finally {
       scanning = false;
     }
@@ -168,6 +184,17 @@
       </Button>
     </div>
   </Card>
+
+  {#if scanWarningVisible}
+    <Alert color="warning" class="mb-4">
+      <span class="font-medium">Warning!</span>
+      Scanning for networks will temporarily disconnect your device. You will need to reconnect to the AP afterward.
+      <div class="mt-2 flex gap-2">
+        <Button color="red" size="sm" on:click={() => scanWarningVisible = false}>Cancel</Button>
+        <Button color="green" size="sm" on:click={scanNetworks}>Continue</Button>
+      </div>
+    </Alert>
+  {/if}
 
   {#if selectedNetwork}
     <Card class="mb-4">

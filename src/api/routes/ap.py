@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 async def scan_networks():
     """Scan for available WiFi networks while in AP mode"""
     try:
+        logger.info("Starting network scan - temporary disconnection expected")
         networks = await ap_manager.scan_networks()
         return networks
     except Exception as e:

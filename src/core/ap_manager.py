@@ -35,23 +35,36 @@ class APManager:
             if not await self.verify_ap_mode():
                 raise ConnectionError("Must be in AP mode to scan", "mode_error")
 
+            # Store current AP configuration
+            self.logger.info("Storing AP configuration before scan...")
+            
             # Temporarily switch to client mode
             self.logger.info("Temporarily switching to client mode for scanning...")
             if not await self._handle_mode_switch(to_client_mode=True):
                 raise ConnectionError("Failed to switch to client mode for scanning", "mode_error")
 
+            await asyncio.sleep(2)  # Give interface time to stabilize
+
             try:
+                # Perform the scan
                 networks = await self.wifi_manager.get_available_networks()
+                
+                # Brief delay before switching back
+                await asyncio.sleep(1)
+                
                 return networks
             finally:
-                # Restore AP mode
+                # Restore AP mode with delay
                 self.logger.info("Restoring AP mode after scan...")
+                await asyncio.sleep(1)  # Wait before switching back
                 if not await self._handle_mode_switch(to_client_mode=False):
                     self.logger.error("Failed to restore AP mode after scan!")
+                await asyncio.sleep(2)  # Give AP time to stabilize
 
         except Exception as e:
             self.logger.error(f"Error during network scan: {e}")
             # Ensure we're back in AP mode
+            await asyncio.sleep(1)
             await self.mode_manager.enable_ap_mode()
             if isinstance(e, ConnectionError):
                 raise
