@@ -139,10 +139,6 @@
           <Badge color={$currentMode.toLowerCase() === 'ap' ? 'red' : 'blue'}>
             {$currentMode.toLowerCase() === 'ap' ? 'AP' : 'Client'}
           </Badge>
-          <!-- Debug output -->
-          <span class="text-xs text-gray-500">
-            (raw mode: {$currentMode})
-          </span>
         {:else}
           <p class="text-lg flex items-center gap-2">
             <span>Unknown Mode: {$currentMode}</span>
