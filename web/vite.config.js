@@ -6,7 +6,7 @@ export default defineConfig({
 	server: {
 		proxy: {
 			'/api': {
-				target: 'http://localhost',
+				target: 'http://radiod.local',
 				changeOrigin: true,
 				rewrite: (path) => {
 					if (!path.includes('/v1/')) {
@@ -27,22 +27,22 @@ export default defineConfig({
 				}
 			},
 			'/ws': {
-				target: 'ws://localhost',
+				target: 'ws://radiod.local',
 				ws: true,
 				changeOrigin: true
 			}
 		},
-		host: '0.0.0.0',
+		host: true,
 		port: 5173,
 		strictPort: true,
 		hmr: {
-			host: '0.0.0.0',
+			host: 'radiod.local',
 			protocol: 'ws',
 			clientPort: 5173
 		}
 	},
 	preview: {
-		host: '0.0.0.0',
+		host: true,
 		port: 5173,
 		strictPort: true
 	}
