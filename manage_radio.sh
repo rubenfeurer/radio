@@ -155,15 +155,24 @@ open_monitor() {
     # Wait for services to be fully up
     sleep 5
     
+    # Check if X server is running
+    if ! ps aux | grep -v grep | grep -q "X.*:0"; then
+        echo "Warning: X server not running, cannot open browser"
+        return 1
+    }
+    
     # Check if Chromium is already running
     if ! pgrep -f "chromium.*monitor" > /dev/null; then
+        echo "Launching Chromium..."
+        
         # Kill any existing Chromium instances first
         pkill chromium 2>/dev/null || true
         pkill chromium-browser 2>/dev/null || true
         sleep 2
         
-        # Set display for Pi
+        # Set display for Pi and ensure XAUTHORITY is set
         export DISPLAY=:0
+        export XAUTHORITY=/home/radio/.Xauthority
         
         # Disable screen blanking
         xset s off
@@ -171,7 +180,7 @@ open_monitor() {
         xset s noblank
         
         # Open Chromium with proper flags for Pi
-        DISPLAY=:0 chromium-browser \
+        sudo -u radio DISPLAY=:0 XAUTHORITY=/home/radio/.Xauthority chromium-browser \
             --noerrdialogs \
             --disable-infobars \
             --disable-session-crashed-bubble \
@@ -180,22 +189,7 @@ open_monitor() {
             --disable-sync \
             --disable-features=TranslateUI \
             --disable-gpu \
-            --start-maximized \
-            --kiosk \
-            --no-first-run \
-            --incognito \
-            --user-data-dir=/home/radio/.config/chromium-monitor \
-            "http://localhost:$DEV_PORT/monitor" > /dev/null 2>&1 &
-            
-        echo "Monitor page opened in kiosk mode"
-    else
-        echo "Monitor already open in browser"
-    fi
-    
-    # Verify browser launched
-    sleep 3
-    if ! pgrep -f "chromium.*monitor" > /dev/null; then
-        echo "Warning: Failed to open monitor page"
+            --start
     fi
 }
 
@@ -467,6 +461,24 @@ start() {
             --port "$API_PORT" \
             --reload \
             > $LOG_FILE 2>&1 &
+        FASTAPI_PID=$!
+        echo "FastAPI PID: $FASTAPI_PID"
+        
+        # Start web development server
+        echo "Starting web server on port $DEV_PORT..."
+        echo "Starting in development mode..."
+        cd /home/radio/radio/web
+        nohup npm run dev > $WEB_LOG_FILE 2>&1 &
+        DEV_SERVER_PID=$!
+        echo "Dev Server PID: $DEV_SERVER_PID"
+        
+        # Wait for servers to start
+        sleep 5
+        
+        # Open monitor in browser (after servers are up)
+        cd /home/radio/radio
+        open_monitor
+        
     else
         nohup sudo -E env "PATH=$PATH" \
             "PYTHONPATH=/home/radio/radio" \
