@@ -67,9 +67,26 @@
   function handleWebSocketMessage(event: MessageEvent) {
     try {
       const data = JSON.parse(event.data);
-      if (data.type === 'mode_update' && data.mode === 'client') {
-        // Successfully connected and switched to client mode
-        window.location.reload();
+      if (data.type === 'mode_update') {
+        if (data.mode === 'client') {
+          // Successfully connected and switched to client mode
+          window.location.reload();
+        } else if (data.mode === 'ap') {
+          // Handle AP mode switch
+          if (data.available_networks) {
+            // Use pre-scanned networks
+            networks = data.available_networks;
+            scanning = false;
+          }
+          if (data.ap_ssid) {
+            apStatus = {
+              ...apStatus,
+              ap_ssid: data.ap_ssid,
+              is_ap_mode: true,
+              available_networks: data.available_networks || []
+            };
+          }
+        }
       } else if (data.type === 'ap_scan_complete') {
         scanning = false;
         networks = data.networks;
