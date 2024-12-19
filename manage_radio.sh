@@ -74,10 +74,11 @@ radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device set *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection add *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection modify *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli radio wifi *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli networking *
 radio ALL=(ALL) NOPASSWD: /usr/bin/rfkill
 radio ALL=(ALL) NOPASSWD: /sbin/ip link set *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device disconnect *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli radio wifi *
 EOF
         sudo chmod 440 $SUDO_FILE
     fi
@@ -126,7 +127,7 @@ asyncio.run(ensure_client())
     max_attempts=30
     attempt=0
     while [ $attempt -lt $max_attempts ]; do
-        if nmcli networking connectivity check | grep -q "full"; then
+        if sudo nmcli networking connectivity check | grep -q "full"; then
             echo "Network is ready"
             break
         fi
