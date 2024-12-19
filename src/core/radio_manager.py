@@ -8,6 +8,7 @@ from src.core.station_manager import StationManager
 import logging
 import asyncio
 import httpx
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class RadioManager:
             volume_change_callback=self._handle_volume_change,
             button_press_callback=self._handle_button_press,
             long_press_callback=self._handle_long_press,
+            double_press_callback=self._handle_double_press,
             event_loop=self.loop
         )
         logger.info("GPIO controller initialized")
@@ -171,3 +173,16 @@ class RadioManager:
                     
         except Exception as e:
             logger.error(f"Error in long press handler: {str(e)}", exc_info=True)
+
+    async def _handle_double_press(self, button: int) -> None:
+        """Handle double press events."""
+        try:
+            if button == settings.ROTARY_SW:
+                logger.warning("Double press detected on rotary switch - initiating system reboot")
+                # Cleanup before reboot
+                await self.stop_playback()
+                await self._broadcast_status()
+                # Initiate reboot
+                subprocess.run(['sudo', 'reboot'], check=True)
+        except Exception as e:
+            logger.error(f"Error in double press handler: {e}")
