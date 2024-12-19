@@ -3,7 +3,6 @@ import logging
 from src.core.mode_manager import ModeManagerSingleton, NetworkMode
 from src.core.wifi_manager import WiFiManager
 from src.core.models import ModeResponse
-from src.core.ap_manager import APManager
 
 router = APIRouter(prefix="/mode", tags=["Mode"])
 mode_manager = ModeManagerSingleton.get_instance()
@@ -24,19 +23,13 @@ async def get_current_mode():
 
 @router.post("/ap")
 async def enable_ap_mode():
-    """Switch to Access Point mode with pre-scanned networks"""
+    """Switch to Access Point mode"""
     try:
-        # Scan networks before switching modes
-        ap_manager = APManager()
-        networks = await ap_manager.scan_networks()
-        
-        # Switch to AP mode
         if await mode_manager.enable_ap_mode():
             return {
                 "status": "success",
                 "mode": NetworkMode.AP,
-                "ap_ssid": mode_manager.AP_SSID,
-                "available_networks": networks  # Include scanned networks
+                "ap_ssid": mode_manager.AP_SSID
             }
         raise HTTPException(status_code=500, detail="Failed to enable AP mode")
     except Exception as e:
@@ -62,13 +55,6 @@ async def toggle_network_mode():
     """Toggle between AP and Client modes"""
     try:
         current_mode = mode_manager.detect_current_mode()
-        
-        # If switching to AP mode, scan networks first
-        networks = None
-        if current_mode == NetworkMode.CLIENT:
-            ap_manager = APManager()
-            networks = await ap_manager.scan_networks()
-        
         new_mode = await mode_manager.toggle_mode()
         
         response = {
@@ -77,10 +63,9 @@ async def toggle_network_mode():
             "current_mode": new_mode,
         }
         
-        # Add AP SSID and networks if switching to AP mode
+        # Add AP SSID if in AP mode
         if new_mode == NetworkMode.AP:
             response["ap_ssid"] = mode_manager.AP_SSID
-            response["available_networks"] = networks
             
         return response
         
