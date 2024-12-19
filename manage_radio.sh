@@ -151,23 +151,47 @@ open_monitor() {
     # Wait for services to be fully up
     sleep 5
     
-    # Check if Chromium is already running with monitor page
+    # Check if Chromium is already running
     if ! pgrep -f "chromium.*monitor" > /dev/null; then
         # Kill any existing Chromium instances first
         pkill chromium 2>/dev/null || true
-        sleep 1
+        pkill chromium-browser 2>/dev/null || true
+        sleep 2
         
-        # Open Chromium with proper flags
+        # Set display for Pi
+        export DISPLAY=:0
+        
+        # Disable screen blanking
+        xset s off
+        xset -dpms
+        xset s noblank
+        
+        # Open Chromium with proper flags for Pi
         DISPLAY=:0 chromium-browser \
-            --kiosk \
-            --start-fullscreen \
-            --disable-restore-session-state \
             --noerrdialogs \
+            --disable-infobars \
             --disable-session-crashed-bubble \
+            --disable-translate \
+            --disable-restore-session-state \
+            --disable-sync \
+            --disable-features=TranslateUI \
+            --disable-gpu \
+            --start-maximized \
+            --kiosk \
             --no-first-run \
+            --incognito \
+            --user-data-dir=/home/radio/.config/chromium-monitor \
             "http://localhost:$DEV_PORT/monitor" > /dev/null 2>&1 &
+            
+        echo "Monitor page opened in kiosk mode"
     else
         echo "Monitor already open in browser"
+    fi
+    
+    # Verify browser launched
+    sleep 3
+    if ! pgrep -f "chromium.*monitor" > /dev/null; then
+        echo "Warning: Failed to open monitor page"
     fi
 }
 
@@ -215,14 +239,9 @@ check_hostapd() {
 setup_network_manager_config() {
     echo "Setting up NetworkManager configuration..."
     
-    # Stop NetworkManager first
-    echo "Stopping NetworkManager..."
-    sudo systemctl stop NetworkManager
-    sleep 2
-    
     # Stop and disable potentially conflicting services
-    echo "Stopping and disabling conflicting services..."
-    local services=("hostapd" "wpa_supplicant" "iwd" "dhcpcd")
+    echo "Handling conflicting services..."
+    local services=("hostapd" "iwd" "dhcpcd")
     for service in "${services[@]}"; do
         if systemctl list-unit-files | grep -q "^$service"; then
             echo "Handling $service..."
@@ -231,12 +250,10 @@ setup_network_manager_config() {
         fi
     done
 
-    # Explicitly configure wpa_supplicant
+    # Explicitly configure wpa_supplicant without stopping it
     echo "Configuring wpa_supplicant..."
     sudo systemctl unmask wpa_supplicant
     sudo systemctl enable wpa_supplicant
-    sudo systemctl start wpa_supplicant
-    sleep 2
     
     # Create NetworkManager config file
     echo "Creating NetworkManager configuration..."
@@ -266,21 +283,21 @@ EOF
     # Set correct permissions
     sudo chmod 644 /etc/NetworkManager/conf.d/10-wifi.conf
     
-    # Start NetworkManager
-    echo "Starting NetworkManager..."
-    sudo systemctl restart NetworkManager
-    sleep 5
+    # Reload NetworkManager config without stopping the service
+    echo "Reloading NetworkManager configuration..."
+    sudo systemctl reload NetworkManager || sudo systemctl restart NetworkManager
+    sleep 2
 
     # Verify services
     echo "Verifying services..."
     if ! systemctl is-active --quiet wpa_supplicant; then
-        echo "Error: wpa_supplicant is not running"
-        sudo systemctl status wpa_supplicant
+        echo "Warning: wpa_supplicant is not running, starting it..."
+        sudo systemctl start wpa_supplicant
     fi
     
     if ! systemctl is-active --quiet NetworkManager; then
-        echo "Error: NetworkManager is not running"
-        sudo systemctl status NetworkManager
+        echo "Warning: NetworkManager is not running, starting it..."
+        sudo systemctl start NetworkManager
     fi
 }
 
@@ -492,6 +509,11 @@ start() {
     # Show initial log entries
     echo "Initial log entries:"
     tail -n 5 $LOG_FILE
+    
+    # Open monitor page if in production mode
+    if [ "$DEV_MODE" = false ]; then
+        open_monitor
+    fi
 }
 
 stop() {
