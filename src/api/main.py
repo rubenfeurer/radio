@@ -12,8 +12,37 @@ from src.core.models import SystemStatus
 from config.config import settings
 import os
 from src.core.mode_manager import ModeManagerSingleton
+from pathlib import Path
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="Internet Radio API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan events handler"""
+    # Startup
+    try:
+        # Create data directory if it doesn't exist
+        data_dir = Path("data")
+        data_dir.mkdir(exist_ok=True)
+        
+        # Ensure client mode on startup
+        current_mode = mode_manager.detect_current_mode()
+        if current_mode != "client":
+            logger.info("Switching to client mode on startup...")
+            await mode_manager.enable_client_mode()
+        else:
+            logger.info("Already in client mode")
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+    
+    yield
+    
+    # Shutdown
+    # Add any cleanup code here if needed
+
+app = FastAPI(
+    title="Internet Radio API",
+    lifespan=lifespan
+)
 
 # Initialize the singleton RadioManager with WebSocket callback
 radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
@@ -41,18 +70,6 @@ app.add_middleware(
 
 # Initialize mode manager and ensure client mode
 mode_manager = ModeManagerSingleton.get_instance()
-@app.on_event("startup")
-async def startup_event():
-    """Ensure client mode on startup"""
-    try:
-        current_mode = mode_manager.detect_current_mode()
-        if current_mode != "client":
-            logger.info("Switching to client mode on startup...")
-            await mode_manager.enable_client_mode()
-        else:
-            logger.info("Already in client mode")
-    except Exception as e:
-        logger.error(f"Error ensuring client mode on startup: {e}")
 
 # Include routers with configured prefix
 app.include_router(stations.router, prefix=settings.API_V1_STR)
