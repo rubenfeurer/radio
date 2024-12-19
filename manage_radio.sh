@@ -8,6 +8,11 @@ PID_FILE="/tmp/${APP_NAME}.pid"
 NODE_ENV="production"
 DEV_MODE=${DEV_MODE:-true}  # Changed default to true
 
+# Create and set permissions for PID directory
+sudo mkdir -p /tmp/radio
+sudo chown -R radio:radio /tmp/radio
+sudo chmod 755 /tmp/radio
+
 # Get port numbers from Python config
 get_ports() {
     source $VENV_PATH/bin/activate
@@ -99,8 +104,8 @@ ensure_client_mode() {
     sudo chown -R radio:radio /tmp/radio
     sudo chmod 644 /tmp/radio/radio_mode.json
     
-    # Add debug output
-    echo "Running mode check and switch..."
+    # Check mode without forcing reconnection
+    echo "Checking current mode..."
     python3 -c "
 from src.core.mode_manager import ModeManagerSingleton
 import asyncio
@@ -109,47 +114,34 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('mode_switch')
 
-async def ensure_client():
+async def check_client():
     try:
         manager = ModeManagerSingleton.get_instance()
-        await manager.enable_client_mode()  # This method already calls _save_state internally
-        logger.info('Client mode switch completed')
+        current_mode = manager.detect_current_mode()
+        if current_mode != 'CLIENT':
+            logger.info('Switching to client mode...')
+            await manager.enable_client_mode()
+        else:
+            logger.info('Already in client mode, skipping reconnection')
+            # Just update the state file without reconnecting
+            manager.save_mode_state('CLIENT')
             
     except Exception as e:
-        logger.error(f'Error in mode switch: {str(e)}', exc_info=True)
+        logger.error(f'Error in mode check: {str(e)}', exc_info=True)
 
-asyncio.run(ensure_client())
+asyncio.run(check_client())
 "
-    
-    # Wait for network to be ready
-    echo "Waiting for network..."
-    max_attempts=30
-    attempt=0
-    while [ $attempt -lt $max_attempts ]; do
-        if nmcli networking connectivity check | grep -q "full"; then
-            echo "Network is ready"
-            break
-        fi
-        echo "Waiting for network... attempt $((attempt+1))/$max_attempts"
-        sleep 2
-        attempt=$((attempt+1))
-    done
-    
-    if [ $attempt -eq $max_attempts ]; then
-        echo "Warning: Network connection timed out. Continuing anyway..."
-    fi
-    
-    # Verify network interface is up
-    if ! ip link show wlan0 | grep -q "UP"; then
-        echo "Bringing up wlan0 interface..."
-        sudo ip link set wlan0 up
-    fi
 }
 
 open_monitor() {
     echo "Opening monitor website..."
     # Wait for services to be fully up
     sleep 5
+    
+    # Debug: Check X server and display
+    echo "Current user: $(whoami)"
+    echo "DISPLAY variable: $DISPLAY"
+    echo "X server status: $(ps aux | grep -v grep | grep Xorg || echo 'X server not running')"
     
     # Check if Chromium is already running
     if ! pgrep -f "chromium.*monitor" > /dev/null; then
@@ -158,16 +150,31 @@ open_monitor() {
         pkill chromium-browser 2>/dev/null || true
         sleep 2
         
-        # Set display for Pi
+        # Set correct environment for LXDE
         export DISPLAY=:0
+        export XAUTHORITY=/home/radio/.Xauthority
         
-        # Disable screen blanking
-        xset s off
-        xset -dpms
-        xset s noblank
+        # Ensure XDG runtime dir exists and has correct permissions
+        XDG_RUNTIME_DIR="/run/user/$(id -u radio)"
+        sudo mkdir -p "$XDG_RUNTIME_DIR"
+        sudo chmod 700 "$XDG_RUNTIME_DIR"
+        sudo chown radio:radio "$XDG_RUNTIME_DIR"
+        export XDG_RUNTIME_DIR
         
-        # Open Chromium with proper flags for Pi
-        DISPLAY=:0 chromium-browser \
+        # Determine URL based on mode
+        MONITOR_URL="http://localhost:${DEV_PORT}/monitor"
+        if [ "$DEV_MODE" = false ]; then
+            MONITOR_URL="http://localhost/monitor"
+        fi
+        
+        echo "Opening monitor at: $MONITOR_URL"
+        
+        # Open Chromium with modified flags
+        sudo -u radio \
+            DISPLAY=:0 \
+            XAUTHORITY=/home/radio/.Xauthority \
+            XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+            chromium-browser \
             --noerrdialogs \
             --disable-infobars \
             --disable-session-crashed-bubble \
@@ -176,22 +183,33 @@ open_monitor() {
             --disable-sync \
             --disable-features=TranslateUI \
             --disable-gpu \
+            --window-position=0,0 \
+            --window-size=1920,1080 \
             --start-maximized \
-            --kiosk \
             --no-first-run \
             --incognito \
             --user-data-dir=/home/radio/.config/chromium-monitor \
-            "http://localhost:$DEV_PORT/monitor" > /dev/null 2>&1 &
+            "$MONITOR_URL" > /tmp/chromium.log 2>&1 &
             
-        echo "Monitor page opened in kiosk mode"
+        echo "Monitor page opened in maximized window"
+        echo "Check /tmp/chromium.log for errors"
     else
         echo "Monitor already open in browser"
     fi
     
-    # Verify browser launched
+    # Better verification
     sleep 3
     if ! pgrep -f "chromium.*monitor" > /dev/null; then
-        echo "Warning: Failed to open monitor page"
+        echo "Error: Monitor failed to start"
+        echo "Chromium logs:"
+        cat /tmp/chromium.log
+        return 1
+    else
+        if [ -f /tmp/chromium.log ]; then
+            echo "Chromium startup logs:"
+            cat /tmp/chromium.log
+        fi
+        echo "Monitor process verified running"
     fi
 }
 
@@ -302,13 +320,22 @@ EOF
 }
 
 setup_wifi_interface() {
-    echo "Setting up WiFi interface..."
+    echo "Checking WiFi interface..."
+    
+    # Check current interface status
+    if ip link show wlan0 | grep -q "state UP"; then
+        echo "WiFi interface is already up and running"
+        return 0
+    fi
+    
+    # Only proceed with setup if interface needs attention
+    echo "WiFi interface needs setup..."
     
     # Unblock WiFi if blocked
     echo "Checking RF kill status..."
     sudo rfkill unblock wifi
     
-    # Reset interface
+    # Reset interface only if not in working state
     echo "Resetting WiFi interface..."
     sudo ip link set wlan0 down
     sleep 1
@@ -472,7 +499,8 @@ start() {
             > $LOG_FILE 2>&1 &
     fi
     API_PID=$!
-    echo $API_PID > $PID_FILE
+    echo $API_PID | sudo tee $PID_FILE > /dev/null
+    sudo chown radio:radio $PID_FILE
     
     sleep 3
     
@@ -486,7 +514,7 @@ start() {
         sudo -u radio NODE_ENV=development \
             HOME=/home/radio \
             npm run dev -- \
-            --host "0.0.0.0" \
+            --host 0.0.0.0 \
             --port "$DEV_PORT" \
             >> "$WEB_LOG_FILE" 2>&1 &
     else
@@ -494,12 +522,13 @@ start() {
         sudo -u radio NODE_ENV=production \
             HOME=/home/radio \
             bash -c "npm run build && npm run preview -- \
-            --host \"0.0.0.0\" \
+            --host 0.0.0.0 \
             --port \"$DEV_PORT\"" \
             >> "$WEB_LOG_FILE" 2>&1 &
     fi
     DEV_PID=$!
-    echo $DEV_PID >> $PID_FILE
+    echo $DEV_PID | sudo tee -a $PID_FILE > /dev/null
+    sudo chown radio:radio $PID_FILE
     cd - # Return to original directory
     
     echo "$APP_NAME started successfully"
@@ -510,9 +539,19 @@ start() {
     echo "Initial log entries:"
     tail -n 5 $LOG_FILE
     
-    # Open monitor page if in production mode
-    if [ "$DEV_MODE" = false ]; then
-        open_monitor
+    # Fix PID file permissions
+    sudo chown radio:radio /tmp/radio.pid 2>/dev/null || true
+    
+    echo "Attempting to open monitor..."
+    # Always open monitor page regardless of mode
+    open_monitor
+    
+    # Verify monitor status after opening
+    if pgrep -f "chromium.*monitor" > /dev/null; then
+        echo "Monitor process found and running"
+    else
+        echo "Monitor failed to start. Checking logs..."
+        cat /tmp/chromium.log 2>/dev/null || echo "No Chromium logs found"
     fi
 }
 
@@ -525,7 +564,7 @@ stop() {
             # Force kill if still running
             sudo kill -9 $PID 2>/dev/null || true
         done < $PID_FILE
-        rm -f $PID_FILE
+        sudo rm -f $PID_FILE
         echo "$APP_NAME stopped."
         
         # Kill any remaining processes
