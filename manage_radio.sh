@@ -17,9 +17,9 @@ get_config() {
     sudo chown -R radio:radio /home/radio/radio/web
     
     # Get configuration values
-    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)" 2>/dev/null || echo 80)
-    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)" 2>/dev/null || echo 5173)
-    HOSTNAME=$(python3 -c "from config.config import settings; print(settings.HOSTNAME)" 2>/dev/null || echo "radiod")
+    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)")
+    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)")
+    HOSTNAME=$(python3 -c "from config.config import settings; print(settings.HOSTNAME)")
 }
 
 check_ports() {
@@ -96,6 +96,43 @@ radio ALL=(ALL) NOPASSWD: /sbin/shutdown
 EOF
         sudo chmod 440 $SUDO_FILE
     fi
+}
+
+check_audio_permissions() {
+    echo "Setting up audio permissions..."
+    
+    # Add radio user to required groups if not already added
+    for group in audio pulse pulse-access; do
+        if ! groups radio | grep -q "\b${group}\b"; then
+            echo "Adding radio user to $group group..."
+            sudo usermod -a -G $group radio
+        fi
+    done
+    
+    # Ensure XDG_RUNTIME_DIR exists and has correct permissions
+    RUNTIME_DIR="/run/user/$(id -u radio)"
+    if [ ! -d "$RUNTIME_DIR" ]; then
+        echo "Creating runtime directory..."
+        sudo mkdir -p "$RUNTIME_DIR"
+        sudo chown radio:radio "$RUNTIME_DIR"
+        sudo chmod 700 "$RUNTIME_DIR"
+    fi
+    
+    # Set up PulseAudio runtime path
+    PULSE_DIR="$RUNTIME_DIR/pulse"
+    if [ ! -d "$PULSE_DIR" ]; then
+        echo "Setting up PulseAudio directory..."
+        sudo mkdir -p "$PULSE_DIR"
+        sudo chown radio:radio "$PULSE_DIR"
+    fi
+    
+    # Export required environment variables
+    export XDG_RUNTIME_DIR="$RUNTIME_DIR"
+    export PULSE_RUNTIME_PATH="$RUNTIME_DIR/pulse"
+    
+    # Ensure audio devices have correct permissions
+    echo "Setting audio device permissions..."
+    sudo chmod -R a+rwX /dev/snd/ || true
 }
 
 ensure_client_mode() {
@@ -329,6 +366,7 @@ start() {
     check_pigpiod
     check_avahi
     check_nmcli_permissions
+    check_audio_permissions
     ensure_client_mode
     
     # Start FastAPI server
@@ -336,6 +374,8 @@ start() {
     if [ "$DEV_MODE" = true ]; then
         nohup sudo -E env "PATH=$PATH" \
             "PYTHONPATH=/home/radio/radio" \
+            "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
+            "PULSE_RUNTIME_PATH=$PULSE_RUNTIME_PATH" \
             "$VENV_PATH/bin/uvicorn" src.api.main:app \
             --reload \
             --host "0.0.0.0" \
@@ -344,6 +384,8 @@ start() {
     else
         nohup sudo -E env "PATH=$PATH" \
             "PYTHONPATH=/home/radio/radio" \
+            "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
+            "PULSE_RUNTIME_PATH=$PULSE_RUNTIME_PATH" \
             "$VENV_PATH/bin/uvicorn" src.api.main:app \
             --host "0.0.0.0" \
             --port "$API_PORT" \

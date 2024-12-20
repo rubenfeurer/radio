@@ -15,7 +15,7 @@ class Settings(BaseModel):
     API_PREFIX: str = "/api"  # New setting for the API prefix
     
     # Frontend paths
-    FRONTEND_DEV_URL: str = f"http://radiod.local:{DEV_PORT}"
+    FRONTEND_DEV_URL: str = f"http://{socket.gethostname()}.local:{DEV_PORT}"
     FRONTEND_BUILD_PATH: str = "web/build"
     
     # Network Settings

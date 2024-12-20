@@ -30,13 +30,6 @@
   let apStatus: APStatus | null = null;
   let scanWarningVisible = false;
 
-  const currentHost = browser ? window.location.hostname : '';
-  const API_BASE = browser 
-    ? (window.location.port === '5173' 
-      ? `http://${currentHost}:80`
-      : '')
-    : '';
-
   // SVG icons (reused from ClientWifi)
   const Icons = {
     arrowLeft: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,7 +62,19 @@
       const data = JSON.parse(event.data);
       if (data.type === 'mode_update' && data.mode === 'client') {
         // Successfully connected and switched to client mode
-        window.location.reload();
+        // Add a small delay to allow network switch
+        setTimeout(() => {
+          // Clear browser cache before reload
+          if ('caches' in window) {
+            caches.keys().then((names) => {
+              names.forEach(name => {
+                caches.delete(name);
+              });
+            });
+          }
+          // Force reload without cache
+          window.location.replace(`http://${window.location.hostname}:5173/?nocache=${Date.now()}`);
+        }, 2000);
       } else if (data.type === 'ap_scan_complete') {
         scanning = false;
         networks = data.networks;
@@ -81,7 +86,7 @@
 
   async function fetchAPStatus() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/ap/status`);
+      const response = await fetch(`${API_V1_STR}/ap/status`);
       if (!response.ok) throw new Error('Failed to fetch AP status');
       apStatus = await response.json();
       networks = apStatus.available_networks;
@@ -104,7 +109,7 @@
     try {
       networks = [{ ssid: 'Scanning...', security: null, signal_strength: 0, in_use: false, saved: false }];
       
-      const response = await fetch(`${API_BASE}/api/v1/ap/scan`, {
+      const response = await fetch(`${API_V1_STR}/ap/scan`, {
         method: 'POST'
       });
       
@@ -135,7 +140,7 @@
     connecting = true;
     error = null;
     try {
-      const response = await fetch(`${API_BASE}/api/v1/ap/connect`, {
+      const response = await fetch(`${API_V1_STR}/ap/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ssid, password })
@@ -146,11 +151,12 @@
         throw new Error(errorData.detail || 'Connection failed');
       }
 
-      // Connection successful - wait for mode change via WebSocket
+      // Show connecting message
+      error = "Connecting to network... Please wait and reconnect to the new network if needed.";
+      
     } catch (e) {
       console.error('Connection error:', e);
       error = e.message;
-    } finally {
       connecting = false;
     }
   }
