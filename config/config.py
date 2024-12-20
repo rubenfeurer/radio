@@ -14,12 +14,14 @@ class Settings(BaseModel):
     # API Path Settings
     API_PREFIX: str = "/api"  # New setting for the API prefix
     
+    # Network Settings
+    HOSTNAME: str = socket.gethostname()  # Dynamically get system hostname
+    
     # Frontend paths
-    FRONTEND_DEV_URL: str = f"http://radiod.local:{DEV_PORT}"
+    FRONTEND_DEV_URL: str = f"http://{HOSTNAME}.local:{DEV_PORT}"  # Updated
     FRONTEND_BUILD_PATH: str = "web/build"
     
     # Network Settings
-    HOSTNAME: str = socket.gethostname()  # Dynamically get system hostname
     AP_SSID: str = f"{HOSTNAME}"  # Use hostname as AP_SSID
     AP_PASSWORD: str = "radio@1234"
     AP_CHANNEL: int = 6
@@ -57,7 +59,7 @@ class Settings(BaseModel):
         """Export relevant settings for frontend use"""
         frontend_config = {
             "API_V1_STR": self.API_V1_STR,
-            "API_PREFIX": self.API_PREFIX,  # Add API prefix
+            "API_PREFIX": self.API_PREFIX,
             "WS_PATH": self.WS_PATH,
             "API_PORT": self.API_PORT,
             "DEV_PORT": self.DEV_PORT,
