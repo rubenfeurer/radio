@@ -202,49 +202,105 @@ EOF
     fi
 }
 
+setup_service() {
+    # Check if service already exists
+    if systemctl list-unit-files | grep -q "radio.service"; then
+        echo "Radio service already exists, skipping setup..."
+        return
+    fi
+
+    echo "Setting up radio service..."
+    
+    # Create service file with improved restart behavior
+    sudo tee /etc/systemd/system/radio.service << EOF
+[Unit]
+Description=Radio Service
+After=network.target pigpiod.service avahi-daemon.service
+Wants=network.target pigpiod.service avahi-daemon.service
+
+[Service]
+Type=forking
+User=radio
+Group=radio
+Environment=DEV_MODE=${DEV_MODE}
+WorkingDirectory=/home/radio/radio
+ExecStart=/home/radio/radio/manage_radio.sh start
+ExecStop=/home/radio/radio/manage_radio.sh stop
+ExecReload=/home/radio/radio/manage_radio.sh restart
+Restart=always
+RestartSec=3
+RemainAfterExit=yes
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Set correct permissions
+    sudo chmod 644 /etc/systemd/system/radio.service
+    
+    # Reload systemd
+    sudo systemctl daemon-reload
+    
+    # Enable service to start on boot
+    sudo systemctl enable radio.service
+    
+    echo "Radio service has been set up and enabled to start on boot"
+}
+
+service_start() {
+    sudo systemctl start radio
+}
+
+service_stop() {
+    sudo systemctl stop radio
+}
+
+service_restart() {
+    sudo systemctl restart radio
+}
+
+service_status() {
+    sudo systemctl status radio
+}
+
 open_monitor() {
     echo "Opening monitor website..."
     
-    # Check if Chromium is already running with our monitor page
-    if pgrep -f "chromium.*monitor" > /dev/null; then
-        echo "Monitor page is already open in Chromium"
-        return
-    fi
+    # Get configuration values first
+    get_config
     
-    # Force DISPLAY to :0 since we know we're on Pi desktop
-    export DISPLAY=:0
-    export XAUTHORITY=/home/radio/.Xauthority
+    # Clean up any existing processes
+    echo "Cleaning up existing processes..."
+    pkill -f chromium || true
     
-    # Wait a moment for X server to be fully ready
+    # Start Chromium in kiosk mode
+    echo "Starting Chromium in kiosk mode..."
+    DISPLAY=:0 chromium-browser \
+        --kiosk \
+        --noerrdialogs \
+        --disable-session-crashed-bubble \
+        --disable-infobars \
+        --no-first-run \
+        --start-maximized \
+        --no-sandbox \
+        --disable-gpu \
+        --disable-software-rasterizer \
+        --disable-dev-shm-usage \
+        --user-data-dir=/tmp/chromium \
+        --no-zygote \
+        "http://$HOSTNAME.local:$DEV_PORT/monitor" > /dev/null 2>&1 &
+    
+    # Wait for process to start
     sleep 2
     
-    # Check if we can actually connect to the X server
-    if ! timeout 2 xset q > /dev/null 2>&1; then
-        echo "Cannot connect to X server. Trying to run as pi user..."
-        # Try running as pi user since they typically have X server access
-        sudo -u pi DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority chromium-browser \
-            --start-maximized \
-            --disable-restore-session-state \
-            --noerrdialogs \
-            --disable-session-crashed-bubble \
-            --disable-infobars \
-            "http://$HOSTNAME.local:$DEV_PORT/monitor" &
-    else
-        echo "Starting Chromium with monitor page..."
-        chromium-browser \
-            --start-maximized \
-            --disable-restore-session-state \
-            --noerrdialogs \
-            --disable-session-crashed-bubble \
-            --disable-infobars \
-            "http://$HOSTNAME.local:$DEV_PORT/monitor" &
-    fi
-    
-    # Add debug output
     echo "Monitor URL: http://$HOSTNAME.local:$DEV_PORT/monitor"
 }
 
 start() {
+    setup_service
+    
     echo "Starting $APP_NAME..."
     get_config
     
@@ -398,7 +454,22 @@ case "$1" in
     status)
         status
         ;;
+    monitor)
+        open_monitor
+        ;;
+    service-start)
+        service_start
+        ;;
+    service-stop)
+        service_stop
+        ;;
+    service-restart)
+        service_restart
+        ;;
+    service-status)
+        service_status
+        ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status}"
+        echo "Usage: $0 {start|stop|restart|status|monitor|service-start|service-stop|service-restart|service-status}"
         exit 1
 esac
