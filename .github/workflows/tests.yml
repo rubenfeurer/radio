@@ -54,7 +54,6 @@ jobs:
         PYTEST_ASYNCIO_MODE: "auto"
         LOG_DIR: "logs"
       run: |
-        # Run pytest with mocks
         pytest -v tests/ \
           --cov=src \
           --capture=no \
