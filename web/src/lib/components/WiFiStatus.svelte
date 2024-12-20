@@ -66,7 +66,7 @@
   </svg>`;
 </script>
 
-<Card class="mb-4">
+<Card>
   <div class="flex flex-col gap-2">
     <span class="text-sm text-gray-500">WiFi</span>
     <div class="flex items-center gap-2">

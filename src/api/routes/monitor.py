@@ -5,6 +5,7 @@ import subprocess
 import socket
 from pathlib import Path
 from ..models.requests import SystemInfo, ServiceStatus, WebAccess, MonitorUpdate
+from src.core.mode_manager import ModeManagerSingleton
 
 router = APIRouter(
     prefix="/monitor",
@@ -17,18 +18,39 @@ async def get_system_info() -> SystemInfo:
     cpu = psutil.cpu_percent()
     disk = psutil.disk_usage('/')
     
+    # Get mode information
+    mode_manager = ModeManagerSingleton.get_instance()
+    current_mode = mode_manager.detect_current_mode()
+    
     try:
         with open('/sys/class/thermal/thermal_zone0/temp') as f:
             temp = float(f.read()) / 1000.0
     except:
         temp = 0
     
+    # Get hotspot information
+    try:
+        result = subprocess.run(['nmcli', 'device', 'show', 'wlan0'], 
+                              capture_output=True, text=True)
+        
+        hotspot_ssid = None
+        if 'AP' in result.stdout or 'Hotspot' in result.stdout:
+            for line in result.stdout.splitlines():
+                if 'GENERAL.CONNECTION:' in line:
+                    hotspot_ssid = line.split(':')[1].strip()
+                    break
+    except Exception as e:
+        logger.error(f"Error getting hotspot info: {e}")
+        hotspot_ssid = None
+    
     return SystemInfo(
         hostname=hostname,
         ip=ip,
         cpuUsage=f"{cpu}%",
         diskSpace=f"{disk.free // (2**30)} GB free",
-        temperature=f"{temp:.1f}°C"
+        temperature=f"{temp:.1f}°C",
+        hotspot_ssid=hotspot_ssid,
+        mode=current_mode.value.lower()  # Add mode to system info
     )
 
 async def get_services_status():

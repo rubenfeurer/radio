@@ -5,24 +5,53 @@ from src.core.models import RadioStation, SystemStatus
 from src.api.models.requests import VolumeRequest, AssignStationRequest
 from config.config import settings
 from unittest.mock import MagicMock, patch
+import os
+from pathlib import Path
+import tempfile
+import shutil
 
 # Create test client
 client = TestClient(app)
 
-def test_root():
+@pytest.fixture(autouse=True)
+def setup_test_environment(monkeypatch):
+    """Setup test environment before each test"""
+    # Create a temporary directory
+    test_dir = tempfile.mkdtemp()
+    test_data_dir = Path(test_dir) / "data"
+    test_data_dir.mkdir(exist_ok=True)
+    
+    # Create test stations file
+    test_stations_file = test_data_dir / "assigned_stations.json"
+    test_stations_file.touch()
+    
+    # Initialize empty JSON file
+    with open(test_stations_file, 'w') as f:
+        f.write('{}')
+    
+    # Patch the STATIONS_FILE path in StationManager
+    with patch('src.core.station_manager.StationManager.STATIONS_FILE', test_stations_file):
+        yield test_stations_file
+    
+    # Cleanup after test
+    shutil.rmtree(test_dir)
+
+@pytest.mark.asyncio
+async def test_root():
     """Test root API endpoint"""
     response = client.get(f"{settings.API_V1_STR}/")
     assert response.status_code == 200
     assert response.json() == {"message": "Radio API"}
 
-def test_health():
+@pytest.mark.asyncio
+async def test_health():
     """Test health check endpoint"""
     response = client.get(f"{settings.API_V1_STR}/health")
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
 
-# Regular HTTP endpoint tests
-def test_add_station():
+@pytest.mark.asyncio
+async def test_add_station():
     """Test adding a station"""
     station = RadioStation(
         name="Test Radio",
@@ -32,7 +61,8 @@ def test_add_station():
     response = client.post(f"{settings.API_V1_STR}/stations/", json=station.model_dump())
     assert response.status_code == 200
 
-def test_get_station():
+@pytest.mark.asyncio
+async def test_get_station():
     """Test getting a station"""
     # First add a station
     station = RadioStation(
@@ -47,7 +77,8 @@ def test_get_station():
     assert response.status_code == 200
     assert RadioStation(**response.json()) == station
 
-def test_assign_station():
+@pytest.mark.asyncio
+async def test_assign_station():
     """Test assigning a station to a slot"""
     request = AssignStationRequest(
         stationId=1,
@@ -58,7 +89,8 @@ def test_assign_station():
     assert response.status_code == 200
     assert "success" in response.json()["status"]
 
-def test_play_station():
+@pytest.mark.asyncio
+async def test_play_station():
     """Test playing a station"""
     # First add a station
     station = RadioStation(
@@ -73,7 +105,8 @@ def test_play_station():
     assert response.status_code == 200
     assert response.json() == {"message": "Playing station"}
 
-def test_toggle_station():
+@pytest.mark.asyncio
+async def test_toggle_station():
     """Test toggling a station"""
     # First add a station
     station = RadioStation(

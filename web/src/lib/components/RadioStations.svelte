@@ -3,7 +3,9 @@
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { onMount } from 'svelte';
-  import { ws } from '$lib/stores/websocket';  // Import the WebSocket store
+  import { ws } from '$lib/stores/websocket';
+  import { currentMode } from '$lib/stores/mode';
+  import { API_V1_STR } from '$lib/config';  // Import API_V1_STR
 
   // Types
   interface RadioStation {
@@ -14,19 +16,10 @@
     location?: string | null;
   }
 
-  // Move state here
   let stations: RadioStation[] = [];
   let currentPlayingSlot: number | null = null;
-
-  // Get the current hostname (IP or domain)
-  const currentHost = browser ? window.location.hostname : '';
-  
-  // Determine API base URL
-  const API_BASE = browser 
-    ? (window.location.port === '5173' 
-      ? `http://${currentHost}:80`
-      : '')
-    : '';
+  export let hideInAP = false;
+  let error: string | null = null;
 
   // Subscribe to WebSocket and handle messages
   ws.subscribe(socket => {
@@ -43,7 +36,6 @@
               is_playing: data.data.is_playing
             });
 
-            // Handle current_station whether it's a number or an object
             if (data.data.is_playing) {
               currentPlayingSlot = typeof data.data.current_station === 'object' 
                 ? data.data.current_station.slot 
@@ -66,16 +58,21 @@
     }
   });
 
-  onMount(() => {
-    console.log('Component mounted, requesting initial status');
-    ws.sendMessage({ type: "status_request" });
-    loadInitialStations();
+  onMount(async () => {
+    try {
+      console.log('Component mounted, requesting initial status');
+      ws.sendMessage({ type: "status_request" });
+      await loadInitialStations();
+    } catch (err) {
+      console.error("Failed to initialize:", err);
+      error = "Failed to load stations";
+    }
   });
 
   export async function loadInitialStations() {
     try {
         console.log("Fetching assigned stations...");
-        const assignedResponse = await fetch(`${API_BASE}/api/v1/stations/assigned`);
+        const assignedResponse = await fetch(`${API_V1_STR}/stations/assigned`);
         console.log("Response status:", assignedResponse.status);
         
         if (!assignedResponse.ok) {
@@ -93,13 +90,11 @@
         for (const slot of slots) {
             try {
                 if (assignedStations[slot] && assignedStations[slot] !== null) {
-                    // Use assigned station from file
                     stations = [...stations, {
                         ...assignedStations[slot],
                         slot: parseInt(slot)
                     }];
                 } else {
-                    // Create empty slot
                     stations = [...stations, {
                         name: 'No station assigned',
                         url: '',
@@ -117,7 +112,7 @@
 
   async function toggleStation(slot: number) {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/stations/${slot}/toggle`, {
+      const response = await fetch(`${API_V1_STR}/stations/${slot}/toggle`, {
         method: 'POST'
       });
       const data = await response.json();
@@ -136,34 +131,42 @@
   }
 </script>
 
-<div class="grid gap-4 md:grid-cols-3 mb-8">
-  {#each stations as station, i (station.slot || i)}
-    <Card padding="xl">
-      <div class="flex flex-col gap-4">
-        <div class="flex justify-between items-center">
-          <h5 class="text-xl font-bold">Slot {station.slot}</h5>
-          <Badge color={currentPlayingSlot === station.slot ? "green" : "gray"}>
-            {currentPlayingSlot === station.slot ? "Playing" : "Stopped"}
-          </Badge>
-        </div>
-        <p class="text-gray-700">{station.name || 'No station assigned'}</p>
-        <div class="flex flex-col gap-2">
-          <Button
-            color={currentPlayingSlot === station.slot ? "red" : "primary"}
-            class="w-full"
-            on:click={() => toggleStation(station.slot)}
-          >
-            {currentPlayingSlot === station.slot ? 'Stop' : 'Play'}
-          </Button>
-          <Button
-            color="alternative"
-            class="w-full"
-            on:click={() => chooseStation(station.slot)}
-          >
-            Choose Station
-          </Button>
-        </div>
-      </div>
-    </Card>
-  {/each}
-</div> 
+{#if !hideInAP || $currentMode !== 'ap'}
+  <div class="grid gap-4 md:grid-cols-3">
+    {#if error}
+      <Card>
+        <p class="text-red-500">{error}</p>
+      </Card>
+    {:else}
+      {#each stations as station, i (station.slot || i)}
+        <Card>
+          <div class="flex flex-col gap-4">
+            <div class="flex justify-between items-center">
+              <h5 class="text-xl font-bold">Slot {station.slot}</h5>
+              <Badge color={currentPlayingSlot === station.slot ? "green" : "gray"}>
+                {currentPlayingSlot === station.slot ? "Playing" : "Stopped"}
+              </Badge>
+            </div>
+            <p class="text-gray-700">{station.name || 'No station assigned'}</p>
+            <div class="flex flex-col gap-2">
+              <Button
+                color={currentPlayingSlot === station.slot ? "red" : "primary"}
+                class="w-full"
+                on:click={() => toggleStation(station.slot)}
+              >
+                {currentPlayingSlot === station.slot ? 'Stop' : 'Play'}
+              </Button>
+              <Button
+                color="alternative"
+                class="w-full"
+                on:click={() => chooseStation(station.slot)}
+              >
+                Choose Station
+              </Button>
+            </div>
+          </div>
+        </Card>
+      {/each}
+    {/if}
+  </div>
+{/if} 
