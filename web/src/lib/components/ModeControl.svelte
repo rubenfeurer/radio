@@ -4,6 +4,7 @@
     import { currentMode, type NetworkMode } from '$lib/stores/mode';
     import { Card, Badge, Button } from 'flowbite-svelte';
     import { browser } from '$app/environment';
+    import { API_V1_STR } from '$lib/config';  // Import API_V1_STR
 
     let isLoading = false;
     let error: string | null = null;
@@ -28,7 +29,7 @@
 
     async function getCurrentMode() {
         try {
-            const response = await fetch(`${API_BASE}/api/v1/mode/current`);
+            const response = await fetch(`${API_V1_STR}/mode/current`);
             if (!response.ok) {
                 throw new Error('Failed to fetch mode');
             }
@@ -49,7 +50,7 @@
         try {
             isLoading = true;
             error = null;
-            const response = await fetch(`${API_BASE}/api/v1/mode/toggle`, {
+            const response = await fetch(`${API_V1_STR}/mode/toggle`, {
                 method: 'POST'
             });
             

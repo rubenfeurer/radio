@@ -2,6 +2,7 @@
   import { Card, Badge, Button } from 'flowbite-svelte';
   import { browser } from '$app/environment';
   import { onMount } from 'svelte';
+  import { API_V1_STR } from '$lib/config';  // Import API_V1_STR
 
   interface WiFiNetwork {
     ssid: string;
@@ -26,20 +27,13 @@
     available_networks: []
   };
 
-  const currentHost = browser ? window.location.hostname : '';
-  const API_BASE = browser 
-    ? (window.location.port === '5173' 
-      ? `http://${currentHost}:80`
-      : '')
-    : '';
-
   onMount(async () => {
     await fetchWiFiStatus();
   });
 
   async function fetchWiFiStatus() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/wifi/status`);
+      const response = await fetch(`${API_V1_STR}/wifi/status`);
       if (!response.ok) {
         console.error('Failed to fetch WiFi status:', await response.text());
         return;

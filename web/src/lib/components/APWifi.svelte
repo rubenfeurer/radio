@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { ws } from '$lib/stores/websocket';
   import { currentMode } from '$lib/stores/mode';
+  import { API_V1_STR } from '$lib/config';  // Import API_V1_STR
 
   interface WiFiNetwork {
     ssid: string;
@@ -29,13 +30,6 @@
   let error: string | null = null;
   let apStatus: APStatus | null = null;
   let scanWarningVisible = false;
-
-  const currentHost = browser ? window.location.hostname : '';
-  const API_BASE = browser 
-    ? (window.location.port === '5173' 
-      ? `http://${currentHost}:80`
-      : '')
-    : '';
 
   // SVG icons (reused from ClientWifi)
   const Icons = {
@@ -81,7 +75,7 @@
 
   async function fetchAPStatus() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/ap/status`);
+      const response = await fetch(`${API_V1_STR}/ap/status`);
       if (!response.ok) throw new Error('Failed to fetch AP status');
       apStatus = await response.json();
       networks = apStatus.available_networks;
@@ -104,7 +98,7 @@
     try {
       networks = [{ ssid: 'Scanning...', security: null, signal_strength: 0, in_use: false, saved: false }];
       
-      const response = await fetch(`${API_BASE}/api/v1/ap/scan`, {
+      const response = await fetch(`${API_V1_STR}/ap/scan`, {
         method: 'POST'
       });
       
@@ -135,7 +129,7 @@
     connecting = true;
     error = null;
     try {
-      const response = await fetch(`${API_BASE}/api/v1/ap/connect`, {
+      const response = await fetch(`${API_V1_STR}/ap/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ssid, password })
