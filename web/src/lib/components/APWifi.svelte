@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { ws } from '$lib/stores/websocket';
   import { currentMode } from '$lib/stores/mode';
+  import { API_V1_STR } from '$lib/config';  // Import API_V1_STR
 
   interface WiFiNetwork {
     ssid: string;

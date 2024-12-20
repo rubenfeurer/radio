@@ -95,7 +95,6 @@ export const createWebSocketStore = () => {
 
 // Create and export the store
 export const ws = createWebSocketStore();
-
 // Create a derived store for WebSocket data
 export const websocketStore = writable<{
     data?: {
@@ -120,3 +119,4 @@ if (browser) {
         }
     });
 }
+
