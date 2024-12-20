@@ -205,27 +205,43 @@ EOF
 open_monitor() {
     echo "Opening monitor website..."
     
-    # Check if X server is running
-    if ! xset q &>/dev/null; then
-        echo "X server not running, skipping monitor display"
+    # Check if Chromium is already running with our monitor page
+    if pgrep -f "chromium.*monitor" > /dev/null; then
+        echo "Monitor page is already open in Chromium"
         return
     fi
     
-    # Kill any existing Chromium instances
-    pkill -f chromium || true
-    
-    # Set display settings
+    # Force DISPLAY to :0 since we know we're on Pi desktop
     export DISPLAY=:0
+    export XAUTHORITY=/home/radio/.Xauthority
     
-    # Launch Chromium in kiosk mode
-    nohup chromium-browser \
-        --kiosk \
-        --disable-restore-session-state \
-        --noerrdialogs \
-        --disable-session-crashed-bubble \
-        --disable-infobars \
-        --start-maximized \
-        "http://$HOSTNAME.local:$DEV_PORT/monitor" &
+    # Wait a moment for X server to be fully ready
+    sleep 2
+    
+    # Check if we can actually connect to the X server
+    if ! timeout 2 xset q > /dev/null 2>&1; then
+        echo "Cannot connect to X server. Trying to run as pi user..."
+        # Try running as pi user since they typically have X server access
+        sudo -u pi DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority chromium-browser \
+            --start-maximized \
+            --disable-restore-session-state \
+            --noerrdialogs \
+            --disable-session-crashed-bubble \
+            --disable-infobars \
+            "http://$HOSTNAME.local:$DEV_PORT/monitor" &
+    else
+        echo "Starting Chromium with monitor page..."
+        chromium-browser \
+            --start-maximized \
+            --disable-restore-session-state \
+            --noerrdialogs \
+            --disable-session-crashed-bubble \
+            --disable-infobars \
+            "http://$HOSTNAME.local:$DEV_PORT/monitor" &
+    fi
+    
+    # Add debug output
+    echo "Monitor URL: http://$HOSTNAME.local:$DEV_PORT/monitor"
 }
 
 start() {
@@ -316,10 +332,8 @@ start() {
     echo "Initial log entries:"
     tail -n 5 $LOG_FILE
     
-    # Open monitor page if in production mode
-    if [ "$DEV_MODE" = false ]; then
-        open_monitor
-    fi
+    # Open monitor page regardless of mode
+    open_monitor
 }
 
 stop() {
