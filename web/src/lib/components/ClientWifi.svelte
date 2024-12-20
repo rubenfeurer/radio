@@ -4,16 +4,10 @@
   import { browser } from '$app/environment';
   import { ws } from '$lib/stores/websocket';
   import { onMount } from 'svelte';
+  import { API_V1_STR } from '$lib/config';  // Import API_V1_STR
 
   // Get the current hostname (IP or domain)
   const currentHost = browser ? window.location.hostname : '';
-  
-  // Determine API base URL
-  const API_BASE = browser 
-    ? (window.location.port === '5173' 
-      ? `http://${currentHost}:80`
-      : '')
-    : '';
 
   // SVG icons
   const Icons = {
@@ -83,7 +77,7 @@
 
   async function fetchCurrentConnection() {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/wifi/current`);
+      const response = await fetch(`${API_V1_STR}/wifi/current`);
       if (!response.ok) throw new Error('Failed to fetch current connection');
       currentConnection = await response.json();
     } catch (error) {
@@ -94,7 +88,7 @@
   async function fetchNetworks() {
     loading = true;
     try {
-      const statusResponse = await fetch(`${API_BASE}/api/v1/wifi/status`);
+      const statusResponse = await fetch(`${API_V1_STR}/wifi/status`);
       if (!statusResponse.ok) throw new Error('Failed to fetch status');
       const status = await statusResponse.json();
       
@@ -132,31 +126,9 @@
   async function connectToNetwork(network: WiFiNetwork) {
     if (network.ssid === preconfiguredSSID) {
         // Use the dedicated preconfigured endpoint
-        connecting = true;
-        try {
-            const response = await fetch(`${API_BASE}/api/v1/wifi/connect/preconfigured`, {
-                method: 'POST'
-            });
-
-            if (!response.ok) throw new Error('Failed to connect');
-            
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            
-            const hostnameResponse = await fetch(`${API_BASE}/api/v1/system/hostname`);
-            if (hostnameResponse.ok) {
-                const { hostname } = await hostnameResponse.json();
-                window.location.href = `http://${hostname}`;
-            } else {
-                goto('/');
-            }
-        } catch (error) {
-            console.error('Connection error:', error);
-            alert('Failed to connect to preconfigured network');
-        } finally {
-            connecting = false;
-        }
-    } else if (!network.security) {
-        // Connect without password
+        await connectToPreconfigured();
+    } else if (!network.security || network.saved) {
+        // Connect without password if network is open OR saved
         await attemptConnection(network.ssid, '');
     } else {
         selectedNetwork = network;
@@ -166,7 +138,7 @@
   async function attemptConnection(ssid: string, password: string) {
     connecting = true;
     try {
-      const statusResponse = await fetch(`${API_BASE}/api/v1/wifi/status`);
+      const statusResponse = await fetch(`${API_V1_STR}/wifi/status`);
       if (statusResponse.ok) {
         const status = await statusResponse.json();
         // If the SSID matches the preconfigured one, use 'preconfigured' instead
@@ -175,7 +147,7 @@
         }
       }
 
-      const response = await fetch(`${API_BASE}/api/v1/wifi/connect`, {
+      const response = await fetch(`${API_V1_STR}/wifi/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ssid, password })
@@ -185,7 +157,7 @@
       
       await new Promise(resolve => setTimeout(resolve, 5000));
       
-      const hostnameResponse = await fetch(`${API_BASE}/api/v1/system/hostname`);
+      const hostnameResponse = await fetch(`${API_V1_STR}/system/hostname`);
       if (hostnameResponse.ok) {
         const { hostname } = await hostnameResponse.json();
         window.location.href = `http://${hostname}`;
@@ -199,10 +171,36 @@
       connecting = false;
     }
   }
+
+  async function connectToPreconfigured() {
+    connecting = true;
+    try {
+      const response = await fetch(`${API_V1_STR}/wifi/connect/preconfigured`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) throw new Error('Failed to connect');
+      
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      const hostnameResponse = await fetch(`${API_V1_STR}/system/hostname`);
+      if (hostnameResponse.ok) {
+        const { hostname } = await hostnameResponse.json();
+        window.location.href = `http://${hostname}`;
+      } else {
+        goto('/');
+      }
+    } catch (error) {
+      console.error('Connection error:', error);
+      alert('Failed to connect to preconfigured network');
+    } finally {
+      connecting = false;
+    }
+  }
 </script>
 
 <div class="container mx-auto p-4 max-w-2xl">
-  <h1 class="text-2xl font-bold mb-4">WiFi Settings</h1>
+  <h1 class="text-2xl font-bold mb-4">Networks (Client Mode)</h1>
 
   {#if selectedNetwork}
     <Card class="w-full">
@@ -271,7 +269,7 @@
                             if (confirm(`Are you sure you want to forget "${network.ssid}"?`)) {
                               try {
                                 fetch(
-                                  `${API_BASE}/api/v1/wifi/forget/${encodeURIComponent(network.ssid)}`, 
+                                  `${API_V1_STR}/wifi/forget/${encodeURIComponent(network.ssid)}`, 
                                   { method: 'DELETE' }
                                 )
                                 .then(response => {
@@ -297,7 +295,7 @@
                           size="xs"
                           on:click={() => network.ssid === preconfiguredSSID 
                             ? connectToPreconfigured() 
-                            : attemptConnection(network.ssid, '')}
+                            : connectToNetwork(network)}
                           disabled={connecting}
                         >
                           {connecting ? 'Connecting...' : 'Connect'}

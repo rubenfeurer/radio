@@ -9,23 +9,7 @@ export default defineConfig({
 			[API_PREFIX]: {
 				target: `http://${HOSTNAME}:${API_PORT}`,
 				changeOrigin: true,
-				rewrite: (path) => {
-					if (!path.includes(API_V1_STR)) {
-						return path.replace(API_PREFIX, API_V1_STR);
-					}
-					return path;
-				},
-				configure: (proxy, _options) => {
-					proxy.on('error', (err, _req, _res) => {
-						console.log('proxy error', err);
-					});
-					proxy.on('proxyReq', (proxyReq, req, _res) => {
-						console.log('Sending Request to the Target:', req.method, req.url);
-					});
-					proxy.on('proxyRes', (proxyRes, req, _res) => {
-						console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
-					});
-				}
+				rewrite: (path) => path.includes(API_V1_STR) ? path : path.replace(API_PREFIX, API_V1_STR)
 			},
 			'/ws': {
 				target: `ws://${HOSTNAME}:${API_PORT}`,
@@ -33,24 +17,47 @@ export default defineConfig({
 				changeOrigin: true
 			}
 		},
-		host: true,
+		host: '0.0.0.0',
 		port: DEV_PORT,
 		strictPort: true,
 		hmr: {
-				host: HOSTNAME,
-				protocol: 'ws',
-				clientPort: DEV_PORT
+			host: HOSTNAME,
+			protocol: 'ws',
+			clientPort: DEV_PORT
 		},
 		headers: {
 			'Access-Control-Allow-Origin': '*',
 			'Access-Control-Allow-Private-Network': 'true',
 			'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
-			'Access-Control-Allow-Headers': 'Content-Type'
+			'Access-Control-Allow-Headers': 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With',
+			'Access-Control-Allow-Credentials': 'true',
+			'Cross-Origin-Opener-Policy': 'same-origin',
+			'Cross-Origin-Embedder-Policy': 'require-corp',
+			'Cross-Origin-Resource-Policy': 'cross-origin',
+			'Permissions-Policy': 'interest-cohort=()'
+		},
+		cors: {
+			origin: '*',
+			methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+			allowedHeaders: ['Content-Type', 'Authorization'],
+			exposedHeaders: ['Content-Range', 'X-Content-Range'],
+			credentials: true,
+			maxAge: 3600
 		}
 	},
 	preview: {
-		host: true,
+		host: '0.0.0.0',
 		port: DEV_PORT,
-		strictPort: true
+		strictPort: true,
+		headers: {
+			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Private-Network': 'true',
+			'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
+			'Access-Control-Allow-Headers': 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With',
+			'Access-Control-Allow-Credentials': 'true',
+			'Cross-Origin-Opener-Policy': 'same-origin',
+			'Cross-Origin-Embedder-Policy': 'require-corp',
+			'Cross-Origin-Resource-Policy': 'cross-origin'
+		}
 	}
 });
