@@ -1,9 +1,11 @@
 import os
 from typing import Optional, Callable
 import asyncio
-from src.utils.logger import logger
+from src.utils.logger import get_logger
 from config.config import settings
 import time
+
+logger = get_logger(__name__)
 
 class GPIOController:
     def __init__(
@@ -46,48 +48,56 @@ class GPIOController:
         self.PUSH_TIMEOUT = 2  # seconds
         self.PUSH_THRESHOLD = 4  # number of pushes needed
         
-        if os.getenv('SKIP_PIGPIO') == 'true':
-            from tests.mocks.gpio_mock import mock_pigpio_import
-            self.pi = mock_pigpio_import()
-        else:
-            import pigpio
-            self.pi = pigpio.pi()
-        
         try:
-            # Initialize pigpio
-            if not self.pi.connected:
-                logger.error("Failed to connect to pigpio daemon")
-                return
+            if os.getenv('SKIP_PIGPIO') == 'true':
+                from tests.mocks.gpio_mock import mock_pigpio_import, MockPigpio
+                self.pi = mock_pigpio_import()
+                # Use mock constants
+                self.INPUT = MockPigpio.INPUT
+                self.OUTPUT = MockPigpio.OUTPUT
+                self.PUD_UP = MockPigpio.PUD_UP
+                self.EITHER_EDGE = MockPigpio.EITHER_EDGE
+            else:
+                import pigpio
+                self.pi = pigpio.pi()
+                # Use real pigpio constants
+                self.INPUT = pigpio.INPUT
+                self.OUTPUT = pigpio.OUTPUT
+                self.PUD_UP = pigpio.PUD_UP
+                self.EITHER_EDGE = pigpio.EITHER_EDGE
                 
-            logger.info("Connected to pigpio daemon")
+            # Configure pins
+            self.rotary_clk = 17  # GPIO pin for rotary encoder clock
+            self.rotary_dt = 18   # GPIO pin for rotary encoder data
+            self.rotary_sw = 27   # GPIO pin for rotary encoder switch
             
-            # Setup rotary encoder pins
-            self.pi.set_mode(self.rotary_clk, pigpio.INPUT)
-            self.pi.set_mode(self.rotary_dt, pigpio.INPUT)
-            self.pi.set_mode(self.rotary_sw, pigpio.INPUT)
+            # Initialize pins
+            self.pi.set_mode(self.rotary_clk, self.INPUT)
+            self.pi.set_mode(self.rotary_dt, self.INPUT)
+            self.pi.set_mode(self.rotary_sw, self.INPUT)
             
-            # Enable pull-up resistors
-            self.pi.set_pull_up_down(self.rotary_clk, pigpio.PUD_UP)
-            self.pi.set_pull_up_down(self.rotary_dt, pigpio.PUD_UP)
-            self.pi.set_pull_up_down(self.rotary_sw, pigpio.PUD_UP)
+            # Set pull-up resistors
+            self.pi.set_pull_up_down(self.rotary_clk, self.PUD_UP)
+            self.pi.set_pull_up_down(self.rotary_dt, self.PUD_UP)
+            self.pi.set_pull_up_down(self.rotary_sw, self.PUD_UP)
             
             # Setup button pins
             for pin in self.button_pins.keys():
-                self.pi.set_mode(pin, pigpio.INPUT)
-                self.pi.set_pull_up_down(pin, pigpio.PUD_UP)
+                self.pi.set_mode(pin, self.INPUT)
+                self.pi.set_pull_up_down(pin, self.PUD_UP)
             
             # Setup callbacks with EITHER_EDGE instead of FALLING_EDGE
-            self.pi.callback(self.rotary_clk, pigpio.EITHER_EDGE, self._handle_rotation)
-            self.pi.callback(self.rotary_sw, pigpio.EITHER_EDGE, self._handle_button)
+            self.pi.callback(self.rotary_clk, self.EITHER_EDGE, self._handle_rotation)
+            self.pi.callback(self.rotary_sw, self.EITHER_EDGE, self._handle_button)
             
             for pin in self.button_pins.keys():
-                self.pi.callback(pin, pigpio.EITHER_EDGE, self._handle_button)
+                self.pi.callback(pin, self.EITHER_EDGE, self._handle_button)
                 
-            logger.info("GPIO initialization completed successfully")
+            logger.info("Connected to pigpio daemon")
             
         except Exception as e:
             logger.error(f"GPIO initialization failed: {str(e)}")
-            if hasattr(self, 'pi') and self.pi.connected:
+            if hasattr(self, 'pi'):
                 self.pi.stop()
             raise
 
