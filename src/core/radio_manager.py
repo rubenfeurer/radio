@@ -33,6 +33,9 @@ class RadioManager:
             double_press_callback=self._handle_double_press,
             event_loop=self.loop
         )
+        # Add reset callback
+        self._gpio.reset_callback = self._handle_reset_sequence
+        
         logger.info("GPIO controller initialized")
         logger.info("RadioManager initialization complete")
         
@@ -186,3 +189,23 @@ class RadioManager:
                 subprocess.run(['sudo', 'reboot'], check=True)
         except Exception as e:
             logger.error(f"Error in double press handler: {e}")
+
+    async def _handle_reset_sequence(self):
+        """Handle the 4-press reset sequence."""
+        try:
+            logger.warning("Reset sequence detected - initiating system reset")
+            
+            # Stop playback
+            await self.stop_playback()
+            await self._broadcast_status()
+            
+            # Run reset script
+            logger.info("Running reset_radio.sh")
+            subprocess.run(['/home/radio/radio/install/reset_radio.sh'], check=True)
+            
+            # Restart radio service
+            logger.info("Restarting radio service")
+            subprocess.run(['sudo', 'systemctl', 'restart', 'radio'], check=True)
+            
+        except Exception as e:
+            logger.error(f"Error handling reset sequence: {e}")

@@ -41,6 +41,11 @@ class GPIOController:
         self.long_press_triggered = {}  # Track if long press was triggered
         self.monitor_tasks = {}  # Track monitoring tasks
         
+        self.push_counter = 0
+        self.last_push_time = 0
+        self.PUSH_TIMEOUT = 2  # seconds
+        self.PUSH_THRESHOLD = 4  # number of pushes needed
+        
         try:
             # Initialize pigpio
             self.pi = pigpio.pi()
@@ -107,6 +112,28 @@ class GPIOController:
         """Handle button press events."""
         try:
             current_time = time.time()
+            
+            # Add reset detection for rotary switch pushes
+            if gpio == self.rotary_sw and level == 1:  # Button released
+                # Check if we're within timeout window
+                if current_time - self.last_push_time > self.PUSH_TIMEOUT:
+                    self.push_counter = 0
+                
+                self.push_counter += 1
+                self.last_push_time = current_time
+                
+                logger.debug(f"Push counter: {self.push_counter}")
+                
+                # Check if we've reached threshold
+                if self.push_counter >= self.PUSH_THRESHOLD:
+                    logger.info("Reset sequence detected!")
+                    self.push_counter = 0  # Reset counter
+                    if self.loop:
+                        asyncio.run_coroutine_threadsafe(
+                            self._trigger_reset(),
+                            self.loop
+                        )
+                    return
             
             button_number = self.button_pins.get(gpio, None)
             if gpio == self.rotary_sw:
@@ -227,3 +254,13 @@ class GPIOController:
                 logger.error(f"Failed to toggle station {button}: {str(e)}")
         else:
             logger.warning(f"Invalid button number received: {button}")
+
+    async def _trigger_reset(self):
+        """Trigger system reset when push sequence detected."""
+        try:
+            logger.info("Triggering system reset...")
+            # Call the reset handler in RadioManager
+            if hasattr(self, 'reset_callback') and self.reset_callback:
+                await self.reset_callback()
+        except Exception as e:
+            logger.error(f"Error triggering reset: {e}")
