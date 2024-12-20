@@ -1,16 +1,26 @@
 import asyncio
 from fastapi import APIRouter, WebSocket
+from typing import List, Set
+import logging
 import psutil
 import subprocess
 import socket
 from pathlib import Path
 from ..models.requests import SystemInfo, ServiceStatus, WebAccess, MonitorUpdate
 from src.core.mode_manager import ModeManagerSingleton
+from datetime import datetime
 
 router = APIRouter(
     prefix="/monitor",
     tags=["Monitor"]
 )
+
+# Store active WebSocket connections
+active_connections: Set[WebSocket] = set()
+broadcast_task = None
+
+# Set logging level for monitor module
+logging.getLogger('monitor').setLevel(logging.DEBUG)
 
 async def get_system_info() -> SystemInfo:
     hostname = socket.gethostname()
@@ -102,12 +112,69 @@ async def check_web_access():
         "ui": await check_url('http://localhost:5173')
     }
 
-# Add a REST endpoint for single status check
-@router.get("/status", tags=["Monitor"])
+async def periodic_broadcast():
+    """Periodically broadcast system updates to all connected clients"""
+    logging.info("[MONITOR] Starting periodic broadcast task")
+    counter = 0
+    while True:
+        try:
+            if active_connections:
+                counter += 1
+                system_info = await get_system_info()
+                # Convert Pydantic model to dict before accessing
+                system_info_dict = system_info.dict()
+                logging.debug(f"[MONITOR] Broadcast #{counter}: CPU={system_info_dict['cpuUsage']}, Connections={len(active_connections)}")
+                
+                status = {
+                    "type": "monitor_update",
+                    "data": {
+                        "systemInfo": system_info_dict,  # Convert to dict
+                        "services": await get_services_status()
+                    }
+                }
+                
+                for connection in active_connections:
+                    try:
+                        await connection.send_json(status)
+                    except Exception as e:
+                        logging.error(f"[MONITOR] Error broadcasting to client: {e}")
+                        active_connections.remove(connection)
+            await asyncio.sleep(1)
+        except Exception as e:
+            logging.error(f"[MONITOR] Error in periodic broadcast: {e}")
+            await asyncio.sleep(1)
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    logging.info("[MONITOR] New WebSocket connection request")
+    await websocket.accept()
+    active_connections.add(websocket)
+    logging.info(f"[MONITOR] WebSocket connection accepted. Total connections: {len(active_connections)}")
+    
+    # Start broadcast task if it's not running
+    global broadcast_task
+    if broadcast_task is None or broadcast_task.done():
+        logging.info("Starting new broadcast task")
+        broadcast_task = asyncio.create_task(periodic_broadcast())
+    
+    try:
+        while True:
+            msg = await websocket.receive_text()
+            logging.debug(f"Received WebSocket message: {msg}")
+            if msg == "ping":
+                await websocket.send_json({"type": "pong"})
+    except Exception as e:
+        logging.error(f"WebSocket error: {e}")
+    finally:
+        active_connections.remove(websocket)
+        logging.info(f"WebSocket disconnected. Remaining connections: {len(active_connections)}")
+        if not active_connections and broadcast_task:
+            broadcast_task.cancel()
+
+# REST endpoint for initial data and fallback
+@router.get("/status")
 async def get_status():
-    """
-    Get current system status including services, system info, and web access
-    """
+    """Get current system status including services, system info, and web access"""
     return {
         "systemInfo": await get_system_info(),
         "services": await get_services_status(),
