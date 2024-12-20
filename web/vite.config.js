@@ -1,16 +1,17 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import { DEV_PORT, API_PORT, HOSTNAME, API_PREFIX, API_V1_STR } from './src/lib/generated_config.js';
 
 export default defineConfig({
 	plugins: [sveltekit()],
 	server: {
 		proxy: {
-			'/api': {
-				target: 'http://radiod.local',
+			[API_PREFIX]: {
+				target: `http://${HOSTNAME}:${API_PORT}`,
 				changeOrigin: true,
 				rewrite: (path) => {
-					if (!path.includes('/v1/')) {
-						return path.replace('/api/', '/api/v1/');
+					if (!path.includes(API_V1_STR)) {
+						return path.replace(API_PREFIX, API_V1_STR);
 					}
 					return path;
 				},
@@ -27,23 +28,29 @@ export default defineConfig({
 				}
 			},
 			'/ws': {
-				target: 'ws://radiod.local',
+				target: `ws://${HOSTNAME}:${API_PORT}`,
 				ws: true,
 				changeOrigin: true
 			}
 		},
 		host: true,
-		port: 5173,
+		port: DEV_PORT,
 		strictPort: true,
 		hmr: {
-			host: 'radiod.local',
-			protocol: 'ws',
-			clientPort: 5173
+				host: HOSTNAME,
+				protocol: 'ws',
+				clientPort: DEV_PORT
+		},
+		headers: {
+			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Private-Network': 'true',
+			'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
+			'Access-Control-Allow-Headers': 'Content-Type'
 		}
 	},
 	preview: {
 		host: true,
-		port: 5173,
+		port: DEV_PORT,
 		strictPort: true
 	}
 });

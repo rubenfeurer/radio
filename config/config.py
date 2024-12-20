@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import Optional, Dict
 import socket
+import json
+import os
 
 class Settings(BaseModel):
     # API Settings
@@ -8,6 +10,13 @@ class Settings(BaseModel):
     WS_PATH: str = "/ws"
     API_PORT: int = 80
     DEV_PORT: int = 5173
+    
+    # API Path Settings
+    API_PREFIX: str = "/api"  # New setting for the API prefix
+    
+    # Frontend paths
+    FRONTEND_DEV_URL: str = f"http://radiod.local:{DEV_PORT}"
+    FRONTEND_BUILD_PATH: str = "web/build"
     
     # Network Settings
     HOSTNAME: str = socket.gethostname()  # Dynamically get system hostname
@@ -44,8 +53,42 @@ class Settings(BaseModel):
     LONG_PRESS_DURATION: float = 3.0
     DOUBLE_PRESS_INTERVAL: float = 0.5
     
+    def export_frontend_config(self) -> None:
+        """Export relevant settings for frontend use"""
+        frontend_config = {
+            "API_V1_STR": self.API_V1_STR,
+            "API_PREFIX": self.API_PREFIX,  # Add API prefix
+            "WS_PATH": self.WS_PATH,
+            "API_PORT": self.API_PORT,
+            "DEV_PORT": self.DEV_PORT,
+            "HOSTNAME": f"{self.HOSTNAME}.local"
+        }
+        
+        # Write to a JSON file that can be imported by the frontend
+        config_path = os.path.join("web", "src", "lib", "generated_config.json")
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        
+        with open(config_path, "w") as f:
+            json.dump(frontend_config, f, indent=2)
+            
+        # Also generate a Vite config file
+        vite_config = f"""
+// This file is auto-generated from config.py - do not edit directly
+export const DEV_PORT = {self.DEV_PORT}
+export const API_PORT = {self.API_PORT}
+export const API_V1_STR = "{self.API_V1_STR}"
+export const API_PREFIX = "{self.API_PREFIX}"
+export const WS_PATH = "{self.WS_PATH}"
+export const HOSTNAME = "{self.HOSTNAME}.local"
+"""
+        with open(os.path.join("web", "src", "lib", "generated_config.js"), "w") as f:
+            f.write(vite_config)
+
     model_config = {
         "case_sensitive": True
     }
 
-settings = Settings() 
+settings = Settings()
+
+# Export frontend configuration when this module is imported
+settings.export_frontend_config() 

@@ -1,13 +1,14 @@
 import { browser } from '$app/environment';
+import config from './generated_config.json';
 
 // Get the hostname dynamically, only in browser
 const hostname = browser ? window.location.hostname : '';
 
-// API Configuration
-export const API_V1_STR = '/api/v1';
-export const WS_PATH = '/ws';
-export const API_PORT = 80;
-export const DEV_PORT = 5173;
+// Import configuration from Python-generated file
+export const API_V1_STR = config.API_V1_STR;
+export const WS_PATH = config.WS_PATH;
+export const API_PORT = config.API_PORT;
+export const DEV_PORT = config.DEV_PORT;
 
 // Base URLs for API and WebSocket connections
 export const API_BASE_URL = browser ? (

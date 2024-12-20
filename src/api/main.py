@@ -47,17 +47,14 @@ app = FastAPI(
 # Initialize the singleton RadioManager with WebSocket callback
 radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 
-# Get the hostname and add .local suffix for mDNS
-hostname = f"{socket.gethostname()}.local"
-
 # Construct the allowed origins using settings
 allowed_origins = [
-    f"http://{hostname}:{settings.DEV_PORT}",    # Dev server
-    f"http://{hostname}",                        # Production
-    f"ws://{hostname}",                          # WebSocket production
-    f"ws://{hostname}:{settings.API_PORT}",      # WebSocket explicit port
-    f"http://localhost:{settings.DEV_PORT}",     # Local development
-    f"ws://localhost:{settings.API_PORT}",       # Local WebSocket
+    f"http://{settings.HOSTNAME}.local:{settings.DEV_PORT}",    # Dev server
+    f"http://{settings.HOSTNAME}.local",                        # Production
+    f"ws://{settings.HOSTNAME}.local",                          # WebSocket production
+    f"ws://{settings.HOSTNAME}.local:{settings.API_PORT}",      # WebSocket explicit port
+    f"http://localhost:{settings.DEV_PORT}",                    # Local development
+    f"ws://localhost:{settings.API_PORT}",                      # Local WebSocket
 ]
 
 app.add_middleware(
@@ -93,7 +90,8 @@ async def health_check():
     return {"status": "healthy"}
 
 # Mount the built frontend files
-frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "web/build")
+frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                           settings.FRONTEND_BUILD_PATH)
 if os.path.exists(frontend_path):
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 else:
@@ -101,13 +99,13 @@ else:
     @app.get("/")
     async def root():
         """Redirect to dev server in development mode"""
-        return RedirectResponse(url=f"http://{hostname}:{settings.DEV_PORT}")
+        return RedirectResponse(url=f"http://{settings.HOSTNAME}.local:{settings.DEV_PORT}")
 
     @app.get("/{path:path}")
     async def catch_all(path: str):
         """Forward all non-API requests to dev server"""
         if not path.startswith(settings.API_V1_STR.lstrip("/")):
-            return RedirectResponse(url=f"http://{hostname}:{settings.DEV_PORT}/{path}")
+            return RedirectResponse(url=f"http://{settings.HOSTNAME}.local:{settings.DEV_PORT}/{path}")
         raise HTTPException(status_code=404, detail="Not found")
 
 logger = logging.getLogger(__name__)

@@ -6,32 +6,41 @@ APP_PATH="/home/radio/radio/src/api/main.py"
 LOG_FILE="/home/radio/radio/logs/radio.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
 NODE_ENV="production"
-DEV_MODE=${DEV_MODE:-true}  # Changed default to true
+DEV_MODE=${DEV_MODE:-true}
 
-# Get port numbers from Python config
-get_ports() {
+# Get configuration from Python
+get_config() {
     source $VENV_PATH/bin/activate
-    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)")
-    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)")
+    
+    # Create config directory with correct permissions
+    sudo mkdir -p /home/radio/radio/web/src/lib
+    sudo chown -R radio:radio /home/radio/radio/web
+    
+    # Get configuration values
+    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)" 2>/dev/null || echo 80)
+    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)" 2>/dev/null || echo 5173)
+    HOSTNAME=$(python3 -c "from config.config import settings; print(settings.HOSTNAME)" 2>/dev/null || echo "radiod")
 }
 
 check_ports() {
-    get_ports
+    get_config
     
     echo "Checking for processes using ports..."
     
-    # More thorough port check for DEV_PORT (5173)
-    for pid in $(lsof -ti:$DEV_PORT); do
-        echo "Killing process $pid using port $DEV_PORT..."
-        sudo kill -9 $pid 2>/dev/null || true
-    done
+    if [ -n "$DEV_PORT" ]; then
+        for pid in $(lsof -ti :$DEV_PORT 2>/dev/null); do
+            echo "Killing process $pid using port $DEV_PORT..."
+            sudo kill -9 $pid 2>/dev/null || true
+        done
+    fi
     
-    # More thorough port check for API_PORT (80)
-    for pid in $(sudo lsof -ti:$API_PORT); do
-        echo "Killing process $pid using port $API_PORT..."
-        sudo kill -9 $pid 2>/dev/null || true
-    done
-
+    if [ -n "$API_PORT" ]; then
+        for pid in $(sudo lsof -ti :$API_PORT 2>/dev/null); do
+            echo "Killing process $pid using port $API_PORT..."
+            sudo kill -9 $pid 2>/dev/null || true
+        done
+    fi
+    
     # Additional cleanup
     echo "Cleaning up any remaining processes..."
     sudo pkill -f "uvicorn.*$APP_PATH" || true
@@ -42,9 +51,11 @@ check_ports() {
     sleep 3
     
     # Verify ports are free
-    if lsof -Pi:$DEV_PORT -sTCP:LISTEN || sudo lsof -Pi:$API_PORT -sTCP:LISTEN; then
-        echo "Error: Ports still in use after cleanup"
-        exit 1
+    if [ -n "$DEV_PORT" ] && [ -n "$API_PORT" ]; then
+        if lsof -ti :$DEV_PORT 2>/dev/null || sudo lsof -ti :$API_PORT 2>/dev/null; then
+            echo "Error: Ports still in use after cleanup"
+            exit 1
+        fi
     fi
 }
 
@@ -91,6 +102,9 @@ ensure_client_mode() {
     echo "Ensuring client mode on startup..."
     source $VENV_PATH/bin/activate
     
+    # Ensure correct permissions before running Python
+    sudo chown -R radio:radio /home/radio/radio/web
+    
     # Create directory and initial mode file if it doesn't exist
     echo "Setting up mode state file..."
     sudo mkdir -p /tmp/radio
@@ -135,215 +149,27 @@ asyncio.run(ensure_client())
             break
         fi
         echo "Waiting for network... attempt $((attempt+1))/$max_attempts"
-        sleep 2
         attempt=$((attempt+1))
+        sleep 1
     done
     
     if [ $attempt -eq $max_attempts ]; then
-        echo "Warning: Network connection timed out. Continuing anyway..."
-    fi
-    
-    # Verify network interface is up
-    if ! ip link show wlan0 | grep -q "UP"; then
-        echo "Bringing up wlan0 interface..."
-        sudo ip link set wlan0 up
-    fi
-}
-
-open_monitor() {
-    echo "Opening monitor website..."
-    # Wait for services to be fully up
-    sleep 5
-    
-    # Check if X server is running
-    if ! ps aux | grep -v grep | grep -q "X.*:0"; then
-        echo "Warning: X server not running, cannot open browser"
-        return 1
-    }
-    
-    # Check if Chromium is already running
-    if ! pgrep -f "chromium.*monitor" > /dev/null; then
-        echo "Launching Chromium..."
-        
-        # Kill any existing Chromium instances first
-        pkill chromium 2>/dev/null || true
-        pkill chromium-browser 2>/dev/null || true
-        sleep 2
-        
-        # Set display for Pi and ensure XAUTHORITY is set
-        export DISPLAY=:0
-        export XAUTHORITY=/home/radio/.Xauthority
-        
-        # Disable screen blanking
-        xset s off
-        xset -dpms
-        xset s noblank
-        
-        # Open Chromium with proper flags for Pi
-        sudo -u radio DISPLAY=:0 XAUTHORITY=/home/radio/.Xauthority chromium-browser \
-            --noerrdialogs \
-            --disable-infobars \
-            --disable-session-crashed-bubble \
-            --disable-translate \
-            --disable-restore-session-state \
-            --disable-sync \
-            --disable-features=TranslateUI \
-            --disable-gpu \
-            --start
-    fi
-}
-
-check_network_manager() {
-    echo "Checking NetworkManager status..."
-    if ! systemctl is-active --quiet NetworkManager; then
-        echo "NetworkManager is not running. Starting it..."
-        sudo systemctl start NetworkManager
-        # Wait for NetworkManager to be fully up
-        sleep 5
-        if systemctl is-active --quiet NetworkManager; then
-            echo "NetworkManager started successfully"
-        else
-            echo "Failed to start NetworkManager"
-            exit 1
-        fi
-    else
-        echo "NetworkManager is running"
-    fi
-}
-
-check_hostapd() {
-    echo "Checking hostapd status..."
-    
-    if systemctl is-active --quiet hostapd; then
-        echo "Stopping hostapd..."
-        sudo systemctl stop hostapd
-        sudo systemctl disable hostapd
-        
-        # Force kill any remaining hostapd processes
-        sudo pkill -9 hostapd || true
-        sleep 2
-        
-        # Double check it's really stopped
-        if systemctl is-active --quiet hostapd; then
-            echo "Warning: hostapd is still running!"
-        else
-            echo "hostapd stopped successfully"
-        fi
-    else
-        echo "hostapd is already stopped"
-    fi
-}
-
-setup_network_manager_config() {
-    echo "Setting up NetworkManager configuration..."
-    
-    # Stop and disable potentially conflicting services
-    echo "Handling conflicting services..."
-    local services=("hostapd" "iwd" "dhcpcd")
-    for service in "${services[@]}"; do
-        if systemctl list-unit-files | grep -q "^$service"; then
-            echo "Handling $service..."
-            sudo systemctl stop $service 2>/dev/null || true
-            sudo systemctl disable $service 2>/dev/null || true
-        fi
-    done
-
-    # Explicitly configure wpa_supplicant without stopping it
-    echo "Configuring wpa_supplicant..."
-    sudo systemctl unmask wpa_supplicant
-    sudo systemctl enable wpa_supplicant
-    
-    # Create NetworkManager config file
-    echo "Creating NetworkManager configuration..."
-    sudo tee /etc/NetworkManager/conf.d/10-wifi.conf << EOF
-[main]
-plugins=ifupdown,keyfile
-no-auto-default=*
-dhcp=internal
-
-[ifupdown]
-managed=true
-
-[device]
-wifi.scan-rand-mac-address=no
-wifi.backend=wpa_supplicant
-
-[connection]
-wifi.powersave=0
-connection.autoconnect=true
-ipv6.method=disabled
-
-[logging]
-level=DEBUG
-domains=WIFI,CORE,DEVICE,SUPPLICANT
-EOF
-
-    # Set correct permissions
-    sudo chmod 644 /etc/NetworkManager/conf.d/10-wifi.conf
-    
-    # Reload NetworkManager config without stopping the service
-    echo "Reloading NetworkManager configuration..."
-    sudo systemctl reload NetworkManager || sudo systemctl restart NetworkManager
-    sleep 2
-
-    # Verify services
-    echo "Verifying services..."
-    if ! systemctl is-active --quiet wpa_supplicant; then
-        echo "Warning: wpa_supplicant is not running, starting it..."
-        sudo systemctl start wpa_supplicant
-    fi
-    
-    if ! systemctl is-active --quiet NetworkManager; then
-        echo "Warning: NetworkManager is not running, starting it..."
-        sudo systemctl start NetworkManager
-    fi
-}
-
-setup_wifi_interface() {
-    echo "Setting up WiFi interface..."
-    
-    # Unblock WiFi if blocked
-    echo "Checking RF kill status..."
-    sudo rfkill unblock wifi
-    
-    # Reset interface
-    echo "Resetting WiFi interface..."
-    sudo ip link set wlan0 down
-    sleep 1
-    
-    # Set to managed mode
-    echo "Setting managed mode..."
-    sudo nmcli device set wlan0 managed yes
-    sleep 1
-    
-    # Bring interface up
-    echo "Bringing up interface..."
-    sudo ip link set wlan0 up
-    sleep 2
-    
-    # Verify interface status
-    if ip link show wlan0 | grep -q "UP"; then
-        echo "WiFi interface is up"
-    else
-        echo "Warning: Failed to bring up WiFi interface"
+        echo "Warning: Network not ready after $max_attempts attempts"
     fi
 }
 
 check_avahi() {
     echo "Checking Avahi daemon..."
-    
-    # Get system hostname
-    HOSTNAME=$(hostname)
-    echo "Using hostname: $HOSTNAME"
+    get_config
     
     # Install avahi-daemon if not present
-    if ! dpkg -l | grep -q avahi-daemon; then
+    if ! command -v avahi-daemon &> /dev/null; then
         echo "Installing avahi-daemon..."
         sudo apt-get update
         sudo apt-get install -y avahi-daemon
     fi
     
-    # Configure Avahi
+    # Configure Avahi with hostname
     echo "Configuring Avahi..."
     sudo tee /etc/avahi/avahi-daemon.conf << EOF
 [server]
@@ -365,120 +191,84 @@ EOF
     echo "Restarting Avahi daemon..."
     sudo systemctl restart avahi-daemon
     
+    # Wait for Avahi to be ready
+    sleep 2
+    
     # Verify Avahi is running
     if ! systemctl is-active --quiet avahi-daemon; then
-        echo "Error: Avahi daemon failed to start"
-        sudo systemctl status avahi-daemon
-        exit 1
+        echo "Warning: avahi-daemon is not running"
     else
-        echo "Avahi daemon is running"
-    fi
-    
-    # Test hostname resolution
-    echo "Testing hostname resolution..."
-    if ! ping -c 1 $HOSTNAME.local > /dev/null 2>&1; then
-        echo "Warning: $HOSTNAME.local is not resolving. Check your network configuration."
-    else
-        echo "Hostname resolution successful"
+        echo "avahi-daemon is running"
     fi
 }
 
-setup_logrotate() {
-    echo "Setting up log rotation..."
+open_monitor() {
+    echo "Opening monitor website..."
     
-    # Create logrotate configuration
-    sudo tee /etc/logrotate.d/radio << EOF
-/home/radio/radio/logs/*.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 644 radio radio
-    size 10M
-    postrotate
-        systemctl restart radio >/dev/null 2>&1 || true
-    endscript
-}
-EOF
-
-    # Set correct permissions
-    sudo chmod 644 /etc/logrotate.d/radio
+    # Check if X server is running
+    if ! xset q &>/dev/null; then
+        echo "X server not running, skipping monitor display"
+        return
+    fi
     
-    # Force logrotate to read the new config
-    sudo logrotate -f /etc/logrotate.d/radio
+    # Kill any existing Chromium instances
+    pkill -f chromium || true
+    
+    # Set display settings
+    export DISPLAY=:0
+    
+    # Launch Chromium in kiosk mode
+    nohup chromium-browser \
+        --kiosk \
+        --disable-restore-session-state \
+        --noerrdialogs \
+        --disable-session-crashed-bubble \
+        --disable-infobars \
+        --start-maximized \
+        "http://$HOSTNAME.local:$DEV_PORT/monitor" &
 }
 
 start() {
-    echo "Starting $APP_NAME in ${DEV_MODE} mode..."
+    echo "Starting $APP_NAME..."
+    get_config
     
-    # Setup log rotation before starting services
-    setup_logrotate
+    # Validate port values
+    if [ -z "$API_PORT" ] || [ -z "$DEV_PORT" ]; then
+        echo "Error: Invalid port configuration"
+        exit 1
+    fi
     
-    # Create logs directory if it doesn't exist
-    mkdir -p "$(dirname $LOG_FILE)"
-    sudo chown -R radio:radio "$(dirname $LOG_FILE)"
+    echo "Using ports: API=$API_PORT, DEV=$DEV_PORT"
     
-    # Create web logs directory with proper permissions
-    WEB_LOG_FILE="/home/radio/radio/logs/web.log"
-    mkdir -p "$(dirname $WEB_LOG_FILE)"
-    sudo chown -R radio:radio "$(dirname $WEB_LOG_FILE)"
+    # Check if already running
+    if [ -f $PID_FILE ]; then
+        echo "$APP_NAME is already running."
+        exit 1
+    fi
     
-    # Ensure web directory permissions
-    sudo chown -R radio:radio /home/radio/radio/web
+    # Create log directory if it doesn't exist
+    mkdir -p $(dirname $LOG_FILE)
+    WEB_LOG_FILE="${LOG_FILE%.*}_web.log"
+    
+    # Clean up any existing processes and ports
+    check_ports
     
     # Add check_avahi to the startup sequence
     check_pigpiod
-    check_network_manager
     check_avahi
-    setup_network_manager_config
-    check_hostapd
-    setup_wifi_interface
     check_nmcli_permissions
     ensure_client_mode
     
-    # Create and set permissions for temp directory
-    echo "Setting up temporary directory with correct permissions..."
-    sudo mkdir -p /tmp/radio
-    sudo chown -R radio:radio /tmp/radio
-    export TMPDIR=/tmp/radio
-    
-    # Activate virtual environment
-    echo "Virtual environment activated"
-    source $VENV_PATH/bin/activate
-    
-    # Check and kill any existing processes
-    check_ports
-    
-    # Start FastAPI server with nohup
+    # Start FastAPI server
     echo "Starting FastAPI server on port $API_PORT..."
     if [ "$DEV_MODE" = true ]; then
         nohup sudo -E env "PATH=$PATH" \
             "PYTHONPATH=/home/radio/radio" \
             "$VENV_PATH/bin/uvicorn" src.api.main:app \
+            --reload \
             --host "0.0.0.0" \
             --port "$API_PORT" \
-            --reload \
             > $LOG_FILE 2>&1 &
-        FASTAPI_PID=$!
-        echo "FastAPI PID: $FASTAPI_PID"
-        
-        # Start web development server
-        echo "Starting web server on port $DEV_PORT..."
-        echo "Starting in development mode..."
-        cd /home/radio/radio/web
-        nohup npm run dev > $WEB_LOG_FILE 2>&1 &
-        DEV_SERVER_PID=$!
-        echo "Dev Server PID: $DEV_SERVER_PID"
-        
-        # Wait for servers to start
-        sleep 5
-        
-        # Open monitor in browser (after servers are up)
-        cd /home/radio/radio
-        open_monitor
-        
     else
         nohup sudo -E env "PATH=$PATH" \
             "PYTHONPATH=/home/radio/radio" \
@@ -563,7 +353,7 @@ restart() {
 }
 
 status() {
-    get_ports
+    get_config
     if [ -f $PID_FILE ]; then
         PID=$(cat $PID_FILE)
         if ps -p $PID > /dev/null; then
