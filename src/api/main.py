@@ -14,6 +14,8 @@ import os
 from src.core.mode_manager import ModeManagerSingleton
 from pathlib import Path
 from contextlib import asynccontextmanager
+import grp
+import pwd
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,6 +25,22 @@ async def lifespan(app: FastAPI):
         # Create data directory if it doesn't exist
         data_dir = Path("data")
         data_dir.mkdir(exist_ok=True)
+        
+        # Set up audio permissions
+        try:
+            # Get current user
+            current_user = pwd.getpwuid(os.getuid()).pw_name
+            
+            # Check if user is in audio group
+            audio_group = grp.getgrnam('audio')
+            if current_user not in audio_group.gr_mem:
+                logger.warning(f"User {current_user} is not in audio group. Audio might not work properly.")
+                
+            # Set proper audio permissions
+            os.environ['PULSE_RUNTIME_PATH'] = '/run/user/1000/pulse'
+            logger.info("Audio environment configured")
+        except Exception as e:
+            logger.error(f"Error setting up audio permissions: {e}")
         
         # Ensure client mode on startup
         current_mode = mode_manager.detect_current_mode()
