@@ -73,10 +73,7 @@ async def get_services_status():
         'NetworkManager',  # Network connectivity
         'avahi-daemon',    # mDNS/DNS-SD
         'pigpiod',         # GPIO daemon
-        'radiod',          # Our radio service
-        'systemd-resolved',# DNS resolution
         'dbus',           # System message bus
-        'ssh'             # SSH access
     ]
     result = []
     

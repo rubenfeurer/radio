@@ -17,9 +17,9 @@ get_config() {
     sudo chown -R radio:radio /home/radio/radio/web
     
     # Get configuration values
-    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)" 2>/dev/null || echo 80)
-    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)" 2>/dev/null || echo 5173)
-    HOSTNAME=$(python3 -c "from config.config import settings; print(settings.HOSTNAME)" 2>/dev/null || echo "radiod")
+    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)")
+    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)")
+    HOSTNAME=$(python3 -c "from config.config import settings; print(settings.HOSTNAME)")
 }
 
 check_ports() {
