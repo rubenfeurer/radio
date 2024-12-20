@@ -1,4 +1,4 @@
-import pigpio
+import os
 from typing import Optional, Callable
 import asyncio
 from src.utils.logger import logger
@@ -46,9 +46,15 @@ class GPIOController:
         self.PUSH_TIMEOUT = 2  # seconds
         self.PUSH_THRESHOLD = 4  # number of pushes needed
         
+        if os.getenv('SKIP_PIGPIO') == 'true':
+            from tests.mocks.gpio_mock import mock_pigpio_import
+            self.pi = mock_pigpio_import()
+        else:
+            import pigpio
+            self.pi = pigpio.pi()
+        
         try:
             # Initialize pigpio
-            self.pi = pigpio.pi()
             if not self.pi.connected:
                 logger.error("Failed to connect to pigpio daemon")
                 return

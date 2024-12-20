@@ -28,39 +28,6 @@ jobs:
           libasound2-dev \
           network-manager
         
-    - name: Setup and verify pigpio
-      run: |
-        # Clean up any existing pigpio
-        sudo pkill pigpiod || true
-        sudo rm -rf /var/run/pigpio* || true
-        
-        # Download and build pigpio
-        wget https://github.com/joan2937/pigpio/archive/master.zip
-        unzip master.zip
-        cd pigpio-master
-        make
-        sudo make install
-        cd ..
-        
-        # Create required directories with proper permissions
-        sudo mkdir -p /var/run/pigpio
-        sudo chmod 777 /var/run/pigpio
-        
-        # Start pigpio daemon with debug output
-        echo "Starting pigpiod..."
-        sudo pigpiod -v
-        sleep 2
-        
-        # Verify daemon is running
-        if pgrep pigpiod; then
-          echo "✅ pigpiod is running"
-          ps aux | grep pigpio
-          sudo netstat -tulpn | grep 8888 || echo "Port 8888 not found"
-        else
-          echo "❌ pigpiod failed to start"
-          exit 1
-        fi
-        
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
@@ -74,23 +41,11 @@ jobs:
         TEST_MODE: "CI"
         DISABLE_HARDWARE: "true"
         SKIP_NM_CHECK: "true"
+        SKIP_PIGPIO: "true"
         PYTEST_TIMEOUT: "30"
         PYTEST_ASYNCIO_MODE: "auto"
-        PIGPIO_ADDR: "127.0.0.1"
-        PIGPIO_PORT: "8888"
       run: |
-        # Double check pigpio daemon before tests
-        if ! pgrep pigpiod; then
-          echo "Restarting pigpiod..."
-          sudo pigpiod
-          sleep 2
-        fi
-        
-        # Verify pigpio is accessible
-        echo "Testing pigpio connection..."
-        python3 -c "import pigpio; pi=pigpio.pi(); print('Pigpio connection successful' if pi.connected else 'Failed to connect')"
-        
-        # Run pytest
+        # Run pytest with mocks
         pytest -v tests/ \
           --cov=src \
           --capture=no \
