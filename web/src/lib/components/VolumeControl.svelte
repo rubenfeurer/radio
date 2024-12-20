@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { currentMode } from '$lib/stores/mode';
   import { ws } from '$lib/stores/websocket';
-  import { API_BASE_URL } from '$lib/config';
+  import { API_V1_STR } from '$lib/config';  // Import API_V1_STR
 
   export let hideInAP = false;
   let volume = 70;  // Initialize with default value
@@ -55,8 +55,8 @@
   async function updateVolume(event: CustomEvent) {
     const newVolume = parseInt(event.target.value);
     try {
-      const response = await fetch('/api/volume', {
-        method: 'PUT',
+      const response = await fetch(`${API_V1_STR}/volume`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },

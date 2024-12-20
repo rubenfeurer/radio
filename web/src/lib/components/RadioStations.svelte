@@ -3,8 +3,9 @@
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { onMount } from 'svelte';
-  import { ws } from '$lib/stores/websocket';  // Import the WebSocket store
-  import { currentMode } from '$lib/stores/mode';  // Import mode store
+  import { ws } from '$lib/stores/websocket';
+  import { currentMode } from '$lib/stores/mode';
+  import { API_V1_STR } from '$lib/config';  // Import API_V1_STR
 
   // Types
   interface RadioStation {
@@ -15,20 +16,8 @@
     location?: string | null;
   }
 
-  // Move state here
   let stations: RadioStation[] = [];
   let currentPlayingSlot: number | null = null;
-
-  // Get the current hostname (IP or domain)
-  const currentHost = browser ? window.location.hostname : '';
-  
-  // Determine API base URL
-  const API_BASE = browser 
-    ? (window.location.port === '5173' 
-      ? `http://${currentHost}:80`
-      : '')
-    : '';
-
   export let hideInAP = false;
   let error: string | null = null;
 
@@ -47,7 +36,6 @@
               is_playing: data.data.is_playing
             });
 
-            // Handle current_station whether it's a number or an object
             if (data.data.is_playing) {
               currentPlayingSlot = typeof data.data.current_station === 'object' 
                 ? data.data.current_station.slot 
@@ -84,7 +72,7 @@
   export async function loadInitialStations() {
     try {
         console.log("Fetching assigned stations...");
-        const assignedResponse = await fetch(`${API_BASE}/api/v1/stations/assigned`);
+        const assignedResponse = await fetch(`${API_V1_STR}/stations/assigned`);
         console.log("Response status:", assignedResponse.status);
         
         if (!assignedResponse.ok) {
@@ -102,13 +90,11 @@
         for (const slot of slots) {
             try {
                 if (assignedStations[slot] && assignedStations[slot] !== null) {
-                    // Use assigned station from file
                     stations = [...stations, {
                         ...assignedStations[slot],
                         slot: parseInt(slot)
                     }];
                 } else {
-                    // Create empty slot
                     stations = [...stations, {
                         name: 'No station assigned',
                         url: '',
@@ -126,7 +112,7 @@
 
   async function toggleStation(slot: number) {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/stations/${slot}/toggle`, {
+      const response = await fetch(`${API_V1_STR}/stations/${slot}/toggle`, {
         method: 'POST'
       });
       const data = await response.json();
