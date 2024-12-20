@@ -63,7 +63,19 @@
       const data = JSON.parse(event.data);
       if (data.type === 'mode_update' && data.mode === 'client') {
         // Successfully connected and switched to client mode
-        window.location.reload();
+        // Add a small delay to allow network switch
+        setTimeout(() => {
+          // Clear browser cache before reload
+          if ('caches' in window) {
+            caches.keys().then((names) => {
+              names.forEach(name => {
+                caches.delete(name);
+              });
+            });
+          }
+          // Force reload without cache
+          window.location.replace(`http://${window.location.hostname}:5173/?nocache=${Date.now()}`);
+        }, 2000);
       } else if (data.type === 'ap_scan_complete') {
         scanning = false;
         networks = data.networks;
@@ -140,11 +152,12 @@
         throw new Error(errorData.detail || 'Connection failed');
       }
 
-      // Connection successful - wait for mode change via WebSocket
+      // Show connecting message
+      error = "Connecting to network... Please wait and reconnect to the new network if needed.";
+      
     } catch (e) {
       console.error('Connection error:', e);
       error = e.message;
-    } finally {
       connecting = false;
     }
   }

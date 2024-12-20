@@ -9,13 +9,6 @@
     let isLoading = false;
     let error: string | null = null;
 
-    const currentHost = browser ? window.location.hostname : '';
-    const API_BASE = browser 
-        ? (window.location.port === '5173' 
-            ? `http://${currentHost}:80`
-            : '')
-        : '';
-
     // Subscribe to WebSocket updates
     const unsubscribe = websocketStore.subscribe(($ws) => {
         if ($ws?.data?.type === 'monitor_update' && $ws.data?.systemInfo?.mode) {
