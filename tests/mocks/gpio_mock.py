@@ -1,9 +1,23 @@
 class MockPigpio:
+    # GPIO modes
     INPUT = 0
     OUTPUT = 1
+    ALT0 = 4
+    ALT1 = 5
+    ALT2 = 6
+    ALT3 = 7
+    ALT4 = 3
+    ALT5 = 2
+    
+    # Pull up/down
+    PUD_OFF = 0
+    PUD_DOWN = 1
     PUD_UP = 2
-    PUD_DOWN = 3
-    EITHER_EDGE = 4
+    
+    # Edge events
+    RISING_EDGE = 0
+    FALLING_EDGE = 1
+    EITHER_EDGE = 2
     
     def __init__(self):
         self.connected = True

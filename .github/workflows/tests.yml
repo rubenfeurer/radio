@@ -34,6 +34,9 @@ jobs:
         pip install -r requirements.txt
         pip install httpx pytest pytest-asyncio pytest-cov pytest-mock pytest-timeout
         
+    - name: Create logs directory
+      run: mkdir -p logs
+        
     - name: Run tests with mocked hardware
       env:
         MOCK_HARDWARE: "true"
@@ -44,6 +47,7 @@ jobs:
         SKIP_PIGPIO: "true"
         PYTEST_TIMEOUT: "30"
         PYTEST_ASYNCIO_MODE: "auto"
+        LOG_DIR: "logs"
       run: |
         # Run pytest with mocks
         pytest -v tests/ \

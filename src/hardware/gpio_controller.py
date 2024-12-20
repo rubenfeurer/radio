@@ -1,11 +1,9 @@
 import os
 from typing import Optional, Callable
 import asyncio
-from src.utils.logger import get_logger
+from src.utils.logger import logger
 from config.config import settings
 import time
-
-logger = get_logger(__name__)
 
 class GPIOController:
     def __init__(
