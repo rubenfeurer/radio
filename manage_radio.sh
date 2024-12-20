@@ -6,34 +6,57 @@ APP_PATH="/home/radio/radio/src/api/main.py"
 LOG_FILE="/home/radio/radio/logs/radio.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
 NODE_ENV="production"
+DEV_MODE=${DEV_MODE:-true}
 
-# Get port numbers from Python config
-get_ports() {
+# Get configuration from Python
+get_config() {
     source $VENV_PATH/bin/activate
-    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)")
-    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)")
+    
+    # Create config directory with correct permissions
+    sudo mkdir -p /home/radio/radio/web/src/lib
+    sudo chown -R radio:radio /home/radio/radio/web
+    
+    # Get configuration values
+    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)" 2>/dev/null || echo 80)
+    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)" 2>/dev/null || echo 5173)
+    HOSTNAME=$(python3 -c "from config.config import settings; print(settings.HOSTNAME)" 2>/dev/null || echo "radiod")
 }
 
 check_ports() {
-    get_ports
+    get_config
     
-    # Check and kill any existing processes on API_PORT
-    if sudo lsof -Pi :$API_PORT -sTCP:LISTEN -t >/dev/null ; then
-        echo "Port $API_PORT is already in use. Stopping existing process..."
-        sudo kill -9 $(sudo lsof -t -i:$API_PORT)
-        sleep 2
+    echo "Checking for processes using ports..."
+    
+    if [ -n "$DEV_PORT" ]; then
+        for pid in $(lsof -ti :$DEV_PORT 2>/dev/null); do
+            echo "Killing process $pid using port $DEV_PORT..."
+            sudo kill -9 $pid 2>/dev/null || true
+        done
     fi
     
-    # Check and kill any existing processes on DEV_PORT
-    if lsof -Pi :$DEV_PORT -sTCP:LISTEN -t >/dev/null ; then
-        echo "Port $DEV_PORT is already in use. Stopping existing process..."
-        sudo kill -9 $(lsof -t -i:$DEV_PORT)
-        sleep 2
+    if [ -n "$API_PORT" ]; then
+        for pid in $(sudo lsof -ti :$API_PORT 2>/dev/null); do
+            echo "Killing process $pid using port $API_PORT..."
+            sudo kill -9 $pid 2>/dev/null || true
+        done
     fi
-
-    # Additional check for any hanging processes
+    
+    # Additional cleanup
+    echo "Cleaning up any remaining processes..."
     sudo pkill -f "uvicorn.*$APP_PATH" || true
     pkill -f "npm run dev" || true
+    pkill -f "vite" || true
+    
+    # Wait for ports to be freed
+    sleep 3
+    
+    # Verify ports are free
+    if [ -n "$DEV_PORT" ] && [ -n "$API_PORT" ]; then
+        if lsof -ti :$DEV_PORT 2>/dev/null || sudo lsof -ti :$API_PORT 2>/dev/null; then
+            echo "Error: Ports still in use after cleanup"
+            exit 1
+        fi
+    fi
 }
 
 check_pigpiod() {
@@ -49,7 +72,7 @@ check_nmcli_permissions() {
     # Create sudo rule for nmcli if it doesn't exist
     SUDO_FILE="/etc/sudoers.d/radio-nmcli"
     if [ ! -f "$SUDO_FILE" ]; then
-        echo "Setting up nmcli permissions..."
+        echo "Setting up nmcli and system permissions..."
         sudo tee $SUDO_FILE <<EOF
 # Allow radio user to run specific nmcli commands without password
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi list
@@ -59,88 +82,258 @@ radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi connect *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection up *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection delete *
 radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device set *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection add *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection modify *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli radio wifi *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli networking *
+radio ALL=(ALL) NOPASSWD: /usr/bin/rfkill
+radio ALL=(ALL) NOPASSWD: /sbin/ip link set *
+radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device disconnect *
+# Add system control permissions
+radio ALL=(ALL) NOPASSWD: /sbin/reboot
+radio ALL=(ALL) NOPASSWD: /sbin/shutdown
 EOF
         sudo chmod 440 $SUDO_FILE
     fi
 }
 
+ensure_client_mode() {
+    echo "Ensuring client mode on startup..."
+    source $VENV_PATH/bin/activate
+    
+    # Ensure correct permissions before running Python
+    sudo chown -R radio:radio /home/radio/radio/web
+    
+    # Create directory and initial mode file if it doesn't exist
+    echo "Setting up mode state file..."
+    sudo mkdir -p /tmp/radio
+    if [ ! -f "/tmp/radio/radio_mode.json" ]; then
+        echo "Creating initial mode state file..."
+        echo '{"mode": "CLIENT"}' | sudo tee /tmp/radio/radio_mode.json > /dev/null
+    fi
+    
+    # Ensure correct permissions
+    sudo chown -R radio:radio /tmp/radio
+    sudo chmod 644 /tmp/radio/radio_mode.json
+    
+    # Add debug output
+    echo "Running mode check and switch..."
+    python3 -c "
+from src.core.mode_manager import ModeManagerSingleton
+import asyncio
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('mode_switch')
+
+async def ensure_client():
+    try:
+        manager = ModeManagerSingleton.get_instance()
+        await manager.enable_client_mode()  # This method already calls _save_state internally
+        logger.info('Client mode switch completed')
+            
+    except Exception as e:
+        logger.error(f'Error in mode switch: {str(e)}', exc_info=True)
+
+asyncio.run(ensure_client())
+"
+    
+    # Wait for network to be ready
+    echo "Waiting for network..."
+    max_attempts=30
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if sudo nmcli networking connectivity check | grep -q "full"; then
+            echo "Network is ready"
+            break
+        fi
+        echo "Waiting for network... attempt $((attempt+1))/$max_attempts"
+        attempt=$((attempt+1))
+        sleep 1
+    done
+    
+    if [ $attempt -eq $max_attempts ]; then
+        echo "Warning: Network not ready after $max_attempts attempts"
+    fi
+}
+
+check_avahi() {
+    echo "Checking Avahi daemon..."
+    get_config
+    
+    # Install avahi-daemon if not present
+    if ! command -v avahi-daemon &> /dev/null; then
+        echo "Installing avahi-daemon..."
+        sudo apt-get update
+        sudo apt-get install -y avahi-daemon
+    fi
+    
+    # Configure Avahi with hostname
+    echo "Configuring Avahi..."
+    sudo tee /etc/avahi/avahi-daemon.conf << EOF
+[server]
+host-name=$HOSTNAME
+domain-name=local
+use-ipv4=yes
+use-ipv6=no
+enable-dbus=yes
+allow-interfaces=wlan0
+
+[publish]
+publish-addresses=yes
+publish-hinfo=yes
+publish-workstation=yes
+publish-domain=yes
+EOF
+    
+    # Restart Avahi daemon
+    echo "Restarting Avahi daemon..."
+    sudo systemctl restart avahi-daemon
+    
+    # Wait for Avahi to be ready
+    sleep 2
+    
+    # Verify Avahi is running
+    if ! systemctl is-active --quiet avahi-daemon; then
+        echo "Warning: avahi-daemon is not running"
+    else
+        echo "avahi-daemon is running"
+    fi
+}
+
 open_monitor() {
     echo "Opening monitor website..."
-    # Wait for services to be fully up
-    sleep 5
     
-    # Check if Chromium is already running with monitor page
-    if ! pgrep -f "chromium.*monitor" > /dev/null; then
-        # Kill any existing Chromium instances first
-        pkill chromium 2>/dev/null || true
-        sleep 1
-        
-        # Open Chromium with proper flags
-        DISPLAY=:0 chromium-browser \
-            --kiosk \
-            --start-fullscreen \
+    # Check if Chromium is already running with our monitor page
+    if pgrep -f "chromium.*monitor" > /dev/null; then
+        echo "Monitor page is already open in Chromium"
+        return
+    fi
+    
+    # Force DISPLAY to :0 since we know we're on Pi desktop
+    export DISPLAY=:0
+    export XAUTHORITY=/home/radio/.Xauthority
+    
+    # Wait a moment for X server to be fully ready
+    sleep 2
+    
+    # Check if we can actually connect to the X server
+    if ! timeout 2 xset q > /dev/null 2>&1; then
+        echo "Cannot connect to X server. Trying to run as pi user..."
+        # Try running as pi user since they typically have X server access
+        sudo -u pi DISPLAY=:0 XAUTHORITY=/home/pi/.Xauthority chromium-browser \
+            --start-maximized \
             --disable-restore-session-state \
             --noerrdialogs \
             --disable-session-crashed-bubble \
-            --no-first-run \
-            "http://localhost:$DEV_PORT/monitor" > /dev/null 2>&1 &
+            --disable-infobars \
+            "http://$HOSTNAME.local:$DEV_PORT/monitor" &
     else
-        echo "Monitor already open in browser"
+        echo "Starting Chromium with monitor page..."
+        chromium-browser \
+            --start-maximized \
+            --disable-restore-session-state \
+            --noerrdialogs \
+            --disable-session-crashed-bubble \
+            --disable-infobars \
+            "http://$HOSTNAME.local:$DEV_PORT/monitor" &
     fi
+    
+    # Add debug output
+    echo "Monitor URL: http://$HOSTNAME.local:$DEV_PORT/monitor"
 }
 
 start() {
     echo "Starting $APP_NAME..."
+    get_config
+    
+    # Validate port values
+    if [ -z "$API_PORT" ] || [ -z "$DEV_PORT" ]; then
+        echo "Error: Invalid port configuration"
+        exit 1
+    fi
+    
+    echo "Using ports: API=$API_PORT, DEV=$DEV_PORT"
+    
+    # Check if already running
+    if [ -f $PID_FILE ]; then
+        echo "$APP_NAME is already running."
+        exit 1
+    fi
+    
+    # Create log directory if it doesn't exist
+    mkdir -p $(dirname $LOG_FILE)
+    WEB_LOG_FILE="${LOG_FILE%.*}_web.log"
+    
+    # Clean up any existing processes and ports
     check_ports
+    
+    # Add check_avahi to the startup sequence
     check_pigpiod
+    check_avahi
     check_nmcli_permissions
-    source $VENV_PATH/bin/activate
-    echo "Virtual environment activated"
+    ensure_client_mode
     
-    # Clear the log file
-    echo "" > $LOG_FILE
-    
-    # Start FastAPI server with nohup
+    # Start FastAPI server
     echo "Starting FastAPI server on port $API_PORT..."
-    nohup sudo -E env "PATH=$PATH" "$VENV_PATH/bin/uvicorn" src.api.main:app \
-        --host 0.0.0.0 \
-        --port $API_PORT \
-        --reload \
-        --log-level debug > $LOG_FILE 2>&1 &
+    if [ "$DEV_MODE" = true ]; then
+        nohup sudo -E env "PATH=$PATH" \
+            "PYTHONPATH=/home/radio/radio" \
+            "$VENV_PATH/bin/uvicorn" src.api.main:app \
+            --reload \
+            --host "0.0.0.0" \
+            --port "$API_PORT" \
+            > $LOG_FILE 2>&1 &
+    else
+        nohup sudo -E env "PATH=$PATH" \
+            "PYTHONPATH=/home/radio/radio" \
+            "$VENV_PATH/bin/uvicorn" src.api.main:app \
+            --host "0.0.0.0" \
+            --port "$API_PORT" \
+            > $LOG_FILE 2>&1 &
+    fi
     API_PID=$!
     echo $API_PID > $PID_FILE
     
-    # Wait to ensure API server is up
-    sleep 5
-    
-    # Start development server with nohup
-    echo "Starting development server on port $DEV_PORT..."
-    cd web && nohup npm run dev -- \
-        --host 0.0.0.0 \
-        --port $DEV_PORT \
-        >> $LOG_FILE 2>&1 &
-    DEV_PID=$!
-    echo $DEV_PID >> $PID_FILE
-    
-    # Wait to ensure both servers start
     sleep 3
     
-    # Check if processes are running
-    if ps -p $API_PID > /dev/null && ps -p $DEV_PID > /dev/null; then
-        echo "$APP_NAME started successfully"
-        echo "FastAPI PID: $API_PID"
-        echo "Dev Server PID: $DEV_PID"
-        echo "Initial log entries:"
-        tail -n 10 $LOG_FILE
-        
-        # Open monitor website
-        open_monitor
+    # Start web server based on mode
+    echo "Starting web server on port $DEV_PORT..."
+    
+    # Change to web directory as radio user
+    cd /home/radio/radio/web
+    if [ "$DEV_MODE" = true ]; then
+        echo "Starting in development mode..."
+        sudo -u radio NODE_ENV=development \
+            HOME=/home/radio \
+            npm run dev -- \
+            --host "0.0.0.0" \
+            --port "$DEV_PORT" \
+            >> "$WEB_LOG_FILE" 2>&1 &
     else
-        echo "Failed to start $APP_NAME. Check logs for details."
-        cat $LOG_FILE
-        rm -f $PID_FILE
-        exit 1
+        echo "Starting in production mode..."
+        sudo -u radio NODE_ENV=production \
+            HOME=/home/radio \
+            bash -c "npm run build && npm run preview -- \
+            --host \"0.0.0.0\" \
+            --port \"$DEV_PORT\"" \
+            >> "$WEB_LOG_FILE" 2>&1 &
     fi
+    DEV_PID=$!
+    echo $DEV_PID >> $PID_FILE
+    cd - # Return to original directory
+    
+    echo "$APP_NAME started successfully"
+    echo "FastAPI PID: $API_PID"
+    echo "Dev Server PID: $DEV_PID"
+    
+    # Show initial log entries
+    echo "Initial log entries:"
+    tail -n 5 $LOG_FILE
+    
+    # Open monitor page regardless of mode
+    open_monitor
 }
 
 stop() {
@@ -174,7 +367,7 @@ restart() {
 }
 
 status() {
-    get_ports
+    get_config
     if [ -f $PID_FILE ]; then
         PID=$(cat $PID_FILE)
         if ps -p $PID > /dev/null; then

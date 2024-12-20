@@ -4,6 +4,7 @@
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { page } from '$app/stores';
   import { ws as wsStore } from '$lib/stores/websocket';
+  import { currentMode } from '$lib/stores/mode';
 
   // Dynamically set the page title based on the current route
   $: title = {
@@ -15,6 +16,9 @@
 
   onMount(() => {
     wsStore.sendMessage({ type: "status_request" });
+    currentMode.subscribe((mode) => {
+      console.log('Mode changed in layout:', mode);
+    });
   });
 </script>
 

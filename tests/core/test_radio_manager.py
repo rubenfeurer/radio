@@ -1,9 +1,10 @@
 import pytest
 from src.core.radio_manager import RadioManager
 from src.core.models import RadioStation, SystemStatus
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 import asyncio
 from config.config import settings
+import httpx
 
 """
 Test suite for RadioManager class.
@@ -104,3 +105,70 @@ async def test_concurrent_station_toggle(radio_manager):
     status = radio_manager.get_status()
     assert status.is_playing
     assert status.current_station is not None
+
+@pytest.mark.asyncio
+async def test_long_press_rotary_switch(radio_manager):
+    """Test long press on rotary switch triggers mode toggle"""
+    # Mock httpx.AsyncClient
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    
+    with patch('httpx.AsyncClient') as mock_client:
+        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=mock_response
+        )
+        
+        # Test long press on rotary switch
+        await radio_manager._handle_long_press(settings.ROTARY_SW)
+        
+        # Verify mode toggle endpoint was called
+        mock_client.return_value.__aenter__.return_value.post.assert_called_once_with(
+            'http://localhost:80/api/v1/mode/toggle'
+        )
+
+@pytest.mark.asyncio
+async def test_long_press_other_button(radio_manager):
+    """Test long press on non-rotary buttons doesn't trigger mode toggle"""
+    with patch('httpx.AsyncClient') as mock_client:
+        # Test long press on button 1
+        await radio_manager._handle_long_press(1)
+        
+        # Verify mode toggle endpoint was not called
+        mock_client.return_value.__aenter__.return_value.post.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_long_press_failed_toggle(radio_manager):
+    """Test handling of failed mode toggle"""
+    # Mock failed response
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+    mock_response.text = "Internal Server Error"
+    
+    with patch('httpx.AsyncClient') as mock_client:
+        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=mock_response
+        )
+        
+        # Test long press with failed response
+        await radio_manager._handle_long_press(settings.ROTARY_SW)
+        
+        # Verify error was handled gracefully
+        mock_client.return_value.__aenter__.return_value.post.assert_called_once_with(
+            'http://localhost:80/api/v1/mode/toggle'
+        )
+
+@pytest.mark.asyncio
+async def test_long_press_network_error(radio_manager):
+    """Test handling of network error during mode toggle"""
+    with patch('httpx.AsyncClient') as mock_client:
+        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+            side_effect=httpx.NetworkError("Connection failed")
+        )
+        
+        # Test long press with network error
+        await radio_manager._handle_long_press(settings.ROTARY_SW)
+        
+        # Verify error was handled gracefully
+        mock_client.return_value.__aenter__.return_value.post.assert_called_once_with(
+            'http://localhost:80/api/v1/mode/toggle'
+        )

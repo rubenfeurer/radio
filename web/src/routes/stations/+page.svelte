@@ -6,16 +6,6 @@
   import { browser } from '$app/environment';
   import type { RadioStation } from '../../types';
 
-  // Get the current hostname (IP or domain)
-  const currentHost = browser ? window.location.hostname : '';
-  
-  // Determine API base URL
-  const API_BASE = browser 
-    ? (window.location.port === '5173' 
-      ? `http://${currentHost}:80`
-      : '')
-    : '';
-
   let allStations: RadioStation[] = [];
   let searchQuery = '';
   let filteredStations: RadioStation[] = [];
@@ -32,7 +22,7 @@
     targetSlot = slotParam ? parseInt(slotParam) : null;
 
     try {
-        const response = await fetch(`${API_BASE}/api/v1/stations`);
+        const response = await fetch(`/api/v1/stations`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -91,7 +81,7 @@
 
     try {
         console.log('Assigning station:', station);
-        const response = await fetch(`${API_BASE}/api/v1/stations/${targetSlot}/assign`, {
+        const response = await fetch(`/api/v1/stations/${targetSlot}/assign`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

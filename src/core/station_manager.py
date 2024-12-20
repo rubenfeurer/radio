@@ -69,21 +69,28 @@ class StationManager:
     
     def _save_to_file(self) -> None:
         """Save current stations to JSON file"""
-        self.STATIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        
-        data = {
-            str(slot): {
-                "name": station.name,
-                "url": station.url,
-                "slot": station.slot,
-                "country": station.country,
-                "location": station.location
+        try:
+            self.STATIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            
+            data = {
+                str(slot): {
+                    "name": station.name,
+                    "url": station.url,
+                    "slot": station.slot,
+                    "country": station.country,
+                    "location": station.location
+                }
+                for slot, station in self._stations.items()
             }
-            for slot, station in self._stations.items()
-        }
-        
-        with open(self.STATIONS_FILE, 'w') as f:
-            json.dump(data, f, indent=2)
+            
+            with open(self.STATIONS_FILE, 'w') as f:
+                json.dump(data, f, indent=2)
+        except PermissionError as e:
+            logger.error(f"Permission denied when saving stations: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error saving stations: {e}")
+            raise
     
     def get_station(self, slot: int) -> Optional[RadioStation]:
         """Get station by slot number"""

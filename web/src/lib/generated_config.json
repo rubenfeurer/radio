@@ -1,0 +1,8 @@
+{
+  "API_V1_STR": "/api/v1",
+  "API_PREFIX": "/api",
+  "WS_PATH": "/ws",
+  "API_PORT": 80,
+  "DEV_PORT": 5173,
+  "HOSTNAME": "radiod.local"
+}
