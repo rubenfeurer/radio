@@ -28,11 +28,11 @@ jobs:
           libasound2-dev \
           network-manager
         
-    - name: Setup pigpio
+    - name: Setup and verify pigpio
       run: |
         # Clean up any existing pigpio
         sudo pkill pigpiod || true
-        sudo rm -rf /var/run/pigpio.pid || true
+        sudo rm -rf /var/run/pigpio* || true
         
         # Download and build pigpio
         wget https://github.com/joan2937/pigpio/archive/master.zip
@@ -47,14 +47,19 @@ jobs:
         sudo chmod 777 /var/run/pigpio
         
         # Start pigpio daemon with debug output
-        sudo pigpiod -l -t 0 -v
-        sleep 5  # Wait longer for daemon to start
+        echo "Starting pigpiod..."
+        sudo pigpiod -v
+        sleep 2
         
-        # Debug information
-        echo "Checking pigpio status:"
-        ps aux | grep pigpio
-        sudo netstat -tulpn | grep pigpiod
-        ls -la /var/run/pigpio*
+        # Verify daemon is running
+        if pgrep pigpiod; then
+          echo "✅ pigpiod is running"
+          ps aux | grep pigpio
+          sudo netstat -tulpn | grep 8888 || echo "Port 8888 not found"
+        else
+          echo "❌ pigpiod failed to start"
+          exit 1
+        fi
         
     - name: Install Python dependencies
       run: |
@@ -71,15 +76,19 @@ jobs:
         SKIP_NM_CHECK: "true"
         PYTEST_TIMEOUT: "30"
         PYTEST_ASYNCIO_MODE: "auto"
-        PIGPIO_ADDR: "127.0.0.1"  # Changed from localhost
+        PIGPIO_ADDR: "127.0.0.1"
         PIGPIO_PORT: "8888"
       run: |
-        # Verify pigpio daemon is running
+        # Double check pigpio daemon before tests
         if ! pgrep pigpiod; then
-          echo "pigpiod not running, starting it..."
-          sudo pigpiod -l -t 0
-          sleep 5
+          echo "Restarting pigpiod..."
+          sudo pigpiod
+          sleep 2
         fi
+        
+        # Verify pigpio is accessible
+        echo "Testing pigpio connection..."
+        python3 -c "import pigpio; pi=pigpio.pi(); print('Pigpio connection successful' if pi.connected else 'Failed to connect')"
         
         # Run pytest
         pytest -v tests/ \
