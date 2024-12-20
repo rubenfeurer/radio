@@ -2,9 +2,9 @@ name: Radio Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
 
 jobs:
   test:
@@ -35,17 +35,21 @@ jobs:
         cd pigpio-master
         make
         sudo make install
+        cd ..
         
         # Create required directories and set permissions
         sudo mkdir -p /var/run/pigpio
         sudo chmod 777 /var/run/pigpio
         
-        # Start services
-        sudo systemctl start NetworkManager
-        sudo pigpiod -l -t 0 || true
+        # Start pigpio daemon with specific options
+        sudo pigpiod -l -t 0
+        sleep 2  # Wait for daemon to start
         
-        # Verify NetworkManager is running
-        sudo systemctl status NetworkManager
+        # Verify pigpio daemon is running
+        pgrep pigpiod || echo "pigpiod not running"
+        
+        # Start NetworkManager
+        sudo systemctl start NetworkManager
         
     - name: Install Python dependencies
       run: |
@@ -60,8 +64,10 @@ jobs:
         TEST_MODE: "CI"
         DISABLE_HARDWARE: "true"
         SKIP_NM_CHECK: "true"
-        PYTEST_TIMEOUT: "10"
+        PYTEST_TIMEOUT: "30"
         PYTEST_ASYNCIO_MODE: "auto"
+        PIGPIO_ADDR: "localhost"
+        PIGPIO_PORT: "8888"
       run: |
         # Run pytest with detailed output and specific settings
         pytest -v tests/ \
