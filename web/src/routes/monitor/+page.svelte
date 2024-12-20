@@ -65,8 +65,21 @@
     };
 
     monitorWs.onclose = () => {
-      console.log('WebSocket closed');
+      console.log('WebSocket closed, attempting reconnect...');
       wsConnected = false;
+      
+      // Try to reconnect after a delay
+      setTimeout(() => {
+        console.log('Attempting WebSocket reconnection...');
+        if ($currentMode === 'ap') {
+          // In AP mode, use the AP IP address
+          const apUrl = `ws://192.168.4.1${API_V1_STR}/monitor/ws`;
+          console.log('Connecting to AP WebSocket:', apUrl);
+          monitorWs = new WebSocket(apUrl);
+        } else {
+          setupWebSocket();
+        }
+      }, 2000);
     };
 
     // Ping to keep connection alive
@@ -84,18 +97,33 @@
     };
   }
 
+  // Watch for mode changes and reconnect WebSocket if needed
+  $: if ($currentMode === 'ap') {
+    console.log('Switching to AP mode, reconnecting WebSocket...');
+    setupWebSocket();
+  }
+
   function updateMonitorData(data: any) {
     console.log('Received monitor update:', data);
     if (data.systemInfo) {
       const oldCpu = systemInfo.cpuUsage;
       systemInfo = data.systemInfo;
+      
+      // Update mode if present (add debug logs)
+      if (data.systemInfo.mode) {
+        const newMode = data.systemInfo.mode.toLowerCase();
+        console.log('Mode update received:', {
+          current: $currentMode,
+          new: newMode,
+          raw: data.systemInfo.mode
+        });
+        currentMode.set(newMode);
+      } else {
+        console.log('No mode in systemInfo:', data.systemInfo);
+      }
+
       if (oldCpu !== data.systemInfo.cpuUsage) {
         console.log(`CPU Usage changed: ${oldCpu} -> ${data.systemInfo.cpuUsage}`);
-      }
-      
-      // Update mode if present
-      if (data.systemInfo.mode) {
-        currentMode.set(data.systemInfo.mode.toLowerCase());
       }
     }
     if (data.services) {
@@ -110,8 +138,14 @@
     // Setup WebSocket for live updates
     const cleanup = setupWebSocket();
     
+    // Debug mode changes
+    const unsubscribe = currentMode.subscribe((mode) => {
+      console.log('Mode store updated:', mode);
+    });
+    
     return () => {
       cleanup();
+      unsubscribe();
     };
   });
 

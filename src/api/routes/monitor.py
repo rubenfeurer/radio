@@ -38,7 +38,7 @@ async def get_system_info() -> SystemInfo:
     except:
         temp = 0
     
-    # Get hotspot information
+    # Get hotspot information - Add debug logging
     try:
         result = subprocess.run(['nmcli', 'device', 'show', 'wlan0'], 
                               capture_output=True, text=True)
@@ -49,19 +49,23 @@ async def get_system_info() -> SystemInfo:
                 if 'GENERAL.CONNECTION:' in line:
                     hotspot_ssid = line.split(':')[1].strip()
                     break
+        logging.debug(f"[MONITOR] Current hotspot SSID: {hotspot_ssid}")
     except Exception as e:
-        logger.error(f"Error getting hotspot info: {e}")
+        logging.error(f"[MONITOR] Error getting hotspot info: {e}")
         hotspot_ssid = None
     
-    return SystemInfo(
+    system_info = SystemInfo(
         hostname=hostname,
         ip=ip,
         cpuUsage=f"{cpu}%",
-        diskSpace=f"{disk.free // (2**30)} GB free",
+        diskSpace=f"Used: {disk.percent}%",
         temperature=f"{temp:.1f}°C",
-        hotspot_ssid=hotspot_ssid,
-        mode=current_mode.value.lower()  # Add mode to system info
+        mode=current_mode,
+        hotspot_ssid=hotspot_ssid
     )
+    
+    logging.debug(f"[MONITOR] System info update: mode={current_mode}, hotspot={hotspot_ssid}")
+    return system_info
 
 async def get_services_status():
     # List of critical services
