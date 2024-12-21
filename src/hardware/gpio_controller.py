@@ -227,11 +227,11 @@ class GPIOController:
                     if self.long_press_callback:
                         logger.info(f"Long press threshold met for button {button_number}")
                         self.long_press_triggered[gpio] = True
+                        self.press_count[gpio] = 0  # Reset press count when long press is detected
                         await self.long_press_callback(button_number)
                     break  # Exit after triggering
                 
                 await asyncio.sleep(0.1)
-                
         except asyncio.CancelledError:
             logger.debug(f"Long press monitoring cancelled for button {button_number}")
         except Exception as e:

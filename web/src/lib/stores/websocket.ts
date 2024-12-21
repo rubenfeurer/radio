@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { WS_URL } from '$lib/config';
-import { currentMode } from './mode';  // Import the mode store
+import { currentMode } from './mode';
 
 interface WSMessage {
     type: 'status_update' | 'mode_update' | 'wifi_update' | 'monitor_update';
@@ -77,8 +77,17 @@ export const createWebSocketStore = () => {
         }
     };
 
+    // Initial connection
     if (browser) {
         connect();
+        
+        // Add mode change subscription
+        currentMode.subscribe((mode) => {
+            if (mode) {
+                console.log('WebSocket: Mode changed to', mode, ', reconnecting...');
+                connect();
+            }
+        });
     }
 
     return {

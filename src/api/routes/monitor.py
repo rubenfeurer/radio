@@ -140,23 +140,28 @@ async def periodic_broadcast():
                     except Exception as e:
                         logging.error(f"[MONITOR] Error broadcasting to client: {e}")
                         active_connections.remove(connection)
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
         except Exception as e:
             logging.error(f"[MONITOR] Error in periodic broadcast: {e}")
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     logging.info("[MONITOR] New WebSocket connection request")
     await websocket.accept()
+    
+    # Ensure clean state
+    if websocket in active_connections:
+        active_connections.remove(websocket)
     active_connections.add(websocket)
+    
     logging.info(f"[MONITOR] WebSocket connection accepted. Total connections: {len(active_connections)}")
     
-    # Start broadcast task if it's not running
+    # Always restart broadcast task for new connections
     global broadcast_task
-    if broadcast_task is None or broadcast_task.done():
-        logging.info("Starting new broadcast task")
-        broadcast_task = asyncio.create_task(periodic_broadcast())
+    if broadcast_task:
+        broadcast_task.cancel()
+    broadcast_task = asyncio.create_task(periodic_broadcast())
     
     try:
         while True:
@@ -167,9 +172,11 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logging.error(f"WebSocket error: {e}")
     finally:
-        active_connections.remove(websocket)
+        if websocket in active_connections:
+            active_connections.remove(websocket)
         logging.info(f"WebSocket disconnected. Remaining connections: {len(active_connections)}")
-        if not active_connections and broadcast_task:
+        # Only cancel broadcast if truly no connections left
+        if len(active_connections) == 0 and broadcast_task:
             broadcast_task.cancel()
 
 # REST endpoint for initial data and fallback
