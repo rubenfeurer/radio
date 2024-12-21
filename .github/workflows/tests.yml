@@ -43,11 +43,33 @@ jobs:
         
     - name: Create mock pigpio module
       run: |
-        echo "class pi:
+        echo 'class pi:
             def __init__(self, *args, **kwargs):
                 pass
             def stop(self):
-                pass" > mock_pigpio.py
+                pass
+            def set_mode(self, *args, **kwargs):
+                pass
+            def set_pull_up_down(self, *args, **kwargs):
+                pass
+            def callback(self, *args, **kwargs):
+                pass
+            def get_pigpio_version(self, *args, **kwargs):
+                return 1
+            def set_glitch_filter(self, *args, **kwargs):
+                pass
+            def read(self, *args, **kwargs):
+                return 0
+            def write(self, *args, **kwargs):
+                pass
+
+        INPUT = 0
+        OUTPUT = 1
+        PUD_UP = 2
+        PUD_DOWN = 1
+        EITHER_EDGE = 2
+        RISING_EDGE = 1
+        FALLING_EDGE = 0' > pigpio.py
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         
     - name: Run tests with mocked hardware
