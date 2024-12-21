@@ -18,6 +18,8 @@
   let services = [];
   let wsConnected = false;
   let monitorWs: WebSocket | null = null;
+  let isFirstConnection = true;
+  let reconnectTimer: NodeJS.Timeout | null = null;
 
   // Initialize with API call
   async function fetchInitialData() {
@@ -39,68 +41,56 @@
     const wsBase = WS_URL.substring(0, WS_URL.indexOf('/api/v1'));
     const wsUrl = `${wsBase}${API_V1_STR}/monitor/ws`;
     
-    console.log('Connecting to WebSocket:', wsUrl);
+    console.log('Monitor: Attempting WebSocket connection to:', wsUrl);
     monitorWs = new WebSocket(wsUrl);
     
     monitorWs.onopen = () => {
-      console.log('WebSocket connected');
-      wsConnected = true;
+        console.log('Monitor: WebSocket connected successfully');
+        wsConnected = true;
+        
+        // Reset the data to trigger reactivity
+        systemInfo = {
+            hostname: 'Loading...',
+            ip: 'Loading...',
+            cpuUsage: 'Loading...',
+            diskSpace: 'Loading...',
+            temperature: 'Loading...',
+            hotspot_ssid: 'Loading...'
+        };
+        services = [];
+        
+        // Send initial monitor request
+        monitorWs.send(JSON.stringify({ type: 'monitor_request' }));
     };
-    
+
     monitorWs.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('WebSocket message received:', data.type);
-        if (data.type === 'monitor_update') {
-          updateMonitorData(data.data);
+        try {
+            const data = JSON.parse(event.data);
+            console.log('Monitor: Message received:', data.type);
+            if (data.type === 'monitor_update') {
+                updateMonitorData(data.data);
+            }
+        } catch (e) {
+            console.error('Monitor: Error handling message:', e);
         }
-      } catch (e) {
-        console.error('Error handling WebSocket message:', e);
-      }
     };
 
     monitorWs.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      wsConnected = false;
+        console.error('Monitor: WebSocket error:', error);
+        wsConnected = false;
     };
 
     monitorWs.onclose = () => {
-      console.log('WebSocket closed, attempting reconnect...');
-      wsConnected = false;
-      
-      // Try to reconnect after a delay
-      setTimeout(() => {
-        console.log('Attempting WebSocket reconnection...');
-        if ($currentMode === 'ap') {
-          // In AP mode, use the AP IP address
-          const apUrl = `ws://192.168.4.1${API_V1_STR}/monitor/ws`;
-          console.log('Connecting to AP WebSocket:', apUrl);
-          monitorWs = new WebSocket(apUrl);
-        } else {
-          setupWebSocket();
-        }
-      }, 2000);
+        console.log('Monitor: WebSocket closed, attempting reconnect...');
+        wsConnected = false;
+        
+        // Always try to reconnect after a delay
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => {
+            console.log('Monitor: Attempting reconnection...');
+            setupWebSocket();
+        }, 2000);
     };
-
-    // Ping to keep connection alive
-    const pingInterval = setInterval(() => {
-      if (monitorWs?.readyState === WebSocket.OPEN) {
-        monitorWs.send('ping');
-        console.log('Ping sent');
-      }
-    }, 30000);
-
-    // Cleanup
-    return () => {
-      clearInterval(pingInterval);
-      if (monitorWs) monitorWs.close();
-    };
-  }
-
-  // Watch for mode changes and reconnect WebSocket if needed
-  $: if ($currentMode === 'ap') {
-    console.log('Switching to AP mode, reconnecting WebSocket...');
-    setupWebSocket();
   }
 
   function updateMonitorData(data: any) {
@@ -132,24 +122,17 @@
   }
 
   onMount(async () => {
-    // Get initial data
     await fetchInitialData();
-    
-    // Setup WebSocket for live updates
-    const cleanup = setupWebSocket();
-    
-    // Debug mode changes
-    const unsubscribe = currentMode.subscribe((mode) => {
-      console.log('Mode store updated:', mode);
-    });
+    setupWebSocket();
     
     return () => {
-      cleanup();
-      unsubscribe();
+        clearTimeout(reconnectTimer);
+        if (monitorWs) monitorWs.close();
     };
   });
 
   onDestroy(() => {
+    clearTimeout(reconnectTimer);
     if (monitorWs) monitorWs.close();
   });
 
