@@ -45,7 +45,7 @@ jobs:
       run: |
         echo 'class pi:
             def __init__(self, *args, **kwargs):
-                pass
+                self.connected = True
             def stop(self):
                 pass
             def set_mode(self, *args, **kwargs):
