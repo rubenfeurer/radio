@@ -41,6 +41,15 @@ jobs:
     - name: Create logs directory
       run: mkdir -p logs
         
+    - name: Create mock pigpio module
+      run: |
+        echo "class pi:
+            def __init__(self, *args, **kwargs):
+                pass
+            def stop(self):
+                pass" > mock_pigpio.py
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        
     - name: Run tests with mocked hardware
       env:
         MOCK_HARDWARE: "true"
@@ -54,10 +63,11 @@ jobs:
         PYTEST_ASYNCIO_MODE: "auto"
         LOG_DIR: "logs"
       run: |
+        # Create mock pigpio environment
         sudo mkdir -p /run/pigpio
         sudo touch /run/pigpio/pigpio.pid
         
-        pytest -v tests/ \
+        PYTHONPATH=. pytest -v tests/ \
           --cov=src \
           --capture=no \
           --log-cli-level=DEBUG \
@@ -65,7 +75,7 @@ jobs:
           -p no:warnings \
           --ignore=tests/hardware \
           --ignore=tests/integration \
-          -k "not test_gpio"
+          -k "not test_gpio and not test_hardware"
         
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
