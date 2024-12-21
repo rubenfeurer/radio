@@ -30,7 +30,8 @@ jobs:
           mpv libmpv-dev \
           python3-pip python3-venv \
           libasound2-dev \
-          network-manager
+          network-manager \
+          alsa-utils
         
     - name: Install Python dependencies
       run: |

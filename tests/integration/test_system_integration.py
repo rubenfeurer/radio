@@ -76,21 +76,21 @@ async def test_volume_control_integration():
 
 @pytest.mark.asyncio
 async def test_button_press_types():
-    """Test different types of button presses (single, double, long)"""
+    """Test different types of button presses (single, triple, long)"""
     loop = asyncio.get_event_loop()
     
     # Create counters for callbacks
     single_press_count = 0
-    double_press_count = 0
+    triple_press_count = 0
     long_press_count = 0
 
     async def single_press_callback(button):
         nonlocal single_press_count
         single_press_count += 1
 
-    async def double_press_callback(button):
-        nonlocal double_press_count
-        double_press_count += 1
+    async def triple_press_callback(button):
+        nonlocal triple_press_count
+        triple_press_count += 1
 
     async def long_press_callback(button):
         nonlocal long_press_count
@@ -99,31 +99,37 @@ async def test_button_press_types():
     gpio = GPIOController(
         event_loop=loop,
         button_press_callback=single_press_callback,
-        double_press_callback=double_press_callback,
+        triple_press_callback=triple_press_callback,
         long_press_callback=long_press_callback
     )
     
     # Test single press
     gpio._handle_button(settings.BUTTON_PIN_1, 0, 0)  # Press
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.05)
     gpio._handle_button(settings.BUTTON_PIN_1, 1, 0)  # Release
-    await asyncio.sleep(settings.DOUBLE_PRESS_INTERVAL + 0.1)  # Wait longer to ensure no double press
+    await asyncio.sleep(1.0)  # Wait longer to ensure no triple press
     assert single_press_count == 1
     
-    # Reset GPIO state
+    # Reset counters and state
+    single_press_count = 0
     gpio.last_press_time = {pin: 0 for pin in [settings.BUTTON_PIN_1, settings.BUTTON_PIN_2, settings.BUTTON_PIN_3]}
     gpio.press_start_time = {pin: 0 for pin in [settings.BUTTON_PIN_1, settings.BUTTON_PIN_2, settings.BUTTON_PIN_3]}
+    gpio.press_count = {pin: 0 for pin in [settings.BUTTON_PIN_1, settings.BUTTON_PIN_2, settings.BUTTON_PIN_3]}
     
-    # Test double press with precise timing
-    gpio._handle_button(settings.BUTTON_PIN_1, 0, 0)  # First press
-    await asyncio.sleep(0.05)
-    gpio._handle_button(settings.BUTTON_PIN_1, 1, 0)  # First release
-    await asyncio.sleep(settings.DOUBLE_PRESS_INTERVAL * 0.3)  # Wait shorter time between presses
-    gpio._handle_button(settings.BUTTON_PIN_1, 0, 0)  # Second press
-    await asyncio.sleep(0.05)
-    gpio._handle_button(settings.BUTTON_PIN_1, 1, 0)  # Second release
-    await asyncio.sleep(settings.DOUBLE_PRESS_INTERVAL + 0.1)  # Wait for processing
-    assert double_press_count == 1
+    # Test triple press with shorter intervals
+    for _ in range(3):
+        gpio._handle_button(settings.BUTTON_PIN_1, 0, 0)  # Press
+        await asyncio.sleep(0.05)
+        gpio._handle_button(settings.BUTTON_PIN_1, 1, 0)  # Release
+        await asyncio.sleep(0.1)  # Short delay between presses
+    
+    await asyncio.sleep(0.5)  # Wait for triple press detection
+    assert triple_press_count == 1
+    
+    # Reset state for long press test
+    gpio.last_press_time = {pin: 0 for pin in [settings.BUTTON_PIN_1, settings.BUTTON_PIN_2, settings.BUTTON_PIN_3]}
+    gpio.press_start_time = {pin: 0 for pin in [settings.BUTTON_PIN_1, settings.BUTTON_PIN_2, settings.BUTTON_PIN_3]}
+    gpio.press_count = {pin: 0 for pin in [settings.BUTTON_PIN_1, settings.BUTTON_PIN_2, settings.BUTTON_PIN_3]}
     
     # Test long press
     gpio._handle_button(settings.BUTTON_PIN_1, 0, 0)  # Press

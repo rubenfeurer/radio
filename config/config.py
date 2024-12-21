@@ -53,7 +53,7 @@ class Settings(BaseModel):
     
     # Button press durations (in seconds)
     LONG_PRESS_DURATION: float = 3.0
-    DOUBLE_PRESS_INTERVAL: float = 0.5
+    TRIPLE_PRESS_INTERVAL: float = 0.5
     
     def export_frontend_config(self) -> None:
         """Export relevant settings for frontend use"""
