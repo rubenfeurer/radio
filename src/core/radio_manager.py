@@ -30,9 +30,12 @@ class RadioManager:
             volume_change_callback=self._handle_volume_change,
             button_press_callback=self._handle_button_press,
             long_press_callback=self._handle_long_press,
-            double_press_callback=self._handle_double_press,
+            triple_press_callback=self._handle_triple_press,
             event_loop=self.loop
         )
+        # Add reset callback
+        self._gpio.reset_callback = self._handle_reset_sequence
+        
         logger.info("GPIO controller initialized")
         logger.info("RadioManager initialization complete")
         
@@ -174,15 +177,35 @@ class RadioManager:
         except Exception as e:
             logger.error(f"Error in long press handler: {str(e)}", exc_info=True)
 
-    async def _handle_double_press(self, button: int) -> None:
-        """Handle double press events."""
+    async def _handle_triple_press(self, button: int) -> None:
+        """Handle triple press events."""
         try:
             if button == settings.ROTARY_SW:
-                logger.warning("Double press detected on rotary switch - initiating system reboot")
+                logger.warning("Triple press detected on rotary switch - initiating system reboot")
                 # Cleanup before reboot
                 await self.stop_playback()
                 await self._broadcast_status()
                 # Initiate reboot
                 subprocess.run(['sudo', 'reboot'], check=True)
         except Exception as e:
-            logger.error(f"Error in double press handler: {e}")
+            logger.error(f"Error in triple press handler: {e}")
+
+    async def _handle_reset_sequence(self):
+        """Handle the 4-press reset sequence."""
+        try:
+            logger.warning("Reset sequence detected - initiating system reset")
+            
+            # Stop playback
+            await self.stop_playback()
+            await self._broadcast_status()
+            
+            # Run reset script
+            logger.info("Running reset_radio.sh")
+            subprocess.run(['/home/radio/radio/install/reset_radio.sh'], check=True)
+            
+            # Restart radio service
+            logger.info("Restarting radio service")
+            subprocess.run(['sudo', 'systemctl', 'restart', 'radio'], check=True)
+            
+        except Exception as e:
+            logger.error(f"Error handling reset sequence: {e}")

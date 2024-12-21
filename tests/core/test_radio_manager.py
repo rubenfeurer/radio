@@ -81,12 +81,16 @@ async def test_volume_change_callback(radio_manager):
     
     radio_manager._status_update_callback = status_callback
     
-    # Test
-    await radio_manager._handle_volume_change(5)
-    
-    # Verify
-    assert radio_manager.get_status().volume == settings.DEFAULT_VOLUME + 5
-    assert callback_called == True
+    # Mock the volume control
+    with patch('subprocess.run') as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        
+        # Test
+        await radio_manager._handle_volume_change(5)
+        
+        # Verify
+        assert radio_manager.get_status().volume == settings.DEFAULT_VOLUME + 5
+        assert callback_called
 
 @pytest.mark.asyncio
 async def test_concurrent_station_toggle(radio_manager):

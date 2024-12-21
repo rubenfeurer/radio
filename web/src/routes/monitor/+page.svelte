@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { Card, Button, Badge, Table, TableBody, TableBodyRow, TableBodyCell, TableHead, TableHeadCell, Alert } from 'flowbite-svelte';
   import { ws as wsStore } from '$lib/stores/websocket';
   import { currentMode } from '$lib/stores/mode';
+  import { API_V1_STR, WS_URL } from '$lib/config';
 
   // State for system info and processes
   let systemInfo = {
@@ -16,93 +17,117 @@
 
   let services = [];
   let wsConnected = false;
+  let monitorWs: WebSocket | null = null;
+  let isFirstConnection = true;
+  let reconnectTimer: NodeJS.Timeout | null = null;
 
-  // Subscribe to WebSocket connection status
-  wsStore.subscribe(socket => {
-    wsConnected = socket !== null;
-    
-    if (socket) {
-      // Listen for WebSocket messages
-      socket.addEventListener('message', (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('WebSocket message received:', data);
-          
-          switch(data.type) {
-            case 'monitor_update':
-              if (data.data.systemInfo) {
-                console.log('System Info update:', data.data.systemInfo);
-                systemInfo = data.data.systemInfo;
-                
-                // Add this block to handle mode from systemInfo
-                if (data.data.systemInfo.mode) {
-                  const mode = data.data.systemInfo.mode.toLowerCase();
-                  console.log('Setting mode from systemInfo:', mode);
-                  currentMode.set(mode);
-                }
-              }
-              if (data.data.services) {
-                services = data.data.services;
-              }
-              break;
-            
-            case 'status_response':
-              wsStore.sendMessage({ 
-                type: "monitor_request",
-                data: { requestType: "full" }
-              });
-              break;
-
-            case 'mode_update':
-              console.group('Mode Update');
-              console.log('Raw mode data:', data.data);
-              console.log('Current mode before update:', $currentMode);
-              if (data.data && data.data.mode) {
-                const mode = data.data.mode.toLowerCase();
-                console.log('Setting mode to:', mode);
-                currentMode.set(mode);
-              } else {
-                console.error('Invalid mode update data:', data);
-              }
-              console.log('Current mode after update:', $currentMode);
-              console.groupEnd();
-              break;
-          }
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-          console.log('Raw message:', event.data);
-        }
-      });
+  // Initialize with API call
+  async function fetchInitialData() {
+    try {
+      const response = await fetch(`${API_V1_STR}/monitor/status`);
+      if (!response.ok) throw new Error('Failed to fetch monitor data');
+      const data = await response.json();
+      updateMonitorData(data);
+    } catch (e) {
+      console.error('Error fetching initial data:', e);
     }
-  });
+  }
 
-  onMount(() => {
-    console.log('Current mode on mount:', $currentMode);  // Debug current mode
+  // Setup WebSocket connection for live updates
+  function setupWebSocket() {
+    if (monitorWs) monitorWs.close();
     
-    // Request initial monitor data
-    wsStore.sendMessage({ 
-      type: "monitor_request",
-      data: { requestType: "full" }
-    });
+    const wsBase = WS_URL.substring(0, WS_URL.indexOf('/api/v1'));
+    const wsUrl = `${wsBase}${API_V1_STR}/monitor/ws`;
+    
+    console.log('Monitor: Connecting to WebSocket:', wsUrl);
+    monitorWs = new WebSocket(wsUrl);
+    
+    monitorWs.onopen = async () => {
+        console.log('Monitor: WebSocket connected');
+        wsConnected = true;
+        
+        // Fetch fresh data when connection is established
+        try {
+            const response = await fetch(`${API_V1_STR}/monitor/status`);
+            if (!response.ok) throw new Error('Failed to fetch monitor data');
+            const data = await response.json();
+            updateMonitorData(data);
+        } catch (e) {
+            console.error('Monitor: Error fetching initial data:', e);
+        }
+    };
 
-    // Also request mode explicitly
-    wsStore.sendMessage({
-      type: "mode_request",
-      data: { requestType: "current" }
-    });
+    monitorWs.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            // Only log non-monitor updates to reduce console spam
+            if (data.type !== 'monitor_update') {
+                console.log('Monitor: Message received:', data.type);
+            }
+            if (data.type === 'monitor_update') {
+                updateMonitorData(data.data);
+            }
+        } catch (e) {
+            console.error('Monitor: Error handling message:', e);
+        }
+    };
 
-    // Set up periodic updates
-    const interval = setInterval(() => {
-      wsStore.sendMessage({ 
-        type: "monitor_request",
-        data: { requestType: "update" }
-      });
-    }, 5000);
+    monitorWs.onerror = (error) => {
+        wsConnected = false;
+    };
 
+    monitorWs.onclose = () => {
+        console.log('Monitor: WebSocket closed, scheduling reconnect...');
+        wsConnected = false;
+        
+        // Always attempt to reconnect
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => {
+            console.log('Monitor: Attempting reconnection...');
+            setupWebSocket();
+        }, 3000);
+    };
+  }
+
+  function updateMonitorData(data: any) {
+    // Reduce console logging
+    if (data.systemInfo) {
+        systemInfo = { ...data.systemInfo };
+        
+        if (data.systemInfo.mode) {
+            const newMode = data.systemInfo.mode.toLowerCase();
+            if (newMode !== $currentMode) {
+                console.log('Mode changed:', newMode);
+                currentMode.set(newMode);
+            }
+        }
+    }
+    if (data.services) {
+        services = [...data.services];
+    }
+  }
+
+  onMount(async () => {
+    await fetchInitialData();
+    setupWebSocket();
+    
     return () => {
-      clearInterval(interval);
+        clearTimeout(reconnectTimer);
+        if (monitorWs) monitorWs.close();
     };
   });
+
+  onDestroy(() => {
+    clearTimeout(reconnectTimer);
+    if (monitorWs) monitorWs.close();
+  });
+
+  // Watch for mode changes and force reconnect
+  $: if ($currentMode) {
+    console.log('Monitor: Mode changed to:', $currentMode);
+    setupWebSocket();
+  }
 
   // Add explicit props for Flowbite components
   let tableHeadClass = '';

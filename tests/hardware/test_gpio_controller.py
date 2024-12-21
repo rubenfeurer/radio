@@ -119,8 +119,8 @@ def test_long_press_detection():
         loop.run_until_complete(asyncio.sleep(0))
         mock_callback.assert_called_once_with(1)
 
-def test_double_press_detection():
-    """Test double press detection"""
+def test_triple_press_detection():
+    """Test triple press detection"""
     mock_callback = Mock()
     with patch('pigpio.pi') as mock_pi:
         mock_instance = Mock()
@@ -131,16 +131,22 @@ def test_double_press_detection():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        controller = GPIOController(double_press_callback=mock_callback, event_loop=loop)
+        controller = GPIOController(triple_press_callback=mock_callback, event_loop=loop)
         gpio = settings.BUTTON_PIN_1
 
-        # Simulate double press with proper press/release sequence
+        # Define press interval
+        press_interval = 0.2  # Use a fixed value for testing
+
+        # Simulate triple press with proper press/release sequence
         controller._handle_button(gpio, 0, 0)  # First press
         controller._handle_button(gpio, 1, 0)  # First release
-        time.sleep(settings.DOUBLE_PRESS_INTERVAL / 2)  # Wait less than interval
+        time.sleep(press_interval)  # Wait between presses
         controller._handle_button(gpio, 0, 0)  # Second press
         controller._handle_button(gpio, 1, 0)  # Second release
+        time.sleep(press_interval)  # Wait between presses
+        controller._handle_button(gpio, 0, 0)  # Third press
+        controller._handle_button(gpio, 1, 0)  # Third release
 
-        # Check if double press callback was called
-        loop.run_until_complete(asyncio.sleep(0))
+        # Check if triple press callback was called
+        loop.run_until_complete(asyncio.sleep(0.1))
         mock_callback.assert_called_once_with(1) 
