@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any
 from config.config import settings
 import os
 import asyncio
+from datetime import datetime
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -99,6 +100,45 @@ class ModeManagerSingleton:
     async def enable_ap_mode(self) -> None:
         try:
             logger.info(f"Enabling AP mode with SSID: {self.AP_SSID}, Password: {self.AP_PASS}")
+            
+            # Save current WiFi status before switching
+            try:
+                from .wifi_manager import WiFiManager
+                wifi_manager = WiFiManager()
+                
+                # Get comprehensive WiFi status
+                status = wifi_manager.get_current_status()
+                
+                data_dir = Path("data")
+                data_dir.mkdir(exist_ok=True)
+                
+                # Create a more detailed status dictionary
+                wifi_status = {
+                    "ssid": status.ssid,
+                    "signal_strength": status.signal_strength,
+                    "is_connected": status.is_connected,
+                    "has_internet": status.has_internet,
+                    "available_networks": [
+                        {
+                            "ssid": net.ssid,
+                            "signal_strength": net.signal_strength,
+                            "security": net.security,
+                            "in_use": net.in_use,
+                            "saved": net.saved
+                        } for net in status.available_networks
+                    ],
+                    "timestamp": str(datetime.now())
+                }
+                
+                # Save to JSON file
+                status_file = data_dir / "last_wifi_status.json"
+                logger.info(f"Saving detailed WiFi status to {status_file}")
+                with open(status_file, 'w') as f:
+                    json.dump(wifi_status, f, indent=2)
+                
+            except Exception as e:
+                logger.error(f"Failed to save WiFi status: {e}")
+                # Continue with mode switch even if save fails
             
             # First disconnect from current network
             disconnect_result = subprocess.run(

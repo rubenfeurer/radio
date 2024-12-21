@@ -3,7 +3,10 @@ import logging
 import asyncio
 from .wifi_manager import WiFiManager
 from .mode_manager import ModeManagerSingleton, NetworkMode
-from .models import WiFiNetwork
+from .models import WiFiNetwork, WiFiStatus
+from pathlib import Path
+import json
+from datetime import datetime
 
 class ConnectionError(Exception):
     """Custom exception for connection errors"""
@@ -245,3 +248,35 @@ class APManager:
         except Exception as e:
             self.logger.error(f"Error during mode switch: {e}")
             return False
+
+    async def get_saved_networks(self) -> Optional[WiFiStatus]:
+        """Get the last saved WiFi status before switching to AP mode"""
+        try:
+            status_file = Path("data/last_wifi_status.json")
+            if not status_file.exists():
+                self.logger.warning("No saved WiFi status file found")
+                return None
+
+            with open(status_file) as f:
+                data = json.load(f)
+
+            # Convert the saved JSON data back to WiFiStatus model
+            return WiFiStatus(
+                ssid=data.get("ssid"),
+                signal_strength=data.get("signal_strength"),
+                is_connected=data.get("is_connected", False),
+                has_internet=data.get("has_internet", False),
+                available_networks=[
+                    WiFiNetwork(
+                        ssid=net["ssid"],
+                        signal_strength=net["signal_strength"],
+                        security=net.get("security"),
+                        in_use=net.get("in_use", False),
+                        saved=net.get("saved", False)
+                    ) for net in data.get("available_networks", [])
+                ]
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error reading saved WiFi status: {e}")
+            return None

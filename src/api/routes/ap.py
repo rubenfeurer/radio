@@ -3,8 +3,9 @@ from typing import List
 import logging
 from src.core.ap_manager import APManager, ConnectionError
 from src.core.mode_manager import ModeManagerSingleton, NetworkMode
-from src.core.models import WiFiNetwork
+from src.core.models import WiFiNetwork, WiFiStatus
 from src.api.models.requests import WiFiConnectionRequest
+from pathlib import Path
 
 router = APIRouter(prefix="/ap", tags=["Access Point"])
 ap_manager = APManager()
@@ -54,4 +55,23 @@ async def get_ap_status():
         return status
     except Exception as e:
         logger.error(f"Error getting AP status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/networks", response_model=WiFiStatus)
+async def get_saved_networks():
+    """Get the last saved WiFi networks from before AP mode was enabled"""
+    try:
+        status = await ap_manager.get_saved_networks()
+        if status is None:
+            # Return empty status if no saved data
+            return WiFiStatus(
+                ssid=None,
+                signal_strength=None,
+                is_connected=False,
+                has_internet=False,
+                available_networks=[]
+            )
+        return status
+    except Exception as e:
+        logger.error(f"Error getting saved networks: {e}")
         raise HTTPException(status_code=500, detail=str(e)) 
