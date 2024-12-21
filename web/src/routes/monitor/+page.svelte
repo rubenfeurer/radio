@@ -37,36 +37,34 @@
   function setupWebSocket() {
     if (monitorWs) monitorWs.close();
     
-    // Use WS_URL from config but replace the path
     const wsBase = WS_URL.substring(0, WS_URL.indexOf('/api/v1'));
     const wsUrl = `${wsBase}${API_V1_STR}/monitor/ws`;
     
-    console.log('Monitor: Attempting WebSocket connection to:', wsUrl);
+    console.log('Monitor: Connecting to WebSocket:', wsUrl);
     monitorWs = new WebSocket(wsUrl);
     
-    monitorWs.onopen = () => {
-        console.log('Monitor: WebSocket connected successfully');
+    monitorWs.onopen = async () => {
+        console.log('Monitor: WebSocket connected');
         wsConnected = true;
         
-        // Reset the data to trigger reactivity
-        systemInfo = {
-            hostname: 'Loading...',
-            ip: 'Loading...',
-            cpuUsage: 'Loading...',
-            diskSpace: 'Loading...',
-            temperature: 'Loading...',
-            hotspot_ssid: 'Loading...'
-        };
-        services = [];
-        
-        // Send initial monitor request
-        monitorWs.send(JSON.stringify({ type: 'monitor_request' }));
+        // Fetch fresh data when connection is established
+        try {
+            const response = await fetch(`${API_V1_STR}/monitor/status`);
+            if (!response.ok) throw new Error('Failed to fetch monitor data');
+            const data = await response.json();
+            updateMonitorData(data);
+        } catch (e) {
+            console.error('Monitor: Error fetching initial data:', e);
+        }
     };
 
     monitorWs.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            console.log('Monitor: Message received:', data.type);
+            // Only log non-monitor updates to reduce console spam
+            if (data.type !== 'monitor_update') {
+                console.log('Monitor: Message received:', data.type);
+            }
             if (data.type === 'monitor_update') {
                 updateMonitorData(data.data);
             }
@@ -76,48 +74,37 @@
     };
 
     monitorWs.onerror = (error) => {
-        console.error('Monitor: WebSocket error:', error);
         wsConnected = false;
     };
 
     monitorWs.onclose = () => {
-        console.log('Monitor: WebSocket closed, attempting reconnect...');
+        console.log('Monitor: WebSocket closed, scheduling reconnect...');
         wsConnected = false;
         
-        // Always try to reconnect after a delay
+        // Always attempt to reconnect
         if (reconnectTimer) clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(() => {
             console.log('Monitor: Attempting reconnection...');
             setupWebSocket();
-        }, 2000);
+        }, 3000);
     };
   }
 
   function updateMonitorData(data: any) {
-    console.log('Received monitor update:', data);
+    // Reduce console logging
     if (data.systemInfo) {
-      const oldCpu = systemInfo.cpuUsage;
-      systemInfo = data.systemInfo;
-      
-      // Update mode if present (add debug logs)
-      if (data.systemInfo.mode) {
-        const newMode = data.systemInfo.mode.toLowerCase();
-        console.log('Mode update received:', {
-          current: $currentMode,
-          new: newMode,
-          raw: data.systemInfo.mode
-        });
-        currentMode.set(newMode);
-      } else {
-        console.log('No mode in systemInfo:', data.systemInfo);
-      }
-
-      if (oldCpu !== data.systemInfo.cpuUsage) {
-        console.log(`CPU Usage changed: ${oldCpu} -> ${data.systemInfo.cpuUsage}`);
-      }
+        systemInfo = { ...data.systemInfo };
+        
+        if (data.systemInfo.mode) {
+            const newMode = data.systemInfo.mode.toLowerCase();
+            if (newMode !== $currentMode) {
+                console.log('Mode changed:', newMode);
+                currentMode.set(newMode);
+            }
+        }
     }
     if (data.services) {
-      services = data.services;
+        services = [...data.services];
     }
   }
 
@@ -135,6 +122,12 @@
     clearTimeout(reconnectTimer);
     if (monitorWs) monitorWs.close();
   });
+
+  // Watch for mode changes and force reconnect
+  $: if ($currentMode) {
+    console.log('Monitor: Mode changed to:', $currentMode);
+    setupWebSocket();
+  }
 
   // Add explicit props for Flowbite components
   let tableHeadClass = '';
