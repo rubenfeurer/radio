@@ -11,7 +11,7 @@ class GPIOController:
         volume_change_callback: Optional[Callable[[int], None]] = None,
         button_press_callback: Optional[Callable[[int], None]] = None,
         long_press_callback: Optional[Callable[[int], None]] = None,
-        double_press_callback: Optional[Callable[[int], None]] = None,
+        triple_press_callback: Optional[Callable[[int], None]] = None,
         volume_step: int = settings.ROTARY_VOLUME_STEP,
         event_loop: asyncio.AbstractEventLoop = None
     ):
@@ -20,7 +20,7 @@ class GPIOController:
         self.volume_change_callback = volume_change_callback
         self.button_press_callback = button_press_callback
         self.long_press_callback = long_press_callback
-        self.double_press_callback = double_press_callback
+        self.triple_press_callback = triple_press_callback
         self.loop = event_loop
         
         # Setup pins from config
@@ -45,6 +45,9 @@ class GPIOController:
         self.last_push_time = 0
         self.PUSH_TIMEOUT = 2  # seconds
         self.PUSH_THRESHOLD = 4  # number of pushes needed
+        
+        self.press_count = {}  # Add press counter
+        self.TRIPLE_PRESS_INTERVAL = 0.5  # Time window for triple press in seconds
         
         try:
             # Initialize pigpio
@@ -169,19 +172,31 @@ class GPIOController:
                 # Only handle short press if no long press was triggered
                 if not self.long_press_triggered.get(gpio, False):
                     if duration < settings.LONG_PRESS_DURATION:
-                        # Check for double press
+                        # Initialize press count if not exists
+                        if gpio not in self.press_count:
+                            self.press_count[gpio] = 0
+                            
+                        # Check for triple press
                         if gpio in self.last_press_time:
                             time_since_last = current_time - self.last_press_time[gpio]
-                            if time_since_last < settings.DOUBLE_PRESS_INTERVAL:
-                                if self.double_press_callback and self.loop:
-                                    logger.info(f"Double press detected on button {button_number}")
-                                    asyncio.run_coroutine_threadsafe(
-                                        self.double_press_callback(button_number), 
-                                        self.loop
-                                    )
-                                    self.last_press_time[gpio] = current_time
+                            if time_since_last < self.TRIPLE_PRESS_INTERVAL:
+                                self.press_count[gpio] += 1
+                                
+                                # Check if we've reached three presses
+                                if self.press_count[gpio] >= 2:  # This means it's the third press
+                                    if self.triple_press_callback and self.loop:
+                                        logger.info(f"Triple press detected on button {button_number}")
+                                        asyncio.run_coroutine_threadsafe(
+                                            self.triple_press_callback(button_number), 
+                                            self.loop
+                                        )
+                                    self.press_count[gpio] = 0  # Reset counter
                                     return
-                            elif time_since_last < 0.5:  # 500ms debounce
+                            else:
+                                # Reset counter if too much time has passed
+                                self.press_count[gpio] = 0
+                            
+                            if time_since_last < 0.5:  # 500ms debounce
                                 logger.debug(f"Ignoring button {button_number} - too soon after last press ({time_since_last}s)")
                                 return
                         
