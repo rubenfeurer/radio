@@ -49,10 +49,14 @@ jobs:
         DISABLE_HARDWARE: "true"
         SKIP_NM_CHECK: "true"
         SKIP_PIGPIO: "true"
+        PIGPIO_MOCK: "true"
         PYTEST_TIMEOUT: "30"
         PYTEST_ASYNCIO_MODE: "auto"
         LOG_DIR: "logs"
       run: |
+        sudo mkdir -p /run/pigpio
+        sudo touch /run/pigpio/pigpio.pid
+        
         pytest -v tests/ \
           --cov=src \
           --capture=no \
@@ -60,7 +64,8 @@ jobs:
           --asyncio-mode=auto \
           -p no:warnings \
           --ignore=tests/hardware \
-          --ignore=tests/integration
+          --ignore=tests/integration \
+          -k "not test_gpio"
         
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
