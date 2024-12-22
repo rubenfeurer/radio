@@ -63,4 +63,28 @@ async def add_network_connection(request: NetworkAddRequest):
         return result
     except Exception as e:
         logger.error(f"Error adding network connection: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/modifyconnection")
+async def modify_network_connection(request: NetworkAddRequest):
+    """Modify an existing network connection while in AP mode"""
+    try:
+        result = await ap_manager.modify_network_connection(
+            request.ssid,
+            request.password,
+            request.priority
+        )
+        return result
+    except ConnectionError as e:
+        # Map error types to appropriate HTTP status codes
+        error_codes = {
+            "mode_error": 400,      # Bad Request (wrong mode)
+            "not_found_error": 404, # Not Found (network doesn't exist)
+            "connection_error": 503, # Service Unavailable
+            "unknown_error": 500     # Internal Server Error
+        }
+        status_code = error_codes.get(e.error_type, 500)
+        raise HTTPException(status_code=status_code, detail=e.message)
+    except Exception as e:
+        logger.error(f"Error modifying network connection: {e}")
         raise HTTPException(status_code=500, detail=str(e)) 

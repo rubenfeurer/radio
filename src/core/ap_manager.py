@@ -235,3 +235,50 @@ class APManager:
         except Exception as e:
             self.logger.error(f"Error adding network connection: {e}")
             raise ConnectionError(str(e), "unknown_error")
+
+    async def modify_network_connection(self, ssid: str, password: str, priority: int = 1) -> dict:
+        """Modify an existing network connection with new password and priority"""
+        try:
+            if not await self.verify_ap_mode():
+                raise ConnectionError("Must be in AP mode to modify connection", "mode_error")
+
+            # Check if connection exists
+            result = self.wifi_manager._run_command([
+                'sudo', 'nmcli', 'connection', 'show'
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0 and ssid not in result.stdout:
+                self.logger.error(f"Connection {ssid} does not exist")
+                raise ConnectionError(
+                    f"Connection {ssid} does not exist",
+                    "not_found_error"
+                )
+
+            # Modify the existing connection
+            modify_result = self.wifi_manager._run_command([
+                'sudo', 'nmcli', 'connection', 'modify',
+                ssid,
+                'wifi-sec.psk', password,
+                'connection.autoconnect', 'yes',
+                'connection.autoconnect-priority', str(priority)
+            ], capture_output=True, text=True)
+
+            if modify_result.returncode != 0:
+                self.logger.error(f"Failed to modify connection: {modify_result.stderr}")
+                raise ConnectionError(
+                    f"Failed to modify connection: {modify_result.stderr}",
+                    "connection_error"
+                )
+
+            return {
+                "status": "success",
+                "message": f"Successfully modified connection for {ssid} with priority {priority}",
+                "ssid": ssid,
+                "priority": priority
+            }
+
+        except ConnectionError as e:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error modifying network connection: {e}")
+            raise ConnectionError(str(e), "unknown_error")
