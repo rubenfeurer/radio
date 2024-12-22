@@ -5,6 +5,18 @@
   import { ws } from '$lib/stores/websocket';
   import { onMount } from 'svelte';
   import { API_V1_STR } from '$lib/config';  // Import API_V1_STR
+  import { currentMode } from '$lib/stores/mode';
+  
+  export let hideInAP = false;
+  
+  // Hide in AP mode or when mode is undefined
+  $: shouldHide = !$currentMode || ($currentMode === 'ap' && hideInAP);
+  
+  // Debug logging
+  $: {
+    console.log('ClientWifi - Current mode:', $currentMode);
+    console.log('ClientWifi - Should hide:', shouldHide);
+  }
 
   // Get the current hostname (IP or domain)
   const currentHost = browser ? window.location.hostname : '';
@@ -199,53 +211,126 @@
   }
 </script>
 
-<div class="container mx-auto p-4 max-w-2xl">
-  <h1 class="text-2xl font-bold mb-4">Networks (Client Mode)</h1>
+{#if !shouldHide}
+  <div class="container mx-auto p-4 max-w-2xl">
+    <h1 class="text-2xl font-bold mb-4">Networks (Client Mode)</h1>
 
-  {#if selectedNetwork}
-    <Card class="w-full">
-      <h2 class="text-xl mb-4">Connect to {selectedNetwork.ssid}</h2>
-      <form on:submit|preventDefault={() => attemptConnection(selectedNetwork.ssid, password)}>
-        <Input
-          type="password"
-          placeholder="Network password"
-          bind:value={password}
-          class="mb-4"
-        />
-        <div class="flex gap-2">
-          <Button type="submit" disabled={connecting}>
-            {connecting ? 'Connecting...' : 'Connect'}
-          </Button>
-          <Button color="alternative" on:click={() => selectedNetwork = null}>
-            Cancel
-          </Button>
-        </div>
-      </form>
-    </Card>
-  {:else}
-    <div class="grid gap-6 w-full">
-      {#if loading}
-        <div class="grid gap-4">
-          {#each Array(3) as _}
-            <Card class="w-full">
-              <div class="flex items-center justify-between p-1">
-                <div class="flex items-center gap-3">
-                  <div class="w-4 h-4 bg-gray-200 rounded animate-pulse" />
-                  <div class="h-5 bg-gray-200 rounded w-40 animate-pulse" />
-                  <div class="w-4 h-4 bg-gray-200 rounded animate-pulse" />
+    {#if selectedNetwork}
+      <Card class="w-full">
+        <h2 class="text-xl mb-4">Connect to {selectedNetwork.ssid}</h2>
+        <form on:submit|preventDefault={() => attemptConnection(selectedNetwork.ssid, password)}>
+          <Input
+            type="password"
+            placeholder="Network password"
+            bind:value={password}
+            class="mb-4"
+          />
+          <div class="flex gap-2">
+            <Button type="submit" disabled={connecting}>
+              {connecting ? 'Connecting...' : 'Connect'}
+            </Button>
+            <Button color="alternative" on:click={() => selectedNetwork = null}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
+    {:else}
+      <div class="grid gap-6 w-full">
+        {#if loading}
+          <div class="grid gap-4">
+            {#each Array(3) as _}
+              <Card class="w-full">
+                <div class="flex items-center justify-between p-1">
+                  <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 bg-gray-200 rounded animate-pulse" />
+                    <div class="h-5 bg-gray-200 rounded w-40 animate-pulse" />
+                    <div class="w-4 h-4 bg-gray-200 rounded animate-pulse" />
+                  </div>
                 </div>
+              </Card>
+            {/each}
+          </div>
+        {:else}
+          <!-- Saved Networks Section -->
+          {#if savedNetworks.length > 0}
+            <div>
+              <h2 class="text-lg font-semibold mb-3">Saved Networks</h2>
+              <div class="grid gap-4">
+                {#each savedNetworks as network}
+                  <Card class="w-full hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center justify-between p-1">
+                      <div class="flex items-center gap-3">
+                        {@html getWifiIcon(network.signal_strength)}
+                        <span class="font-semibold">{network.ssid}</span>
+                        {#if network.security}
+                          {@html Icons.lock}
+                        {/if}
+                        {#if network.in_use}
+                          <Badge color="green">Connected</Badge>
+                        {/if}
+                        {#if network.ssid === preconfiguredSSID}
+                          <Badge color="blue">Preconfigured</Badge>
+                        {/if}
+                      </div>
+                      <div class="flex items-center gap-2">
+                        {#if !network.in_use && network.saved}
+                          <Button 
+                            size="xs"
+                            color="red"
+                            on:click={() => {
+                              if (confirm(`Are you sure you want to forget "${network.ssid}"?`)) {
+                                try {
+                                  fetch(
+                                    `${API_V1_STR}/wifi/forget/${encodeURIComponent(network.ssid)}`, 
+                                    { method: 'DELETE' }
+                                  )
+                                  .then(response => {
+                                    if (!response.ok) throw new Error('Failed to forget network');
+                                    return fetchNetworks(); // Refresh the networks list
+                                  })
+                                  .catch(error => {
+                                    console.error('Error forgetting network:', error);
+                                    alert('Failed to forget network');
+                                  });
+                                } catch (error) {
+                                  console.error('Error forgetting network:', error);
+                                  alert('Failed to forget network');
+                                }
+                              }
+                            }}
+                          >
+                            Forget
+                          </Button>
+                        {/if}
+                        {#if !network.in_use}
+                          <Button 
+                            size="xs"
+                            on:click={() => network.ssid === preconfiguredSSID 
+                              ? connectToPreconfigured() 
+                              : connectToNetwork(network)}
+                            disabled={connecting}
+                          >
+                            {connecting ? 'Connecting...' : 'Connect'}
+                          </Button>
+                        {/if}
+                      </div>
+                    </div>
+                  </Card>
+                {/each}
               </div>
-            </Card>
-          {/each}
-        </div>
-      {:else}
-        <!-- Saved Networks Section -->
-        {#if savedNetworks.length > 0}
+            </div>
+          {/if}
+
+          <!-- Other Networks Section -->
           <div>
-            <h2 class="text-lg font-semibold mb-3">Saved Networks</h2>
+            <h2 class="text-lg font-semibold mb-3">Available Networks</h2>
             <div class="grid gap-4">
-              {#each savedNetworks as network}
-                <Card class="w-full hover:bg-gray-50 transition-colors">
+              {#each otherNetworks as network}
+                <Card 
+                  class="w-full cursor-pointer hover:bg-gray-50 transition-colors"
+                  on:click={() => connectToNetwork(network)}
+                >
                   <div class="flex items-center justify-between p-1">
                     <div class="flex items-center gap-3">
                       {@html getWifiIcon(network.signal_strength)}
@@ -253,54 +338,14 @@
                       {#if network.security}
                         {@html Icons.lock}
                       {/if}
-                      {#if network.in_use}
-                        <Badge color="green">Connected</Badge>
-                      {/if}
                       {#if network.ssid === preconfiguredSSID}
                         <Badge color="blue">Preconfigured</Badge>
                       {/if}
                     </div>
-                    <div class="flex items-center gap-2">
-                      {#if !network.in_use && network.saved}
-                        <Button 
-                          size="xs"
-                          color="red"
-                          on:click={() => {
-                            if (confirm(`Are you sure you want to forget "${network.ssid}"?`)) {
-                              try {
-                                fetch(
-                                  `${API_V1_STR}/wifi/forget/${encodeURIComponent(network.ssid)}`, 
-                                  { method: 'DELETE' }
-                                )
-                                .then(response => {
-                                  if (!response.ok) throw new Error('Failed to forget network');
-                                  return fetchNetworks(); // Refresh the networks list
-                                })
-                                .catch(error => {
-                                  console.error('Error forgetting network:', error);
-                                  alert('Failed to forget network');
-                                });
-                              } catch (error) {
-                                console.error('Error forgetting network:', error);
-                                alert('Failed to forget network');
-                              }
-                            }
-                          }}
-                        >
-                          Forget
-                        </Button>
-                      {/if}
-                      {#if !network.in_use}
-                        <Button 
-                          size="xs"
-                          on:click={() => network.ssid === preconfiguredSSID 
-                            ? connectToPreconfigured() 
-                            : connectToNetwork(network)}
-                          disabled={connecting}
-                        >
-                          {connecting ? 'Connecting...' : 'Connect'}
-                        </Button>
-                      {/if}
+                    <div class="text-gray-400">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
                   </div>
                 </Card>
@@ -308,38 +353,7 @@
             </div>
           </div>
         {/if}
-
-        <!-- Other Networks Section -->
-        <div>
-          <h2 class="text-lg font-semibold mb-3">Available Networks</h2>
-          <div class="grid gap-4">
-            {#each otherNetworks as network}
-              <Card 
-                class="w-full cursor-pointer hover:bg-gray-50 transition-colors"
-                on:click={() => connectToNetwork(network)}
-              >
-                <div class="flex items-center justify-between p-1">
-                  <div class="flex items-center gap-3">
-                    {@html getWifiIcon(network.signal_strength)}
-                    <span class="font-semibold">{network.ssid}</span>
-                    {#if network.security}
-                      {@html Icons.lock}
-                    {/if}
-                    {#if network.ssid === preconfiguredSSID}
-                      <Badge color="blue">Preconfigured</Badge>
-                    {/if}
-                  </div>
-                  <div class="text-gray-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </div>
-              </Card>
-            {/each}
-          </div>
-        </div>
-      {/if}
-    </div>
-  {/if}
-</div> 
+      </div>
+    {/if}
+  </div>
+{/if} 
