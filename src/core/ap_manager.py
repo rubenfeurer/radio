@@ -73,110 +73,6 @@ class APManager:
                 raise
             raise ConnectionError(str(e), "scan_error")
 
-    async def connect_and_switch_to_client(self, ssid: str, password: Optional[str] = None) -> Tuple[bool, str]:
-        """Connect to network with proper service handling"""
-        try:
-            if not await self.verify_ap_mode():
-                raise ConnectionError("Must be in AP mode to use this function", "mode_error")
-
-            # Switch to client mode
-            self.logger.info("Switching to client mode for connection attempt...")
-            if not await self._handle_mode_switch(to_client_mode=True):
-                raise ConnectionError("Failed to switch to client mode", "mode_error")
-
-            try:
-                # Attempt connection
-                if password:
-                    success = await self.wifi_manager.connect_to_network(ssid, password)
-                else:
-                    success = await self.wifi_manager.connect_to_preconfigured() if ssid == self.wifi_manager.get_preconfigured_ssid() \
-                        else await self.wifi_manager.connect_to_saved_network(ssid)
-
-                if not success:
-                    error_msg = await self._check_connection_error(ssid)
-                    raise ConnectionError(error_msg, self._determine_error_type(error_msg))
-
-                # Verify connection
-                if not await self._verify_connection(ssid):
-                    raise ConnectionError("Connection verification failed", "connection_error")
-
-                # Connection successful - stay in client mode
-                self.logger.info(f"Successfully connected to {ssid} in client mode")
-                return True, ""
-
-            except Exception as e:
-                # Connection failed - restore AP mode
-                self.logger.error(f"Connection failed, restoring AP mode: {e}")
-                await self.wifi_manager.disconnect_network(ssid)
-                if not await self._handle_mode_switch(to_client_mode=False):
-                    self.logger.error("Failed to restore AP mode after failed connection!")
-                await asyncio.sleep(self.interface_stabilize_delay)
-                raise
-
-        except ConnectionError as e:
-            self.logger.error(f"Connection error ({e.error_type}): {e.message}")
-            # Ensure cleanup and AP mode
-            try:
-                await self.wifi_manager.disconnect_network(ssid)
-                await self.mode_manager.enable_ap_mode()
-            except:
-                pass
-            raise
-
-        except Exception as e:
-            self.logger.error(f"Unexpected error in connect_and_switch_to_client: {e}")
-            try:
-                await self.wifi_manager.disconnect_network(ssid)
-                await self.mode_manager.enable_ap_mode()
-            except:
-                pass
-            raise ConnectionError(str(e), "unknown_error")
-
-    def _determine_error_type(self, error_msg: str) -> str:
-        """Determine the type of error from the error message"""
-        error_msg = error_msg.lower()
-        if "incorrect password" in error_msg or "authentication failed" in error_msg:
-            return "auth_error"
-        elif "network not found" in error_msg:
-            return "network_error"
-        elif "connection timed out" in error_msg:
-            return "timeout_error"
-        return "connection_error"
-
-    async def _verify_connection(self, ssid: str, timeout: int = 10) -> bool:
-        """Verify successful connection to network"""
-        start_time = asyncio.get_event_loop().time()
-        while (asyncio.get_event_loop().time() - start_time) < timeout:
-            status = self.wifi_manager.get_current_status()
-            if status.is_connected and status.ssid == ssid:
-                return True
-            await asyncio.sleep(1)
-        return False
-
-    async def _check_connection_error(self, ssid: str) -> str:
-        """Check specific connection error from NetworkManager"""
-        try:
-            result = self.wifi_manager._run_command([
-                'sudo', 'journalctl', '-u', 'NetworkManager', '-n', '50', '--no-pager'
-            ], capture_output=True, text=True)
-            
-            log_output = result.stdout.lower()
-            
-            if "incorrect password" in log_output:
-                return "incorrect password"
-            elif "network not found" in log_output:
-                return "network not found"
-            elif "connection timed out" in log_output:
-                return "connection timed out"
-            elif "authentication failed" in log_output:
-                return "authentication failed"
-            
-            return "unknown connection error"
-            
-        except Exception as e:
-            self.logger.error(f"Error checking connection error: {e}")
-            return "could not determine error"
-
     async def get_ap_status(self) -> dict:
         """Get current AP mode status"""
         try:
@@ -280,3 +176,62 @@ class APManager:
         except Exception as e:
             self.logger.error(f"Error reading saved WiFi status: {e}")
             return None
+
+    async def add_network_connection(self, ssid: str, password: str, priority: int = 1) -> dict:
+        """Add a new network connection with specified priority"""
+        try:
+            if not await self.verify_ap_mode():
+                raise ConnectionError("Must be in AP mode to add connection", "mode_error")
+
+            # Check if connection already exists and remove it
+            result = self.wifi_manager._run_command([
+                'sudo', 'nmcli', 'connection', 'show'
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0 and ssid in result.stdout:
+                self.logger.info(f"Removing existing connection for {ssid}")
+                self.wifi_manager._run_command([
+                    'sudo', 'nmcli', 'connection', 'delete', ssid
+                ], capture_output=True, text=True)
+
+            # Add the new connection
+            result = self.wifi_manager._run_command([
+                'sudo', 'nmcli', 'connection', 'add',
+                'type', 'wifi',
+                'con-name', ssid,
+                'ifname', 'wlan0',
+                'ssid', ssid,
+                'wifi-sec.key-mgmt', 'wpa-psk',
+                'wifi-sec.psk', password,
+                'autoconnect', 'yes'
+            ], capture_output=True, text=True)
+
+            if result.returncode != 0:
+                self.logger.error(f"Failed to add connection: {result.stderr}")
+                raise ConnectionError(
+                    f"Failed to add connection: {result.stderr}",
+                    "connection_error"
+                )
+
+            # Set the connection priority
+            priority_result = self.wifi_manager._run_command([
+                'sudo', 'nmcli', 'connection', 'modify',
+                ssid,
+                'connection.autoconnect-priority', str(priority)
+            ], capture_output=True, text=True)
+
+            if priority_result.returncode != 0:
+                self.logger.warning(f"Failed to set priority: {priority_result.stderr}")
+
+            return {
+                "status": "success",
+                "message": f"Successfully added connection for {ssid} with priority {priority}",
+                "ssid": ssid,
+                "priority": priority
+            }
+
+        except ConnectionError as e:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error adding network connection: {e}")
+            raise ConnectionError(str(e), "unknown_error")

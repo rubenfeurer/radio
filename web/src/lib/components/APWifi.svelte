@@ -39,6 +39,7 @@
   let connecting = false;
   let error: string | null = null;
   let apStatus: APStatus | null = null;
+  let connectionAdded = false;
 
   // SVG icons (reused from ClientWifi)
   const Icons = {
@@ -121,53 +122,67 @@
   }
 
   async function connectToNetwork(network: WiFiNetwork) {
-    if (network.security && !network.saved && network.ssid !== apStatus?.preconfigured_ssid) {
-        // Only prompt for password if network is:
-        // - secured AND
-        // - not saved AND
-        // - not preconfigured
+    if (network.security && !network.saved) {
         selectedNetwork = network;
     } else {
-        // For all other cases:
-        // - saved networks
-        // - open networks
-        // - preconfigured network
-        await attemptConnection(network.ssid, '');
+        // For open networks
+        await addConnection(network.ssid, '');
     }
   }
 
-  async function attemptConnection(ssid: string, password: string) {
+  async function addConnection(ssid: string, password: string) {
     connecting = true;
     error = null;
+    connectionAdded = false;
+    
     try {
-        const response = await fetch(`${API_V1_STR}/ap/connect`, {
+        const response = await fetch(`${API_V1_STR}/ap/addconnection`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ssid, password })
+            body: JSON.stringify({ 
+              ssid, 
+              password,
+              priority: 1 // Default priority
+            })
         });
 
         const data = await response.json();
         
         if (!response.ok) {
             console.error('Connection error:', data);
-            if (data.error_type === "mode_error") {
-                error = "Device must be in AP mode to connect";
-            } else if (data.error_type === "connection_error") {
-                error = data.detail || "Failed to connect to network";
-            } else {
-                error = data.detail || "Connection failed";
-            }
+            error = data.detail || "Failed to save network connection";
             return;
         }
 
-        // Success message
-        error = "Connecting to network... Please wait and reconnect to the new network if needed.";
+        // Success
+        connectionAdded = true;
+        error = "Network connection saved successfully!";
+        selectedNetwork = null;
+        password = '';
+        await fetchNetworks(); // Refresh network list
         
     } catch (e) {
         console.error('Connection error:', e);
-        error = e.message;
+        error = "Failed to save network connection";
     } finally {
         connecting = false;
+    }
+  }
+
+  async function switchToClientMode() {
+    try {
+      const response = await fetch(`${API_V1_STR}/mode/client`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to switch to client mode');
+      }
+
+      error = "Switching to client mode... Please wait.";
+    } catch (e) {
+      console.error('Mode switch error:', e);
+      error = "Failed to switch to client mode";
     }
   }
 </script>
@@ -185,15 +200,26 @@
     </div>
 
     {#if error}
-      <Alert color="red" class="mb-4">
+      <Alert color={connectionAdded ? "green" : "red"} class="mb-4">
         {error}
       </Alert>
     {/if}
 
+    {#if connectionAdded}
+      <Card class="mb-4">
+        <div class="flex flex-col items-center gap-4">
+          <p>Network connection saved successfully!</p>
+          <Button color="blue" on:click={switchToClientMode}>
+            Switch to Client Mode
+          </Button>
+        </div>
+      </Card>
+    {/if}
+
     {#if selectedNetwork}
       <Card class="mb-4">
-        <h3 class="text-lg mb-4">Connect to {selectedNetwork.ssid}</h3>
-        <form on:submit|preventDefault={() => attemptConnection(selectedNetwork.ssid, password)}>
+        <h3 class="text-lg mb-4">Add connection for {selectedNetwork.ssid}</h3>
+        <form on:submit|preventDefault={() => addConnection(selectedNetwork.ssid, password)}>
           <Input
             type="password"
             placeholder="Network password"
@@ -202,7 +228,7 @@
           />
           <div class="flex gap-2">
             <Button type="submit" disabled={connecting}>
-              {connecting ? 'Connecting...' : 'Connect'}
+              {connecting ? 'Saving...' : 'Save Connection'}
             </Button>
             <Button color="alternative" on:click={() => selectedNetwork = null}>
               Cancel

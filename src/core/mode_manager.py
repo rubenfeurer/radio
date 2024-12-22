@@ -202,39 +202,48 @@ class ModeManagerSingleton:
             raise
 
     async def enable_client_mode(self) -> None:
-        """Enable client mode and connect to last known network if available"""
+        """Enable client mode and let NetworkManager auto-connect to saved networks"""
         try:
             logger.info("Enabling client mode...")
+            
+            # First, stop the AP connection if it exists
+            subprocess.run(['sudo', 'nmcli', 'connection', 'down', 'Hotspot'], 
+                          capture_output=True)
             
             # Set device to managed mode
             subprocess.run(['sudo', 'nmcli', 'device', 'set', 'wlan0', 'managed'], 
                           capture_output=True)
             
-            # Get list of saved connections
-            result = subprocess.run(['sudo', 'nmcli', 'connection', 'show'], 
-                                  capture_output=True, text=True)
+            # Give NetworkManager a moment to process the mode change
+            await asyncio.sleep(2)
             
-            if 'preconfigured' in result.stdout:
-                logger.info("Connecting to preconfigured network...")
-                subprocess.run(['sudo', 'nmcli', 'connection', 'up', 'preconfigured'], 
-                             capture_output=True)
-            
-            # Wait for connection
+            # Wait for any connection to be established
             max_attempts = 15
+            connected = False
             for attempt in range(max_attempts):
-                check = subprocess.run(['nmcli', 'networking', 'connectivity', 'check'],
-                                     capture_output=True, text=True)
-                if 'full' in check.stdout:
-                    logger.info("Network connection established")
-                    break
-                await asyncio.sleep(1)
+                logger.debug(f"Waiting for connection attempt {attempt + 1}/{max_attempts}")
                 
+                # Check if we're connected to any network
+                check = subprocess.run(['nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'],
+                                     capture_output=True, text=True)
+                
+                if 'connected' in check.stdout.lower():
+                    logger.info("Network connection established")
+                    connected = True
+                    break
+                    
+                await asyncio.sleep(1)
+            
+            if not connected:
+                logger.warning("No connection established, but continuing anyway")
+            
+            # Save the state even if we didn't connect (we're still in client mode)
             self._save_state(NetworkMode.CLIENT)
             logger.info("Client mode enabled successfully")
             
         except Exception as e:
             logger.error(f"Error enabling client mode: {e}")
-            raise
+            raise RuntimeError(f"Failed to switch to {NetworkMode.CLIENT} mode") from e
 
     async def toggle_mode(self) -> NetworkMode:
         """Toggle between AP and Client modes"""
