@@ -11,27 +11,6 @@ router = APIRouter(prefix="/ap", tags=["Access Point"])
 ap_manager = APManager()
 logger = logging.getLogger(__name__)
 
-@router.post("/scan", response_model=List[WiFiNetwork])
-async def scan_networks():
-    """Scan for available WiFi networks while in AP mode"""
-    try:
-        logger.info("Starting network scan - temporary disconnection expected")
-        networks = await ap_manager.scan_networks()
-        return networks
-    except Exception as e:
-        logger.error(f"Error scanning networks in AP mode: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/status")
-async def get_ap_status():
-    """Get current AP mode status including available networks"""
-    try:
-        status = await ap_manager.get_ap_status()
-        return status
-    except Exception as e:
-        logger.error(f"Error getting AP status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/networks", response_model=WiFiStatus)
 async def get_saved_networks():
     """Get the last saved WiFi networks from before AP mode was enabled"""
