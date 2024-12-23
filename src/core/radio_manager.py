@@ -7,6 +7,7 @@ from src.utils.station_loader import load_default_stations, load_assigned_statio
 from src.core.station_manager import StationManager
 from src.core.sound_manager import SoundManager, SystemEvent
 from src.core.mode_manager import ModeManagerSingleton, NetworkMode
+from src.core.wifi_manager import WiFiManager
 import logging
 import asyncio
 import httpx
@@ -24,6 +25,7 @@ class RadioManager:
         self._lock = asyncio.Lock()
         self._sound_manager = SoundManager(test_mode=test_mode)
         self._test_mode = test_mode
+        self._wifi_manager = WiFiManager()
         
         if not test_mode:
             # Initialize GPIO controller with callbacks
@@ -248,3 +250,12 @@ class RadioManager:
             
         except Exception as e:
             logger.error(f"Error handling reset sequence: {e}")
+
+    async def _check_network(self) -> bool:
+        """Check network connectivity using WiFiManager"""
+        try:
+            status = self._wifi_manager.get_current_status()
+            return status.has_internet
+        except Exception as e:
+            logger.error(f"Network check failed: {e}")
+            return False

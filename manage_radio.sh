@@ -6,7 +6,7 @@ APP_PATH="/home/radio/radio/src/api/main.py"
 LOG_FILE="/home/radio/radio/logs/radio.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
 NODE_ENV="production"
-DEV_MODE=${DEV_MODE:-true}
+DEV_MODE=${DEV_MODE:-false}
 
 # Get configuration from Python
 get_config() {
@@ -240,35 +240,29 @@ EOF
 }
 
 setup_service() {
-    # Check if service already exists
-    if systemctl list-unit-files | grep -q "radio.service"; then
-        echo "Radio service already exists, skipping setup..."
-        return
-    fi
-
     echo "Setting up radio service..."
     
-    # Create service file with improved restart behavior
+    # Create service file with corrected configuration
     sudo tee /etc/systemd/system/radio.service << EOF
 [Unit]
-Description=Radio Service
+Description=Internet Radio Service
 After=network.target pigpiod.service avahi-daemon.service
 Wants=network.target pigpiod.service avahi-daemon.service
 
 [Service]
-Type=forking
+Type=simple
 User=radio
 Group=radio
-Environment=DEV_MODE=${DEV_MODE}
 WorkingDirectory=/home/radio/radio
+Environment="PYTHONPATH=/home/radio/radio"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
+ExecStartPre=/bin/mkdir -p /run/user/1000/pulse
+ExecStartPre=/bin/chown -R radio:radio /run/user/1000
 ExecStart=/home/radio/radio/manage_radio.sh start
 ExecStop=/home/radio/radio/manage_radio.sh stop
-ExecReload=/home/radio/radio/manage_radio.sh restart
 Restart=always
 RestartSec=3
-RemainAfterExit=yes
-TimeoutStartSec=60
-TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
@@ -303,17 +297,15 @@ service_status() {
 }
 
 open_monitor() {
-    echo "Opening monitor website..."
-    
-    # Get configuration values first
     get_config
     
-    # Clean up any existing processes
-    echo "Cleaning up existing processes..."
-    pkill -f chromium || true
-    
-    # Start Chromium in kiosk mode
-    echo "Starting Chromium in kiosk mode..."
+    # Only proceed if in dev mode
+    if [ "$DEV_MODE" != true ]; then
+        echo "Monitor only available in development mode"
+        return 0  # Return success, don't trigger stop
+    fi
+
+    echo "Opening monitor..."
     DISPLAY=:0 chromium-browser \
         --kiosk \
         --noerrdialogs \
@@ -376,19 +368,22 @@ start() {
             "PYTHONPATH=/home/radio/radio" \
             "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
             "PULSE_RUNTIME_PATH=$PULSE_RUNTIME_PATH" \
-            "$VENV_PATH/bin/uvicorn" src.api.main:app \
+            "$VENV_PATH/bin/python" -m uvicorn src.api.main:app \
             --reload \
             --host "0.0.0.0" \
             --port "$API_PORT" \
+            --log-level debug \
             > $LOG_FILE 2>&1 &
     else
+        # Add explicit sudo for port 80
         nohup sudo -E env "PATH=$PATH" \
             "PYTHONPATH=/home/radio/radio" \
             "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
             "PULSE_RUNTIME_PATH=$PULSE_RUNTIME_PATH" \
-            "$VENV_PATH/bin/uvicorn" src.api.main:app \
+            "$VENV_PATH/bin/python" -m uvicorn src.api.main:app \
             --host "0.0.0.0" \
             --port "$API_PORT" \
+            --log-level debug \
             > $LOG_FILE 2>&1 &
     fi
     API_PID=$!
@@ -396,42 +391,28 @@ start() {
     
     sleep 3
     
-    # Start web server based on mode
-    echo "Starting web server on port $DEV_PORT..."
-    
-    # Change to web directory as radio user
-    cd /home/radio/radio/web
+    # Start web server only in development mode
     if [ "$DEV_MODE" = true ]; then
-        echo "Starting in development mode..."
+        echo "Starting web server in development mode..."
+        cd /home/radio/radio/web
         sudo -u radio NODE_ENV=development \
             HOME=/home/radio \
             npm run dev -- \
             --host "0.0.0.0" \
             --port "$DEV_PORT" \
             >> "$WEB_LOG_FILE" 2>&1 &
-    else
-        echo "Starting in production mode..."
-        sudo -u radio NODE_ENV=production \
-            HOME=/home/radio \
-            bash -c "npm run build && npm run preview -- \
-            --host \"0.0.0.0\" \
-            --port \"$DEV_PORT\"" \
-            >> "$WEB_LOG_FILE" 2>&1 &
+        DEV_PID=$!
+        echo $DEV_PID >> $PID_FILE
+        cd - # Return to original directory
     fi
-    DEV_PID=$!
-    echo $DEV_PID >> $PID_FILE
-    cd - # Return to original directory
     
     echo "$APP_NAME started successfully"
     echo "FastAPI PID: $API_PID"
-    echo "Dev Server PID: $DEV_PID"
+    [ "$DEV_MODE" = true ] && echo "Dev Server PID: $DEV_PID"
     
     # Show initial log entries
     echo "Initial log entries:"
     tail -n 5 $LOG_FILE
-    
-    # Open monitor page regardless of mode
-    open_monitor
 }
 
 stop() {
