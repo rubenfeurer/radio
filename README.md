@@ -248,7 +248,7 @@ Latest development build can be downloaded from GitHub Actions:
 
 ### Version Numbering
 - Production: `v1.0.0`, `v1.0.1`, etc.
-- Development: `development-YYYYMMDD-commit`
+- Development: `develop-YYYYMMDD-commit`
 
 ### Finding Releases
 - Production releases: GitHub Releases page
