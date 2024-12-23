@@ -142,12 +142,9 @@
         <Card>
           <div class="flex flex-col gap-4">
             <div class="flex justify-between items-center">
-              <h5 class="text-xl font-bold">Slot {station.slot}</h5>
-              <Badge color={currentPlayingSlot === station.slot ? "green" : "gray"}>
-                {currentPlayingSlot === station.slot ? "Playing" : "Stopped"}
-              </Badge>
+              <h5 class="text-gray-700">{station.slot.toString().padStart(2, '0')}</h5>
             </div>
-            <p class="text-gray-700">{station.name || 'No station assigned'}</p>
+            <p class="text-xl font-bold">{station.name || 'No station assigned'}</p>
             <div class="flex flex-col gap-2">
               <Button
                 color={currentPlayingSlot === station.slot ? "red" : "primary"}

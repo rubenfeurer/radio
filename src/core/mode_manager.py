@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any
 from config.config import settings
 import os
 import asyncio
+from datetime import datetime
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -100,6 +101,45 @@ class ModeManagerSingleton:
         try:
             logger.info(f"Enabling AP mode with SSID: {self.AP_SSID}, Password: {self.AP_PASS}")
             
+            # Save current WiFi status before switching
+            try:
+                from .wifi_manager import WiFiManager
+                wifi_manager = WiFiManager()
+                
+                # Get comprehensive WiFi status
+                status = wifi_manager.get_current_status()
+                
+                data_dir = Path("data")
+                data_dir.mkdir(exist_ok=True)
+                
+                # Create a more detailed status dictionary
+                wifi_status = {
+                    "ssid": status.ssid,
+                    "signal_strength": status.signal_strength,
+                    "is_connected": status.is_connected,
+                    "has_internet": status.has_internet,
+                    "available_networks": [
+                        {
+                            "ssid": net.ssid,
+                            "signal_strength": net.signal_strength,
+                            "security": net.security,
+                            "in_use": net.in_use,
+                            "saved": net.saved
+                        } for net in status.available_networks
+                    ],
+                    "timestamp": str(datetime.now())
+                }
+                
+                # Save to JSON file
+                status_file = data_dir / "last_wifi_status.json"
+                logger.info(f"Saving detailed WiFi status to {status_file}")
+                with open(status_file, 'w') as f:
+                    json.dump(wifi_status, f, indent=2)
+                
+            except Exception as e:
+                logger.error(f"Failed to save WiFi status: {e}")
+                # Continue with mode switch even if save fails
+            
             # First disconnect from current network
             disconnect_result = subprocess.run(
                 ['sudo', 'nmcli', 'device', 'disconnect', 'wlan0'],
@@ -162,39 +202,48 @@ class ModeManagerSingleton:
             raise
 
     async def enable_client_mode(self) -> None:
-        """Enable client mode and connect to last known network if available"""
+        """Enable client mode and let NetworkManager auto-connect to saved networks"""
         try:
             logger.info("Enabling client mode...")
+            
+            # First, stop the AP connection if it exists
+            subprocess.run(['sudo', 'nmcli', 'connection', 'down', 'Hotspot'], 
+                          capture_output=True)
             
             # Set device to managed mode
             subprocess.run(['sudo', 'nmcli', 'device', 'set', 'wlan0', 'managed'], 
                           capture_output=True)
             
-            # Get list of saved connections
-            result = subprocess.run(['sudo', 'nmcli', 'connection', 'show'], 
-                                  capture_output=True, text=True)
+            # Give NetworkManager a moment to process the mode change
+            await asyncio.sleep(2)
             
-            if 'preconfigured' in result.stdout:
-                logger.info("Connecting to preconfigured network...")
-                subprocess.run(['sudo', 'nmcli', 'connection', 'up', 'preconfigured'], 
-                             capture_output=True)
-            
-            # Wait for connection
+            # Wait for any connection to be established
             max_attempts = 15
+            connected = False
             for attempt in range(max_attempts):
-                check = subprocess.run(['nmcli', 'networking', 'connectivity', 'check'],
-                                     capture_output=True, text=True)
-                if 'full' in check.stdout:
-                    logger.info("Network connection established")
-                    break
-                await asyncio.sleep(1)
+                logger.debug(f"Waiting for connection attempt {attempt + 1}/{max_attempts}")
                 
+                # Check if we're connected to any network
+                check = subprocess.run(['nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'],
+                                     capture_output=True, text=True)
+                
+                if 'connected' in check.stdout.lower():
+                    logger.info("Network connection established")
+                    connected = True
+                    break
+                    
+                await asyncio.sleep(1)
+            
+            if not connected:
+                logger.warning("No connection established, but continuing anyway")
+            
+            # Save the state even if we didn't connect (we're still in client mode)
             self._save_state(NetworkMode.CLIENT)
             logger.info("Client mode enabled successfully")
             
         except Exception as e:
             logger.error(f"Error enabling client mode: {e}")
-            raise
+            raise RuntimeError(f"Failed to switch to {NetworkMode.CLIENT} mode") from e
 
     async def toggle_mode(self) -> NetworkMode:
         """Toggle between AP and Client modes"""

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 
 class VolumeRequest(BaseModel):
@@ -39,3 +39,8 @@ class MonitorUpdate(BaseModel):
     services: List[ServiceStatus]
     webAccess: WebAccess
     logs: List[str]
+
+class NetworkAddRequest(BaseModel):
+    ssid: str
+    password: str
+    priority: int = Field(default=1, ge=0, le=999)

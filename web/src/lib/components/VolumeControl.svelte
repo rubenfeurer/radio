@@ -79,7 +79,7 @@
 {#if !hideInAP || $currentMode !== 'ap'}
   <Card>
     <div class="flex flex-col gap-2">
-      <h3 class="text-lg font-semibold">Volume Control</h3>
+      <h3 class="text-lg font-semibold">Volume</h3>
       {#if error}
         <p class="text-red-500 text-sm">{error}</p>
       {/if}
