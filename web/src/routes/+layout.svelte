@@ -2,6 +2,7 @@
   import "../app.css";
   import { onMount, onDestroy } from 'svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import Footer from '$lib/components/Footer.svelte';
   import { page } from '$app/stores';
   import { ws as wsStore, websocketStore } from '$lib/stores/websocket';
   import { currentMode } from '$lib/stores/mode';
@@ -55,9 +56,10 @@
   <title>{title}</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-50">
-  <div class="max-w-4xl mx-auto p-4">
+<div class="min-h-screen bg-gray-50 flex flex-col">
+  <div class="flex-grow max-w-4xl mx-auto p-4 w-full">
     <PageHeader {title} />
     <slot />
   </div>
+  <Footer />
 </div>

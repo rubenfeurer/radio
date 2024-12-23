@@ -1,8 +1,5 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { Badge } from 'flowbite-svelte';
-  import { ws } from '$lib/stores/websocket';
-  import { currentMode } from '$lib/stores/mode';
 
   // Props
   export let title: string;
@@ -11,16 +8,6 @@
   $: currentPath = $page.url.pathname;
   $: parentPath = currentPath.split('/').slice(0, -1).join('/') || '/';
   $: showBackButton = currentPath !== '/';
-
-  // WebSocket connection state
-  let wsConnected = false;
-  ws.subscribe(socket => {
-    wsConnected = socket !== null;
-  });
-
-  // Helper for mode badge color
-  $: modeBadgeColor = $currentMode === 'ap' ? 'purple' : 'blue';
-  $: modeText = $currentMode === undefined ? 'Loading...' : $currentMode?.toUpperCase();
 </script>
 
 <div class="mb-6 flex justify-between items-center">
@@ -33,13 +20,5 @@
       </a>
     {/if}
     <h1 class="text-2xl font-bold">{title}</h1>
-  </div>
-  <div class="flex items-center gap-2">
-    <Badge color={modeBadgeColor}>
-      {modeText}
-    </Badge>
-    <Badge color={wsConnected ? "green" : "red"}>
-      {wsConnected ? "Connected" : "Disconnected"}
-    </Badge>
   </div>
 </div> 

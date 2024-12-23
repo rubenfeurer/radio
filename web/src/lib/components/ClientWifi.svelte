@@ -10,10 +10,7 @@
   export let hideInAP = false;
   
   // Hide in AP mode or when mode is undefined
-  $: shouldHide = $currentMode === 'ap' && hideInAP;
-  
-  // Add loading state for mode
-  $: isLoadingMode = $currentMode === undefined;
+  $: shouldHide = !$currentMode || ($currentMode === 'ap' && hideInAP);
   
   // Debug logging
   $: {
@@ -214,15 +211,7 @@
   }
 </script>
 
-{#if isLoadingMode}
-  <div class="container mx-auto p-4 max-w-2xl">
-    <Card>
-      <div class="flex items-center justify-center p-4">
-        <Skeleton class="w-full" />
-      </div>
-    </Card>
-  </div>
-{:else if !shouldHide}
+{#if !shouldHide}
   <div class="container mx-auto p-4 max-w-2xl">
     <h1 class="text-2xl font-bold mb-4">Networks</h1>
 
@@ -271,14 +260,16 @@
                 {#each savedNetworks as network}
                   <Card class="w-full hover:bg-gray-50 transition-colors">
                     <div class="flex flex-col gap-2">
-                      <div class="flex flex-wrap gap-2">
-                        {#if network.in_use}
-                          <Badge color="green">Connected</Badge>
-                        {/if}
-                        {#if network.ssid === preconfiguredSSID}
-                          <Badge color="blue">Preconfigured</Badge>
-                        {/if}
-                      </div>
+                      {#if network.in_use || network.ssid === preconfiguredSSID}
+                        <div class="flex flex-wrap gap-2">
+                          {#if network.in_use}
+                            <Badge color="green">Connected</Badge>
+                          {/if}
+                          {#if network.ssid === preconfiguredSSID}
+                            <Badge color="blue">Preconfigured</Badge>
+                          {/if}
+                        </div>
+                      {/if}
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3">
                           {@html getWifiIcon(network.signal_strength)}
