@@ -9,6 +9,7 @@ psutil>=5.9.8
 
 # Hardware control
 python-mpv>=1.0.5
+python-mpv-jsonipc>=1.1.13
 pigpio>=1.78
 
 # Testing
@@ -29,5 +30,3 @@ bcrypt>=4.1.0
 # Utilities
 python-dotenv>=1.0.0
 loguru>=0.7.0
-
-python-mpv-jsonipc>=1.1.13  # Added for MPV JSON IPC support

@@ -22,6 +22,7 @@ apt-get install -y \
     python3-venv \
     python3-pip \
     mpv \
+    libmpv-dev \
     pigpio \
     pulseaudio \
     avahi-daemon \
@@ -57,20 +58,19 @@ pip install --upgrade pip
 pip install -r ${RADIO_HOME}/requirements.txt
 EOF
 
-echo "6. Setting up system service..."
-# Install systemd service
-cp install/radio.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable radio
-
-echo "7. Setting up audio..."
+echo "6. Setting up audio..."
 # Configure audio permissions
 usermod -a -G audio ${RADIO_USER}
 mkdir -p /run/user/1000/pulse
 chown -R ${RADIO_USER}:${RADIO_USER} /run/user/1000/pulse
 
+echo "7. Setting up permissions..."
+# Make management script executable
+chmod +x ${RADIO_HOME}/manage_radio.sh
+
 echo "8. Starting radio service..."
-systemctl start radio
+# Use manage_radio.sh to start the service (it will handle service setup)
+${RADIO_HOME}/manage_radio.sh start
 
 # Wait for service to start
 sleep 5

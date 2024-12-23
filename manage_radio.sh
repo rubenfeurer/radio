@@ -135,6 +135,26 @@ check_audio_permissions() {
     sudo chmod -R a+rwX /dev/snd/ || true
 }
 
+check_mpv() {
+    echo "Checking MPV setup..."
+    
+    # Ensure MPV and its development files are installed
+    if ! command -v mpv &> /dev/null || [ ! -f "/usr/include/mpv/client.h" ]; then
+        echo "Installing MPV and development files..."
+        sudo apt-get update
+        sudo apt-get install -y mpv libmpv-dev
+    fi
+    
+    # Ensure correct permissions for MPV socket directory
+    MPV_SOCKET_DIR="/tmp/mpv-socket"
+    if [ ! -d "$MPV_SOCKET_DIR" ]; then
+        echo "Creating MPV socket directory..."
+        sudo mkdir -p "$MPV_SOCKET_DIR"
+    fi
+    sudo chown -R radio:radio "$MPV_SOCKET_DIR"
+    sudo chmod 755 "$MPV_SOCKET_DIR"
+}
+
 ensure_client_mode() {
     echo "Ensuring client mode on startup..."
     source $VENV_PATH/bin/activate
@@ -257,8 +277,10 @@ WorkingDirectory=/home/radio/radio
 Environment="PYTHONPATH=/home/radio/radio"
 Environment="XDG_RUNTIME_DIR=/run/user/1000"
 Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
-ExecStartPre=/bin/mkdir -p /run/user/1000/pulse
-ExecStartPre=/bin/chown -R radio:radio /run/user/1000
+RuntimeDirectory=radio
+RuntimeDirectoryMode=0755
+
+# Remove the problematic ExecStartPre commands and handle in the script
 ExecStart=/home/radio/radio/manage_radio.sh start
 ExecStop=/home/radio/radio/manage_radio.sh stop
 Restart=always
@@ -270,6 +292,10 @@ EOF
 
     # Set correct permissions
     sudo chmod 644 /etc/systemd/system/radio.service
+    
+    # Create necessary directories with correct permissions
+    sudo mkdir -p /run/user/1000/pulse
+    sudo chown -R radio:radio /run/user/1000/pulse
     
     # Reload systemd
     sudo systemctl daemon-reload
@@ -354,11 +380,12 @@ start() {
     # Clean up any existing processes and ports
     check_ports
     
-    # Add check_avahi to the startup sequence
+    # Add all necessary checks
     check_pigpiod
     check_avahi
     check_nmcli_permissions
     check_audio_permissions
+    check_mpv
     ensure_client_mode
     
     # Start FastAPI server
