@@ -12,7 +12,8 @@
     cpuUsage: 'Loading...',
     diskSpace: 'Loading...',
     temperature: 'Loading...',
-    hotspot_ssid: 'Loading...'
+    hotspot_ssid: 'Loading...',
+    internet_connected: false
   };
 
   let services = [];
@@ -245,6 +246,24 @@
       {#if !wsConnected}
         <p class="text-sm text-red-500 mt-1">
           Attempting to reconnect...
+        </p>
+      {/if}
+    </Card>
+
+    <!-- Internet Connection Card -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">Internet Connection</h3>
+      <div class="mt-1 flex items-center gap-2">
+        <p class="text-lg">
+          {systemInfo.internet_connected ? 'Connected' : 'No Connection'}
+        </p>
+        <Badge color={systemInfo.internet_connected ? "green" : "red"}>
+          {systemInfo.internet_connected ? "Online" : "Offline"}
+        </Badge>
+      </div>
+      {#if !systemInfo.internet_connected && $currentMode === 'client'}
+        <p class="text-sm text-red-500 mt-1">
+          Connected to WiFi but no internet access
         </p>
       {/if}
     </Card>

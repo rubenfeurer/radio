@@ -21,8 +21,9 @@ class SystemInfo(BaseModel):
     cpuUsage: str
     diskSpace: str
     temperature: str
-    hotspot_ssid: Optional[str] = None
     mode: str
+    hotspot_ssid: Optional[str] = None
+    internet_connected: bool = False
 
 class ServiceStatus(BaseModel):
     name: str
