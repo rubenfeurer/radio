@@ -122,11 +122,54 @@
   }
 
   async function connectToNetwork(network: WiFiNetwork) {
-    if (network.security && !network.saved) {
+    if (network.security) {
         selectedNetwork = network;
     } else {
         // For open networks
-        await addConnection(network.ssid, '');
+        if (network.saved || network.ssid === apStatus?.preconfigured_ssid) {
+            await modifyConnection(network.ssid, '');
+        } else {
+            await addConnection(network.ssid, '');
+        }
+    }
+  }
+
+  async function modifyConnection(ssid: string, password: string) {
+    connecting = true;
+    error = null;
+    connectionAdded = false;
+    
+    try {
+        const response = await fetch(`${API_V1_STR}/ap/modifyconnection`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                ssid, 
+                password,
+                priority: 1 // Default priority
+            })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            console.error('Modification error:', data);
+            error = data.detail || "Failed to modify network connection";
+            return;
+        }
+
+        // Success
+        connectionAdded = true;
+        error = "Network connection modified successfully!";
+        selectedNetwork = null;
+        password = '';
+        await fetchNetworks(); // Refresh network list
+        
+    } catch (e) {
+        console.error('Modification error:', e);
+        error = "Failed to modify network connection";
+    } finally {
+        connecting = false;
     }
   }
 
@@ -218,8 +261,18 @@
 
     {#if selectedNetwork}
       <Card class="mb-4">
-        <h3 class="text-lg mb-4">Add connection for {selectedNetwork.ssid}</h3>
-        <form on:submit|preventDefault={() => addConnection(selectedNetwork.ssid, password)}>
+        <h3 class="text-lg mb-4">
+          {selectedNetwork.saved || selectedNetwork.ssid === apStatus?.preconfigured_ssid 
+            ? 'Modify connection for' 
+            : 'Add connection for'} {selectedNetwork.ssid}
+        </h3>
+        <form on:submit|preventDefault={() => {
+          if (selectedNetwork.saved || selectedNetwork.ssid === apStatus?.preconfigured_ssid) {
+            modifyConnection(selectedNetwork.ssid, password);
+          } else {
+            addConnection(selectedNetwork.ssid, password);
+          }
+        }}>
           <Input
             type="password"
             placeholder="Network password"
@@ -228,7 +281,9 @@
           />
           <div class="flex gap-2">
             <Button type="submit" disabled={connecting}>
-              {connecting ? 'Saving...' : 'Save Connection'}
+              {connecting ? 'Saving...' : (selectedNetwork.saved || selectedNetwork.ssid === apStatus?.preconfigured_ssid 
+                ? 'Modify Connection' 
+                : 'Save Connection')}
             </Button>
             <Button color="alternative" on:click={() => selectedNetwork = null}>
               Cancel
