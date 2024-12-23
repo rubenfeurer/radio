@@ -138,73 +138,65 @@ class GPIOController:
             current_time = time.time()
             
             button_number = self.button_pins.get(gpio, None)
-            if gpio == self.rotary_sw:
-                button_number = self.rotary_sw
+            is_rotary_switch = gpio == self.rotary_sw
             
             # Button pressed (level = 0)
             if level == 0:
-                # Cancel any existing monitor task for this button
-                if gpio in self.monitor_tasks:
-                    self.monitor_tasks[gpio].cancel()
-                
                 self.press_start_time[gpio] = current_time
                 self.long_press_triggered[gpio] = False
                 
-                # Start new monitoring task
-                if self.loop:
+                # For regular buttons, trigger press immediately
+                if not is_rotary_switch and button_number:
+                    if self.button_press_callback and self.loop:
+                        logger.info(f"Button press detected on button {button_number}")
+                        asyncio.run_coroutine_threadsafe(
+                            self.button_press_callback(button_number), 
+                            self.loop
+                        )
+                
+                # Only start long press monitoring for rotary switch
+                elif is_rotary_switch and self.loop:
                     task = asyncio.run_coroutine_threadsafe(
                         self._monitor_long_press(gpio, button_number),
                         self.loop
                     )
                     self.monitor_tasks[gpio] = task
             
-            # Button released (level = 1)
-            elif level == 1 and gpio in self.press_start_time:
-                # Cancel monitoring task
+            # Button released (level = 1) - only handle for rotary switch
+            elif level == 1 and gpio in self.press_start_time and is_rotary_switch:
+                duration = current_time - self.press_start_time[gpio]
+                
+                # Cancel monitoring task if exists
                 if gpio in self.monitor_tasks:
                     self.monitor_tasks[gpio].cancel()
                     del self.monitor_tasks[gpio]
                 
-                duration = current_time - self.press_start_time[gpio]
-                
-                # Only handle short press if no long press was triggered
+                # Handle rotary switch special functions
                 if not self.long_press_triggered.get(gpio, False):
-                    if duration < self.LONG_PRESS_DURATION:  # Changed to use class constant
-                        # Initialize press count if not exists
-                        if gpio not in self.press_count:
+                    # Check for triple press
+                    if gpio not in self.press_count:
+                        self.press_count[gpio] = 0
+                        self.last_press_time[gpio] = 0
+                        
+                    time_since_last = current_time - self.last_press_time[gpio]
+                    if time_since_last < self.TRIPLE_PRESS_INTERVAL:
+                        self.press_count[gpio] += 1
+                        
+                        if self.press_count[gpio] >= 2:  # Third press
+                            if self.triple_press_callback and self.loop:
+                                logger.info("Triple press detected on rotary switch")
+                                asyncio.run_coroutine_threadsafe(
+                                    self.triple_press_callback(button_number), 
+                                    self.loop
+                                )
                             self.press_count[gpio] = 0
                             self.last_press_time[gpio] = 0
-                            
-                        # Check for triple press
-                        time_since_last = current_time - self.last_press_time[gpio]
-                        if time_since_last < self.TRIPLE_PRESS_INTERVAL:
-                            self.press_count[gpio] += 1
-                            
-                            # Check if we've reached three presses
-                            if self.press_count[gpio] >= 2:  # Third press
-                                if self.triple_press_callback and self.loop:
-                                    logger.info(f"Triple press detected on button {button_number}")
-                                    asyncio.run_coroutine_threadsafe(
-                                        self.triple_press_callback(button_number), 
-                                        self.loop
-                                    )
-                                self.press_count[gpio] = 0
-                                self.last_press_time[gpio] = current_time
-                                return
-                        else:
-                            # Reset counter if too much time has passed
-                            self.press_count[gpio] = 0
-                        
-                        # Handle single press
-                        if self.button_press_callback and self.loop:
-                            logger.info(f"Single press detected on button {button_number}")
-                            asyncio.run_coroutine_threadsafe(
-                                self.button_press_callback(button_number), 
-                                self.loop
-                            )
-                        
-                        self.last_press_time[gpio] = current_time
-                
+                            return
+                    else:
+                        self.press_count[gpio] = 1
+                    
+                    self.last_press_time[gpio] = current_time
+            
         except Exception as e:
             logger.error(f"Error in button handler: {e}", exc_info=True)
 
