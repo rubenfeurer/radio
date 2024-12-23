@@ -194,3 +194,63 @@ Connect to `ws://radiod.local/ws` for real-time updates:
 ## License
 
 MIT License - See LICENSE file for details 
+
+## Installation
+
+### Quick Install
+1. Download latest release:
+   ```bash
+   wget https://github.com/rubenfeurer/radio/releases/latest/download/radio-v*.tar.gz
+   ```
+
+2. Extract and install:
+   ```bash
+   tar xzf radio-v*.tar.gz
+   cd radio-*
+   sudo ./install/install.sh
+   ```
+
+3. Access your radio at `http://radiod.local`
+
+### Development Build
+Latest development build can be downloaded from GitHub Actions:
+1. Go to Actions tab
+2. Select latest development workflow
+3. Download artifact from bottom of page
+4. Install as described above
+
+## Release Process
+
+### Creating a Production Release
+1. Ensure all changes are merged to main
+2. Create and push a new tag:
+   ```bash
+   git checkout main
+   git pull
+   git tag v1.0.0  # Update version number
+   git push origin v1.0.0
+   ```
+3. GitHub Action will automatically:
+   - Build frontend
+   - Create release package
+   - Publish to GitHub Releases
+
+### Creating a Development Build
+1. Push to development branch:
+   ```bash
+   git checkout development
+   git push origin development
+   ```
+2. GitHub Action will automatically:
+   - Build frontend
+   - Create development package
+   - Upload as workflow artifact
+
+### Version Numbering
+- Production: `v1.0.0`, `v1.0.1`, etc.
+- Development: `development-YYYYMMDD-commit`
+
+### Finding Releases
+- Production releases: GitHub Releases page
+- Development builds: GitHub Actions artifacts
+- Direct download: `https://github.com/rubenfeurer/radio/releases`
