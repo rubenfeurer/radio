@@ -12,15 +12,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
           
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
           
@@ -46,23 +46,13 @@ jobs:
           
           PACKAGE="radio-${VERSION}"
           
-          # Create package structure
           mkdir -p dist/${PACKAGE}/{src,config,web,install}
-          
-          # Copy backend files
           cp -r src/{api,core,hardware,utils} dist/${PACKAGE}/src/
-          
-          # Copy frontend build
           cp -r web/build dist/${PACKAGE}/web/
-          
-          # Copy config files
           cp -r config/default_*.json dist/${PACKAGE}/config/
-          
-          # Copy installation files
           cp install/{install.sh,radio.service} dist/${PACKAGE}/install/
           cp {manage_radio.sh,requirements.txt,LICENSE,README.md} dist/${PACKAGE}/
           
-          # Create archive
           cd dist
           tar -czf ${PACKAGE}.tar.gz ${PACKAGE}
           echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
@@ -76,7 +66,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Upload Development Build
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         if: github.ref == 'refs/heads/develop'
         with:
           name: develop-build
