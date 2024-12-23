@@ -50,6 +50,7 @@ class Settings(BaseModel):
     MIN_VOLUME: int = 30  # System will never go below 30%
     MAX_VOLUME: int = 100
     VOLUME_RANGE: int = MAX_VOLUME - MIN_VOLUME  # Range for scaling
+    NOTIFICATION_VOLUME: int = 40  # Volume for system notification sounds
     
     # Rotary Encoder Sensitivity
     ROTARY_VOLUME_STEP: int = 5  # Default step size for volume change

@@ -8,6 +8,7 @@ from config.config import settings
 import os
 import asyncio
 from datetime import datetime
+from src.core.sound_manager import SoundManager, SystemEvent
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class ModeManagerSingleton:
         self.AP_PASS = settings.AP_PASSWORD
         self._MODE_FILE = Path('/tmp/radio/radio_mode.json')
         self._current_mode = None
+        self._sound_manager = SoundManager()
         self._load_state()
 
     @classmethod
@@ -195,6 +197,7 @@ class ModeManagerSingleton:
                 raise RuntimeError(error_msg)
             
             logger.info("AP mode enabled successfully")
+            await self._sound_manager.notify(SystemEvent.MODE_SWITCH)
             return True
             
         except Exception as e:
@@ -241,8 +244,15 @@ class ModeManagerSingleton:
             self._save_state(NetworkMode.CLIENT)
             logger.info("Client mode enabled successfully")
             
+            if connected:
+                await self._sound_manager.notify(SystemEvent.WIFI_CONNECTED)
+            else:
+                await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
+                logger.warning("No connection established, but continuing anyway")
+            
         except Exception as e:
             logger.error(f"Error enabling client mode: {e}")
+            await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
             raise RuntimeError(f"Failed to switch to {NetworkMode.CLIENT} mode") from e
 
     async def toggle_mode(self) -> NetworkMode:

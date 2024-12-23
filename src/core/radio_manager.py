@@ -5,6 +5,8 @@ from src.hardware.gpio_controller import GPIOController
 from config.config import settings
 from src.utils.station_loader import load_default_stations, load_assigned_stations
 from src.core.station_manager import StationManager
+from src.core.sound_manager import SoundManager, SystemEvent
+from src.core.mode_manager import ModeManagerSingleton, NetworkMode
 import logging
 import asyncio
 import httpx
@@ -43,6 +45,32 @@ class RadioManager:
         logger.info("GPIO controller initialized")
         logger.info("RadioManager initialization complete")
         
+        self._sound_manager = SoundManager()
+        
+        # Initialize with startup sound
+        asyncio.create_task(self._handle_startup())
+    
+    async def _handle_startup(self):
+        """Play startup sound based on network status"""
+        try:
+            # Check if we're in client mode and have network
+            mode_manager = ModeManagerSingleton.get_instance()
+            current_mode = mode_manager.detect_current_mode()
+            
+            if current_mode == NetworkMode.CLIENT:
+                # Check network connectivity
+                if await self._check_network():
+                    await self._sound_manager.notify(SystemEvent.STARTUP_SUCCESS)
+                else:
+                    await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
+            else:
+                # In AP mode, just play success sound
+                await self._sound_manager.notify(SystemEvent.STARTUP_SUCCESS)
+                
+        except Exception as e:
+            logger.error(f"Startup notification failed: {e}")
+            await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
+    
     def get_station(self, slot: int) -> Optional[RadioStation]:
         return self._station_manager.get_station(slot)
     
@@ -186,6 +214,7 @@ class RadioManager:
                 
                 if response.status_code == 200:
                     logger.info("Mode toggle successful - mode switch initiated")
+                    await self._sound_manager.notify(SystemEvent.MODE_SWITCH)
                 else:
                     logger.error(f"Mode toggle failed with status {response.status_code}: {response.text}")
                     
