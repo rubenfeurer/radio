@@ -52,6 +52,11 @@ class GPIOController:
         # Add these constants
         self.LONG_PRESS_DURATION = settings.LONG_PRESS_DURATION  # e.g., 2 seconds
         
+        # Add state tracking for rotary encoder
+        self.last_clk_state = None
+        self.last_rotation_time = 0
+        self.ROTATION_DEBOUNCE = 0.01  # 10ms debounce for rotation
+        
         try:
             # Initialize pigpio
             self.pi = pigpio.pi()
@@ -92,25 +97,38 @@ class GPIOController:
             raise
 
     def _handle_rotation(self, gpio, level, tick):
-        """Handle rotary encoder rotation events."""
+        """Handle rotary encoder rotation events with improved state tracking."""
         try:
-            logger.debug(f"Rotation detected on GPIO {gpio}")
+            current_time = time.time()
+            
+            # Debounce fast rotations
+            if current_time - self.last_rotation_time < self.ROTATION_DEBOUNCE:
+                return
+                
             if gpio == settings.ROTARY_CLK:
-                if level == 1:
-                    # Check the state of the other pin to determine direction
-                    if self.pi.read(settings.ROTARY_DT) == 0:
+                clk_state = level
+                dt_state = self.pi.read(settings.ROTARY_DT)
+                
+                # Only process on rising edge of CLK
+                if clk_state == 1:
+                    # Determine direction based on DT state
+                    if dt_state == 0:
                         # Clockwise rotation
                         volume_change = self.volume_step if settings.ROTARY_CLOCKWISE_INCREASES else -self.volume_step
                     else:
                         # Counter-clockwise rotation
                         volume_change = -self.volume_step if settings.ROTARY_CLOCKWISE_INCREASES else self.volume_step
-                    logger.info(f"Volume change: {volume_change}")
+                        
+                    logger.debug(f"Rotation detected - CLK: {clk_state}, DT: {dt_state}, Change: {volume_change}")
                     
                     if self.volume_change_callback and self.loop:
                         asyncio.run_coroutine_threadsafe(
                             self.volume_change_callback(volume_change),
                             self.loop
                         )
+                    
+                    self.last_rotation_time = current_time
+                
         except Exception as e:
             logger.error(f"Error handling rotation: {e}")
 

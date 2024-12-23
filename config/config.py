@@ -46,7 +46,10 @@ class Settings(BaseModel):
     ROTARY_CLOCKWISE_INCREASES: bool = True  # True = clockwise increases volume
     
     # Audio Settings
-    DEFAULT_VOLUME: int = 70
+    DEFAULT_VOLUME: int = 50
+    MIN_VOLUME: int = 30  # System will never go below 30%
+    MAX_VOLUME: int = 100
+    VOLUME_RANGE: int = MAX_VOLUME - MIN_VOLUME  # Range for scaling
     
     # Rotary Encoder Sensitivity
     ROTARY_VOLUME_STEP: int = 5  # Default step size for volume change
@@ -85,6 +88,14 @@ export const HOSTNAME = "{self.HOSTNAME}.local"
 """
         with open(os.path.join("web", "src", "lib", "generated_config.js"), "w") as f:
             f.write(vite_config)
+
+    def scale_volume_to_system(self, ui_volume: int) -> int:
+        """Convert UI volume (0-100) to system volume (30-100)"""
+        return self.MIN_VOLUME + int((ui_volume / 100) * self.VOLUME_RANGE)
+    
+    def scale_volume_to_ui(self, system_volume: int) -> int:
+        """Convert system volume (30-100) to UI volume (0-100)"""
+        return int(((system_volume - self.MIN_VOLUME) / self.VOLUME_RANGE) * 100)
 
     model_config = {
         "case_sensitive": True

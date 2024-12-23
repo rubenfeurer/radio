@@ -36,6 +36,10 @@ class RadioManager:
         # Add reset callback
         self._gpio.reset_callback = self._handle_reset_sequence
         
+        # Set initial volume
+        logger.info(f"Setting initial volume to {settings.DEFAULT_VOLUME}")
+        asyncio.create_task(self.set_volume(settings.DEFAULT_VOLUME))
+        
         logger.info("GPIO controller initialized")
         logger.info("RadioManager initialization complete")
         
@@ -94,10 +98,21 @@ class RadioManager:
     async def set_volume(self, volume: int) -> None:
         """Set system volume level."""
         try:
-            logger.debug(f"Setting volume to {volume}")
-            await self._player.set_volume(volume)
-            self._status.volume = volume
-            logger.info(f"Volume set successfully to {volume}")
+            # Ensure volume is within UI bounds (0-100)
+            ui_volume = max(0, min(100, volume))
+            
+            # Scale UI volume to system volume (30-100)
+            system_volume = settings.scale_volume_to_system(ui_volume)
+            
+            logger.debug(f"Setting volume - UI: {ui_volume}%, System: {system_volume}%")
+            
+            # Set the actual system volume
+            await self._player.set_volume(system_volume)
+            
+            # Store the UI volume in status
+            self._status.volume = ui_volume
+            
+            logger.info(f"Volume set successfully - UI: {ui_volume}%, System: {system_volume}%")
             await self._broadcast_status()
         except Exception as e:
             logger.error(f"Error setting volume: {e}")
