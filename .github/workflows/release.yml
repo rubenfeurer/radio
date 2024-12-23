@@ -38,17 +38,20 @@ jobs:
       - name: Create Package
         run: |
           if [[ $GITHUB_REF == refs/tags/* ]]; then
-            # Production release (from tag)
             VERSION=${GITHUB_REF#refs/tags/}
             PACKAGE="radio-${VERSION}"
           elif [[ $GITHUB_REF == refs/heads/develop ]]; then
-            # Development build
             VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
             PACKAGE="radio-${VERSION}"
           else
-            # Main branch build (no tag)
             echo "Skipping package creation for main branch without tag"
             exit 0
+          fi
+          
+          # Check for required directories
+          if [ ! -d "sounds" ]; then
+            echo "Error: sounds directory is required but missing"
+            exit 1
           fi
           
           # Create package structure
@@ -64,15 +67,22 @@ jobs:
           cp config/config.py dist/${PACKAGE}/config/
           cp config/stations.json dist/${PACKAGE}/config/
           
-          # Copy sound files
+          # Copy sound files (required)
           cp -r sounds/*.wav dist/${PACKAGE}/sounds/
           
           # Copy installation and management files
-          cp install/{install.sh,reset_radio.sh} dist/${PACKAGE}/install/
+          cp install/install.sh dist/${PACKAGE}/install/
+          if [ -f "install/reset_radio.sh" ]; then
+            cp install/reset_radio.sh dist/${PACKAGE}/install/
+          fi
           cp manage_radio.sh dist/${PACKAGE}/
           
           # Copy essential files
-          cp {requirements.txt,README.md,LICENSE} dist/${PACKAGE}/
+          cp requirements.txt dist/${PACKAGE}/
+          cp README.md dist/${PACKAGE}/
+          if [ -f "LICENSE" ]; then
+            cp LICENSE dist/${PACKAGE}/
+          fi
           
           # Create necessary empty directories
           touch dist/${PACKAGE}/data/.keep
