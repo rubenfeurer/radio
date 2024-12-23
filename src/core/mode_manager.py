@@ -8,6 +8,7 @@ from config.config import settings
 import os
 import asyncio
 from datetime import datetime
+from src.core.sound_manager import SoundManager, SystemEvent
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class ModeManagerSingleton:
         self.AP_PASS = settings.AP_PASSWORD
         self._MODE_FILE = Path('/tmp/radio/radio_mode.json')
         self._current_mode = None
+        self._sound_manager = SoundManager()
         self._load_state()
 
     @classmethod
@@ -195,6 +197,7 @@ class ModeManagerSingleton:
                 raise RuntimeError(error_msg)
             
             logger.info("AP mode enabled successfully")
+            await self._sound_manager.notify(SystemEvent.MODE_SWITCH)
             return True
             
         except Exception as e:
@@ -206,44 +209,46 @@ class ModeManagerSingleton:
         try:
             logger.info("Enabling client mode...")
             
-            # First, stop the AP connection if it exists
+            # 1. Stop AP/Hotspot
             subprocess.run(['sudo', 'nmcli', 'connection', 'down', 'Hotspot'], 
                           capture_output=True)
             
-            # Set device to managed mode
+            # 2. Switch to managed mode and enable WiFi
             subprocess.run(['sudo', 'nmcli', 'device', 'set', 'wlan0', 'managed'], 
                           capture_output=True)
+            subprocess.run(['sudo', 'nmcli', 'radio', 'wifi', 'on'],
+                          capture_output=True)
             
-            # Give NetworkManager a moment to process the mode change
-            await asyncio.sleep(2)
-            
-            # Wait for any connection to be established
+            # 3. Let NetworkManager auto-connect and wait for result
             max_attempts = 15
             connected = False
             for attempt in range(max_attempts):
-                logger.debug(f"Waiting for connection attempt {attempt + 1}/{max_attempts}")
-                
-                # Check if we're connected to any network
-                check = subprocess.run(['nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'],
-                                     capture_output=True, text=True)
-                
+                logger.debug(f"Checking connection status (attempt {attempt + 1}/{max_attempts})")
+                check = subprocess.run(
+                    ['nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'],
+                    capture_output=True, text=True
+                )
                 if 'connected' in check.stdout.lower():
                     logger.info("Network connection established")
                     connected = True
                     break
-                    
                 await asyncio.sleep(1)
             
-            if not connected:
-                logger.warning("No connection established, but continuing anyway")
-            
-            # Save the state even if we didn't connect (we're still in client mode)
+            # 4. Save state and notify
             self._save_state(NetworkMode.CLIENT)
-            logger.info("Client mode enabled successfully")
+            
+            if connected:
+                await self._sound_manager.notify(SystemEvent.WIFI_CONNECTED)
+                return True
+            else:
+                await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
+                logger.warning("No connection established")
+                return False
             
         except Exception as e:
-            logger.error(f"Error enabling client mode: {e}")
-            raise RuntimeError(f"Failed to switch to {NetworkMode.CLIENT} mode") from e
+            logger.error(f"Error enabling client mode: {e}", exc_info=True)
+            await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
+            raise
 
     async def toggle_mode(self) -> NetworkMode:
         """Toggle between AP and Client modes"""

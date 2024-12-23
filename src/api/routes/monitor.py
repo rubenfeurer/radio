@@ -38,7 +38,19 @@ async def get_system_info() -> SystemInfo:
     except:
         temp = 0
     
-    # Get hotspot information - Add debug logging
+    # Check internet connectivity
+    try:
+        result = subprocess.run(
+            ['nmcli', 'networking', 'connectivity', 'check'],
+            capture_output=True, text=True
+        )
+        internet_connected = 'full' in result.stdout.lower()
+        logging.debug(f"[MONITOR] Internet connectivity check: {internet_connected}")
+    except Exception as e:
+        logging.error(f"[MONITOR] Error checking internet connectivity: {e}")
+        internet_connected = False
+    
+    # Get hotspot information
     try:
         result = subprocess.run(['nmcli', 'device', 'show', 'wlan0'], 
                               capture_output=True, text=True)
@@ -61,10 +73,11 @@ async def get_system_info() -> SystemInfo:
         diskSpace=f"Used: {disk.percent}%",
         temperature=f"{temp:.1f}°C",
         mode=current_mode,
-        hotspot_ssid=hotspot_ssid
+        hotspot_ssid=hotspot_ssid,
+        internet_connected=internet_connected
     )
     
-    logging.debug(f"[MONITOR] System info update: mode={current_mode}, hotspot={hotspot_ssid}")
+    logging.debug(f"[MONITOR] System info update: mode={current_mode}, hotspot={hotspot_ssid}, internet={internet_connected}")
     return system_info
 
 async def get_services_status():

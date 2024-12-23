@@ -5,6 +5,8 @@ from src.hardware.gpio_controller import GPIOController
 from config.config import settings
 from src.utils.station_loader import load_default_stations, load_assigned_stations
 from src.core.station_manager import StationManager
+from src.core.sound_manager import SoundManager, SystemEvent
+from src.core.mode_manager import ModeManagerSingleton, NetworkMode
 import logging
 import asyncio
 import httpx
@@ -13,32 +15,57 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 class RadioManager:
-    def __init__(self, status_update_callback=None):
+    def __init__(self, status_update_callback=None, test_mode=False):
         logger.info("Initializing RadioManager")
         self._station_manager = StationManager()
         self._status = SystemStatus(volume=settings.DEFAULT_VOLUME)
-        self._player = AudioPlayer()
+        self._player = AudioPlayer() if not test_mode else AsyncMock()
         self._status_update_callback = status_update_callback
         self._lock = asyncio.Lock()
+        self._sound_manager = SoundManager(test_mode=test_mode)
+        self._test_mode = test_mode
         
-        # Get the current event loop
-        self.loop = asyncio.get_event_loop()
-        
-        # Initialize GPIO controller with callbacks
-        logger.info("Initializing GPIO controller")
-        self._gpio = GPIOController(
-            volume_change_callback=self._handle_volume_change,
-            button_press_callback=self._handle_button_press,
-            long_press_callback=self._handle_long_press,
-            triple_press_callback=self._handle_triple_press,
-            event_loop=self.loop
-        )
-        # Add reset callback
-        self._gpio.reset_callback = self._handle_reset_sequence
-        
-        logger.info("GPIO controller initialized")
-        logger.info("RadioManager initialization complete")
-        
+        if not test_mode:
+            # Initialize GPIO controller with callbacks
+            logger.info("Initializing GPIO controller")
+            self._gpio = GPIOController(
+                volume_change_callback=self._handle_volume_change,
+                button_press_callback=self._handle_button_press,
+                long_press_callback=self._handle_long_press,
+                triple_press_callback=self._handle_triple_press,
+                event_loop=asyncio.get_event_loop()
+            )
+            self._gpio.reset_callback = self._handle_reset_sequence
+
+    async def initialize(self):
+        """Async initialization"""
+        if not self._test_mode:
+            # Set initial volume
+            await self.set_volume(settings.DEFAULT_VOLUME)
+            # Play startup sound
+            await self._handle_startup()
+    
+    async def _handle_startup(self):
+        """Play startup sound based on network status"""
+        try:
+            # Check if we're in client mode and have network
+            mode_manager = ModeManagerSingleton.get_instance()
+            current_mode = mode_manager.detect_current_mode()
+            
+            if current_mode == NetworkMode.CLIENT:
+                # Check network connectivity
+                if await self._check_network():
+                    await self._sound_manager.notify(SystemEvent.STARTUP_SUCCESS)
+                else:
+                    await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
+            else:
+                # In AP mode, just play success sound
+                await self._sound_manager.notify(SystemEvent.STARTUP_SUCCESS)
+                
+        except Exception as e:
+            logger.error(f"Startup notification failed: {e}")
+            await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
+    
     def get_station(self, slot: int) -> Optional[RadioStation]:
         return self._station_manager.get_station(slot)
     
@@ -94,10 +121,21 @@ class RadioManager:
     async def set_volume(self, volume: int) -> None:
         """Set system volume level."""
         try:
-            logger.debug(f"Setting volume to {volume}")
-            await self._player.set_volume(volume)
-            self._status.volume = volume
-            logger.info(f"Volume set successfully to {volume}")
+            # Ensure volume is within UI bounds (0-100)
+            ui_volume = max(0, min(100, volume))
+            
+            # Scale UI volume to system volume (30-100)
+            system_volume = settings.scale_volume_to_system(ui_volume)
+            
+            logger.debug(f"Setting volume - UI: {ui_volume}%, System: {system_volume}%")
+            
+            # Set the actual system volume
+            await self._player.set_volume(system_volume)
+            
+            # Store the UI volume in status
+            self._status.volume = ui_volume
+            
+            logger.info(f"Volume set successfully - UI: {ui_volume}%, System: {system_volume}%")
             await self._broadcast_status()
         except Exception as e:
             logger.error(f"Error setting volume: {e}")
@@ -171,6 +209,7 @@ class RadioManager:
                 
                 if response.status_code == 200:
                     logger.info("Mode toggle successful - mode switch initiated")
+                    await self._sound_manager.notify(SystemEvent.MODE_SWITCH)
                 else:
                     logger.error(f"Mode toggle failed with status {response.status_code}: {response.text}")
                     
