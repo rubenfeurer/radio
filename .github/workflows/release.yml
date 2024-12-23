@@ -38,21 +38,50 @@ jobs:
       - name: Create Package
         run: |
           if [[ $GITHUB_REF == refs/tags/* ]]; then
+            # Production release (from tag)
             VERSION=${GITHUB_REF#refs/tags/}
+            PACKAGE="radio-${VERSION}"
+          elif [[ $GITHUB_REF == refs/heads/develop ]]; then
+            # Development build
+            VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
+            PACKAGE="radio-${VERSION}"
           else
-            BRANCH=${GITHUB_REF#refs/heads/}
-            VERSION="${BRANCH}-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
+            # Main branch build (no tag)
+            echo "Skipping package creation for main branch without tag"
+            exit 0
           fi
           
-          PACKAGE="radio-${VERSION}"
+          # Create package structure
+          mkdir -p dist/${PACKAGE}/{src,config,web,install,sounds,data,logs}
           
-          mkdir -p dist/${PACKAGE}/{src,config,web,install}
-          cp -r src/{api,core,hardware,utils} dist/${PACKAGE}/src/
+          # Copy backend files
+          cp -r src/{api,core,hardware,system,utils} dist/${PACKAGE}/src/
+          
+          # Copy frontend build
           cp -r web/build dist/${PACKAGE}/web/
-          cp -r config/default_*.json dist/${PACKAGE}/config/
-          cp install/{install.sh,radio.service} dist/${PACKAGE}/install/
-          cp {manage_radio.sh,requirements.txt,LICENSE,README.md} dist/${PACKAGE}/
           
+          # Copy config files
+          cp config/config.py dist/${PACKAGE}/config/
+          cp config/stations.json dist/${PACKAGE}/config/
+          
+          # Copy sound files
+          cp -r sounds/*.wav dist/${PACKAGE}/sounds/
+          
+          # Copy installation and management files
+          cp install/{install.sh,reset_radio.sh} dist/${PACKAGE}/install/
+          cp manage_radio.sh dist/${PACKAGE}/
+          
+          # Copy essential files
+          cp {requirements.txt,README.md,LICENSE} dist/${PACKAGE}/
+          
+          # Create necessary empty directories
+          touch dist/${PACKAGE}/data/.keep
+          touch dist/${PACKAGE}/logs/.keep
+          
+          # Remove any Python cache files
+          find dist/${PACKAGE} -type d -name "__pycache__" -exec rm -r {} +
+          
+          # Create archive
           cd dist
           tar -czf ${PACKAGE}.tar.gz ${PACKAGE}
           echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
