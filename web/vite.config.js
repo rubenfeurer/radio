@@ -48,16 +48,17 @@ export default defineConfig({
 	preview: {
 		host: '0.0.0.0',
 		port: DEV_PORT,
-		strictPort: true,
-		headers: {
-			'Access-Control-Allow-Origin': '*',
-			'Access-Control-Allow-Private-Network': 'true',
-			'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
-			'Access-Control-Allow-Headers': 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With',
-			'Access-Control-Allow-Credentials': 'true',
-			'Cross-Origin-Opener-Policy': 'same-origin',
-			'Cross-Origin-Embedder-Policy': 'require-corp',
-			'Cross-Origin-Resource-Policy': 'cross-origin'
+		proxy: {
+			[API_PREFIX]: {
+				target: `http://${HOSTNAME}:${API_PORT}`,
+				changeOrigin: true,
+				rewrite: (path) => path.includes(API_V1_STR) ? path : path.replace(API_PREFIX, API_V1_STR)
+			},
+			'/ws': {
+				target: `ws://${HOSTNAME}:${API_PORT}`,
+				ws: true,
+				changeOrigin: true
+			}
 		}
 	}
 });

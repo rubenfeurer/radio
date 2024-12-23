@@ -1,3 +1,9 @@
+import logging
+
+# Set up logging first
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
@@ -114,21 +120,25 @@ async def health_check():
 # Mount the built frontend files
 frontend_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
                            settings.FRONTEND_BUILD_PATH)
-if os.path.exists(frontend_path):
+
+# Get development mode from environment
+dev_mode = os.getenv('DEV_MODE', 'false').lower() == 'true'
+
+if os.path.exists(frontend_path) and not dev_mode:
+    # Production: Serve built files from FastAPI
+    logger.info(f"Serving frontend from {frontend_path}")
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
-else:
-    # In development, redirect to Vite dev server
+elif dev_mode:
+    # Development: Let Vite handle frontend, only serve API
+    logger.info(f"Running in development mode - frontend served by Vite")
     @app.get("/")
     async def root():
-        """Redirect to dev server in development mode"""
-        return RedirectResponse(url=f"http://{settings.HOSTNAME}.local:{settings.DEV_PORT}")
-
-    @app.get("/{path:path}")
-    async def catch_all(path: str):
-        """Forward all non-API requests to dev server"""
-        if not path.startswith(settings.API_V1_STR.lstrip("/")):
-            return RedirectResponse(url=f"http://{settings.HOSTNAME}.local:{settings.DEV_PORT}/{path}")
-        raise HTTPException(status_code=404, detail="Not found")
+        return {"message": "API running in development mode"}
+else:
+    logger.error(f"Frontend build directory not found at {frontend_path}")
+    @app.get("/")
+    async def root():
+        return {"error": "Frontend not built"}
 
 logger = logging.getLogger(__name__)
 
