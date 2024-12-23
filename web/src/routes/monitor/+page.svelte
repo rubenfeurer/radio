@@ -230,6 +230,24 @@
         </span>
       </p>
     </Card>
+
+    <!-- WebSocket Status Card - Add this to the grid of system info cards -->
+    <Card>
+      <h3 class="text-sm font-medium text-gray-500">WebSocket Status</h3>
+      <div class="mt-1 flex items-center gap-2">
+        <p class="text-lg">
+          {wsConnected ? 'Connected' : 'Disconnected'}
+        </p>
+        <Badge color={wsConnected ? "green" : "red"}>
+          {wsConnected ? "Online" : "Offline"}
+        </Badge>
+      </div>
+      {#if !wsConnected}
+        <p class="text-sm text-red-500 mt-1">
+          Attempting to reconnect...
+        </p>
+      {/if}
+    </Card>
   </div>
 
   <!-- Processes Table -->

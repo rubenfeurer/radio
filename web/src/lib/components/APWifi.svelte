@@ -302,23 +302,27 @@
                 class="w-full cursor-pointer hover:bg-gray-50 transition-colors"
                 on:click={() => connectToNetwork(network)}
               >
-                <div class="flex items-center justify-between p-1">
-                  <div class="flex items-center gap-3">
-                    {@html getWifiIcon(network.signal_strength)}
-                    <span class="font-semibold">{network.ssid}</span>
-                    {#if network.security}
-                      {@html Icons.lock}
+                <div class="flex flex-col gap-2">
+                  <div class="flex flex-wrap gap-2">
+                    {#if network.saved}
+                      <Badge color="green">Saved</Badge>
                     {/if}
                     {#if network.ssid === apStatus?.preconfigured_ssid}
                       <Badge color="blue">Preconfigured</Badge>
                     {/if}
-                    {#if network.saved}
-                      <Badge color="green">Saved</Badge>
-                    {/if}
                   </div>
-                  <Badge color="dark">
-                    {network.signal_strength}%
-                  </Badge>
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      {@html getWifiIcon(network.signal_strength)}
+                      <span class="font-semibold">{network.ssid}</span>
+                      {#if network.security}
+                        {@html Icons.lock}
+                      {/if}
+                    </div>
+                    <Badge color="dark">
+                      {network.signal_strength}%
+                    </Badge>
+                  </div>
                 </div>
               </Card>
             {/each}

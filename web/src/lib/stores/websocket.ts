@@ -1,7 +1,8 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { WS_URL } from '$lib/config';
-import { currentMode } from './mode';
+import { currentMode, type NetworkMode } from './mode';
+import { API_V1_STR } from '$lib/config';
 
 interface WSMessage {
     type: 'status_update' | 'mode_update' | 'wifi_update' | 'monitor_update';
@@ -127,5 +128,36 @@ if (browser) {
             };
         }
     });
+}
+
+function handleWebSocketMessage(event: MessageEvent) {
+  try {
+    const data = JSON.parse(event.data);
+    console.log('WebSocket message received:', data);
+
+    if (data.type === 'status_response') {
+      console.log('Processing status response:', data.data);
+      
+      // Set mode from status response
+      if (data.data.mode) {
+        const mode = data.data.mode.toLowerCase() as NetworkMode;
+        console.log('Setting mode to:', mode);
+        if (mode === 'ap' || mode === 'client') {
+          currentMode.set(mode);
+        }
+      }
+    }
+    
+    // Handle mode_update messages as well
+    if (data.type === 'mode_update') {
+      const mode = data.mode.toLowerCase() as NetworkMode;
+      console.log('Mode update received:', mode);
+      if (mode === 'ap' || mode === 'client') {
+        currentMode.set(mode);
+      }
+    }
+  } catch (error) {
+    console.error('Error handling WebSocket message:', error);
+  }
 }
 

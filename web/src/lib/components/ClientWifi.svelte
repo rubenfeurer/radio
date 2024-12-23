@@ -10,7 +10,10 @@
   export let hideInAP = false;
   
   // Hide in AP mode or when mode is undefined
-  $: shouldHide = !$currentMode || ($currentMode === 'ap' && hideInAP);
+  $: shouldHide = $currentMode === 'ap' && hideInAP;
+  
+  // Add loading state for mode
+  $: isLoadingMode = $currentMode === undefined;
   
   // Debug logging
   $: {
@@ -211,9 +214,17 @@
   }
 </script>
 
-{#if !shouldHide}
+{#if isLoadingMode}
   <div class="container mx-auto p-4 max-w-2xl">
-    <h1 class="text-2xl font-bold mb-4">Networks (Client Mode)</h1>
+    <Card>
+      <div class="flex items-center justify-center p-4">
+        <Skeleton class="w-full" />
+      </div>
+    </Card>
+  </div>
+{:else if !shouldHide}
+  <div class="container mx-auto p-4 max-w-2xl">
+    <h1 class="text-2xl font-bold mb-4">Networks</h1>
 
     {#if selectedNetwork}
       <Card class="w-full">
@@ -259,13 +270,8 @@
               <div class="grid gap-4">
                 {#each savedNetworks as network}
                   <Card class="w-full hover:bg-gray-50 transition-colors">
-                    <div class="flex items-center justify-between p-1">
-                      <div class="flex items-center gap-3">
-                        {@html getWifiIcon(network.signal_strength)}
-                        <span class="font-semibold">{network.ssid}</span>
-                        {#if network.security}
-                          {@html Icons.lock}
-                        {/if}
+                    <div class="flex flex-col gap-2">
+                      <div class="flex flex-wrap gap-2">
                         {#if network.in_use}
                           <Badge color="green">Connected</Badge>
                         {/if}
@@ -273,38 +279,50 @@
                           <Badge color="blue">Preconfigured</Badge>
                         {/if}
                       </div>
-                      <div class="flex items-center gap-2">
-                        {#if !network.in_use && network.saved}
-                          <Button 
-                            size="xs"
-                            color="red"
-                            on:click={() => {
-                              if (confirm(`Are you sure you want to forget "${network.ssid}"?`)) {
-                                try {
-                                  fetch(
-                                    `${API_V1_STR}/wifi/forget/${encodeURIComponent(network.ssid)}`, 
-                                    { method: 'DELETE' }
-                                  )
-                                  .then(response => {
-                                    if (!response.ok) throw new Error('Failed to forget network');
-                                    return fetchNetworks(); // Refresh the networks list
-                                  })
-                                  .catch(error => {
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                          {@html getWifiIcon(network.signal_strength)}
+                          <span class="font-semibold">{network.ssid}</span>
+                          {#if network.security}
+                            {@html Icons.lock}
+                          {/if}
+                        </div>
+                      </div>
+                      {#if !network.in_use}
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                          {#if network.saved}
+                            <Button 
+                              class="w-full"
+                              color="alternative"
+                              size="xs"
+                              on:click={() => {
+                                if (confirm(`Are you sure you want to forget "${network.ssid}"?`)) {
+                                  try {
+                                    fetch(
+                                      `${API_V1_STR}/wifi/forget/${encodeURIComponent(network.ssid)}`, 
+                                      { method: 'DELETE' }
+                                    )
+                                    .then(response => {
+                                      if (!response.ok) throw new Error('Failed to forget network');
+                                      return fetchNetworks();
+                                    })
+                                    .catch(error => {
+                                      console.error('Error forgetting network:', error);
+                                      alert('Failed to forget network');
+                                    });
+                                  } catch (error) {
                                     console.error('Error forgetting network:', error);
                                     alert('Failed to forget network');
-                                  });
-                                } catch (error) {
-                                  console.error('Error forgetting network:', error);
-                                  alert('Failed to forget network');
+                                  }
                                 }
-                              }
-                            }}
-                          >
-                            Forget
-                          </Button>
-                        {/if}
-                        {#if !network.in_use}
+                              }}
+                            >
+                              Forget
+                            </Button>
+                          {/if}
                           <Button 
+                            class="w-full"
+                            color="primary"
                             size="xs"
                             on:click={() => network.ssid === preconfiguredSSID 
                               ? connectToPreconfigured() 
@@ -313,8 +331,8 @@
                           >
                             {connecting ? 'Connecting...' : 'Connect'}
                           </Button>
-                        {/if}
-                      </div>
+                        </div>
+                      {/if}
                     </div>
                   </Card>
                 {/each}
