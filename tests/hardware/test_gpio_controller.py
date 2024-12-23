@@ -4,6 +4,7 @@ from src.hardware.gpio_controller import GPIOController
 from config.config import settings
 import time
 import asyncio
+from unittest.mock import AsyncMock
 
 """
 Test suite for GPIO Controller.
@@ -95,58 +96,58 @@ def test_rotation_direction():
         expected_change = settings.ROTARY_VOLUME_STEP if settings.ROTARY_CLOCKWISE_INCREASES else -settings.ROTARY_VOLUME_STEP
         mock_callback.assert_called_with(expected_change)
 
-def test_long_press_detection():
+@pytest.mark.asyncio
+async def test_long_press_detection():
     """Test long press detection"""
-    mock_callback = Mock()
+    mock_callback = AsyncMock()  # Use AsyncMock instead of Mock
     with patch('pigpio.pi') as mock_pi:
         mock_instance = Mock()
         mock_instance.connected = True
         mock_pi.return_value = mock_instance
 
         # Create event loop for testing
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
+        loop = asyncio.get_event_loop()
+        
         controller = GPIOController(long_press_callback=mock_callback, event_loop=loop)
-        gpio = settings.BUTTON_PIN_1
+        gpio = settings.ROTARY_SW  # Use rotary switch for long press
 
-        # Simulate long press with proper timing
+        # Simulate long press
         controller._handle_button(gpio, 0, 0)  # Press down
-        time.sleep(settings.LONG_PRESS_DURATION + 0.1)  # Wait longer than threshold
+        await asyncio.sleep(settings.LONG_PRESS_DURATION + 0.1)  # Wait longer than threshold
         controller._handle_button(gpio, 1, 0)  # Release
-
+        
+        # Wait for callbacks to complete
+        await asyncio.sleep(0.1)
+        
         # Check if long press callback was called
-        loop.run_until_complete(asyncio.sleep(0))
-        mock_callback.assert_called_once_with(1)
+        assert mock_callback.call_count == 1
+        mock_callback.assert_called_once_with(gpio)
 
-def test_triple_press_detection():
+@pytest.mark.asyncio
+async def test_triple_press_detection():
     """Test triple press detection"""
-    mock_callback = Mock()
+    mock_callback = AsyncMock()  # Use AsyncMock instead of Mock
     with patch('pigpio.pi') as mock_pi:
         mock_instance = Mock()
         mock_instance.connected = True
         mock_pi.return_value = mock_instance
 
         # Create event loop for testing
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
+        loop = asyncio.get_event_loop()
+        
         controller = GPIOController(triple_press_callback=mock_callback, event_loop=loop)
-        gpio = settings.BUTTON_PIN_1
+        gpio = settings.ROTARY_SW  # Use rotary switch for triple press
 
-        # Define press interval
-        press_interval = 0.2  # Use a fixed value for testing
+        # Simulate triple press with proper timing
+        for _ in range(3):
+            controller._handle_button(gpio, 0, 0)  # Press
+            await asyncio.sleep(0.05)  # Short press duration
+            controller._handle_button(gpio, 1, 0)  # Release
+            await asyncio.sleep(0.1)  # Short interval between presses
 
-        # Simulate triple press with proper press/release sequence
-        controller._handle_button(gpio, 0, 0)  # First press
-        controller._handle_button(gpio, 1, 0)  # First release
-        time.sleep(press_interval)  # Wait between presses
-        controller._handle_button(gpio, 0, 0)  # Second press
-        controller._handle_button(gpio, 1, 0)  # Second release
-        time.sleep(press_interval)  # Wait between presses
-        controller._handle_button(gpio, 0, 0)  # Third press
-        controller._handle_button(gpio, 1, 0)  # Third release
-
+        # Wait for callbacks to complete
+        await asyncio.sleep(0.2)
+        
         # Check if triple press callback was called
-        loop.run_until_complete(asyncio.sleep(0.1))
-        mock_callback.assert_called_once_with(1) 
+        assert mock_callback.call_count == 1
+        mock_callback.assert_called_once_with(gpio) 

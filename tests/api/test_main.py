@@ -4,7 +4,7 @@ from src.api.main import app
 from src.core.models import RadioStation, SystemStatus
 from src.api.models.requests import VolumeRequest, AssignStationRequest
 from config.config import settings
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 import os
 from pathlib import Path
 import tempfile
@@ -36,10 +36,25 @@ def setup_test_environment(monkeypatch):
     # Cleanup after test
     shutil.rmtree(test_dir)
 
+@pytest.fixture
+def mock_radio_manager():
+    """Mock RadioManager for testing"""
+    with patch('src.core.singleton_manager.RadioManagerSingleton.get_instance') as mock:
+        manager = AsyncMock()
+        manager.initialize = AsyncMock()
+        mock.return_value = manager
+        yield manager
+
+@pytest.fixture
+def test_client(mock_radio_manager):
+    """Test client with mocked RadioManager"""
+    with TestClient(app) as client:
+        yield client
+
 @pytest.mark.asyncio
-async def test_root():
+async def test_root(test_client):
     """Test root API endpoint"""
-    response = client.get(f"{settings.API_V1_STR}/")
+    response = test_client.get(f"{settings.API_V1_STR}/")
     assert response.status_code == 200
     assert response.json() == {"message": "Radio API"}
 

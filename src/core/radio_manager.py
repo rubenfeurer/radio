@@ -15,40 +15,35 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 class RadioManager:
-    def __init__(self, status_update_callback=None):
+    def __init__(self, status_update_callback=None, test_mode=False):
         logger.info("Initializing RadioManager")
         self._station_manager = StationManager()
         self._status = SystemStatus(volume=settings.DEFAULT_VOLUME)
-        self._player = AudioPlayer()
+        self._player = AudioPlayer() if not test_mode else AsyncMock()
         self._status_update_callback = status_update_callback
         self._lock = asyncio.Lock()
+        self._sound_manager = SoundManager(test_mode=test_mode)
+        self._test_mode = test_mode
         
-        # Get the current event loop
-        self.loop = asyncio.get_event_loop()
-        
-        # Initialize GPIO controller with callbacks
-        logger.info("Initializing GPIO controller")
-        self._gpio = GPIOController(
-            volume_change_callback=self._handle_volume_change,
-            button_press_callback=self._handle_button_press,
-            long_press_callback=self._handle_long_press,
-            triple_press_callback=self._handle_triple_press,
-            event_loop=self.loop
-        )
-        # Add reset callback
-        self._gpio.reset_callback = self._handle_reset_sequence
-        
-        # Set initial volume
-        logger.info(f"Setting initial volume to {settings.DEFAULT_VOLUME}")
-        asyncio.create_task(self.set_volume(settings.DEFAULT_VOLUME))
-        
-        logger.info("GPIO controller initialized")
-        logger.info("RadioManager initialization complete")
-        
-        self._sound_manager = SoundManager()
-        
-        # Initialize with startup sound
-        asyncio.create_task(self._handle_startup())
+        if not test_mode:
+            # Initialize GPIO controller with callbacks
+            logger.info("Initializing GPIO controller")
+            self._gpio = GPIOController(
+                volume_change_callback=self._handle_volume_change,
+                button_press_callback=self._handle_button_press,
+                long_press_callback=self._handle_long_press,
+                triple_press_callback=self._handle_triple_press,
+                event_loop=asyncio.get_event_loop()
+            )
+            self._gpio.reset_callback = self._handle_reset_sequence
+
+    async def initialize(self):
+        """Async initialization"""
+        if not self._test_mode:
+            # Set initial volume
+            await self.set_volume(settings.DEFAULT_VOLUME)
+            # Play startup sound
+            await self._handle_startup()
     
     async def _handle_startup(self):
         """Play startup sound based on network status"""

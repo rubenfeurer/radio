@@ -22,6 +22,10 @@ async def lifespan(app: FastAPI):
     """Lifespan events handler"""
     # Startup
     try:
+        # Initialize RadioManager
+        radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
+        await radio_manager.initialize()
+        
         # Create data directory if it doesn't exist
         data_dir = Path("data")
         data_dir.mkdir(exist_ok=True)

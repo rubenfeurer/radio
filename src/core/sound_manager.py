@@ -14,7 +14,13 @@ class SystemEvent(Enum):
     WIFI_CONNECTED = "wifi_connected"
 
 class SoundManager:
-    def __init__(self):
+    def __init__(self, test_mode=False):
+        """Initialize SoundManager
+        
+        Args:
+            test_mode (bool): If True, use test mode (no actual sounds)
+        """
+        self._test_mode = test_mode
         self.sound_dir = Path("/home/radio/radio/sounds")
         self.event_sounds = {
             SystemEvent.STARTUP_SUCCESS: "success.wav",
