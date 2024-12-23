@@ -4,7 +4,7 @@ on:
   push:
     branches: 
       - main
-      - development
+      - develop
     tags:
       - 'v*'
 
@@ -38,10 +38,8 @@ jobs:
       - name: Create Package
         run: |
           if [[ $GITHUB_REF == refs/tags/* ]]; then
-            # For tagged releases (production)
             VERSION=${GITHUB_REF#refs/tags/}
           else
-            # For branch builds (development)
             BRANCH=${GITHUB_REF#refs/heads/}
             VERSION="${BRANCH}-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
           fi
@@ -79,8 +77,8 @@ jobs:
           
       - name: Upload Development Build
         uses: actions/upload-artifact@v2
-        if: github.ref == 'refs/heads/development'
+        if: github.ref == 'refs/heads/develop'
         with:
-          name: development-build
+          name: develop-build
           path: dist/${{ env.PACKAGE_NAME }}
           retention-days: 7
