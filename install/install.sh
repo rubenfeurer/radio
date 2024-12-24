@@ -87,18 +87,94 @@ EOF
 
 echo "6. Setting up application directory..."
 # Create required directories
-mkdir -p ${RADIO_HOME}/{logs,config}
+mkdir -p ${RADIO_HOME}/{src,config,web,install,sounds,data,logs}
+
+# Define required files and directories
+REQUIRED_FILES=(
+    "manage_radio.sh"
+    "install/install.sh"
+    "install/uninstall.sh"
+    "install/requirements.txt"
+    "install/system-requirements.txt"
+    "install/reset_radio.sh"
+    "config/config.py"
+    "config/stations.json"
+)
+
+REQUIRED_DIRS=(
+    "src/api"
+    "src/core"
+    "src/hardware"
+    "src/system"
+    "src/utils"
+    "sounds"
+    "web/build"
+)
 
 # Only copy files if we're not already in the target directory
 if [ "$PWD" != "${RADIO_HOME}" ]; then
     echo "Copying files to ${RADIO_HOME}..."
-    cp -r * ${RADIO_HOME}/
+    
+    # Copy directories with verification
+    for dir in "${REQUIRED_DIRS[@]}"; do
+        if [ -d "$dir" ]; then
+            echo "Copying directory: $dir"
+            cp -r "$dir" "${RADIO_HOME}/${dir%/*}/"
+        else
+            echo "Warning: Required directory not found: $dir"
+            exit 1
+        fi
+    done
+    
+    # Copy individual files with verification
+    for file in "${REQUIRED_FILES[@]}"; do
+        if [ -f "$file" ]; then
+            echo "Copying file: $file"
+            cp "$file" "${RADIO_HOME}/${file%/*}/"
+        else
+            # Skip optional files, exit on required ones
+            case "$file" in
+                "install/reset_radio.sh"|"LICENSE"|"README.md")
+                    echo "Optional file not found: $file"
+                    ;;
+                *)
+                    echo "Error: Required file not found: $file"
+                    exit 1
+                    ;;
+            esac
+        fi
+    done
 else
     echo "Already in installation directory, skipping file copy..."
 fi
 
+# Create empty directories and placeholder files
+touch ${RADIO_HOME}/data/.keep
+touch ${RADIO_HOME}/logs/.keep
+
 # Set correct ownership
 chown -R ${RADIO_USER}:${RADIO_USER} ${RADIO_HOME}
+
+# Verify critical files
+CRITICAL_FILES=(
+    "${RADIO_HOME}/manage_radio.sh"
+    "${RADIO_HOME}/install/requirements.txt"
+    "${RADIO_HOME}/install/system-requirements.txt"
+    "${RADIO_HOME}/config/config.py"
+)
+
+for file in "${CRITICAL_FILES[@]}"; do
+    if [ ! -f "$file" ]; then
+        echo "Error: Critical file missing after copy: $file"
+        exit 1
+    fi
+done
+
+# Set executable permissions
+chmod +x ${RADIO_HOME}/manage_radio.sh
+if [ -f "${RADIO_HOME}/install/reset_radio.sh" ]; then
+    chmod +x ${RADIO_HOME}/install/reset_radio.sh
+fi
 
 echo "7. Setting up Python virtual environment..."
 REQUIREMENTS_FILE="${RADIO_HOME}/install/requirements.txt"
@@ -130,15 +206,20 @@ chmod 755 "$MPV_SOCKET_DIR"
 
 echo "9. Setting up wireless regulatory domain..."
 # Get country code from Python config with proper PYTHONPATH
-sudo -u ${RADIO_USER} bash << EOF
+sudo -u ${RADIO_USER} bash << 'EOF'  # Note the quotes to prevent expansion
 source ${VENV_PATH}/bin/activate
 export PYTHONPATH=${RADIO_HOME}
-COUNTRY_CODE=\$(python3 -c "from config.config import settings; print(settings.COUNTRY_CODE)")
-echo "\$COUNTRY_CODE" > /tmp/country_code
+python3 - << 'PYEOF'
+try:
+    from config.config import settings
+    print(settings.COUNTRY_CODE)
+except Exception as e:
+    print("GB")  # Default to GB if config fails
+PYEOF
 EOF
 
-COUNTRY_CODE=\$(cat /tmp/country_code)
-rm /tmp/country_code
+COUNTRY_CODE=$(sudo -u ${RADIO_USER} bash -c "source ${VENV_PATH}/bin/activate && \
+    PYTHONPATH=${RADIO_HOME} python3 -c 'from config.config import settings; print(settings.COUNTRY_CODE)' 2>/dev/null || echo 'GB'")
 
 # Configure wireless regulatory domain
 sudo tee /etc/default/crda <<EOF
