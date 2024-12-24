@@ -72,7 +72,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         
         echo "Removing $line..."
         apt-get remove -y $line
-    done < system-requirements.txt
+    done < install/system-requirements.txt
     
     echo "Cleaning up unused packages..."
     apt-get autoremove -y

@@ -27,7 +27,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r install/requirements.txt
           
       - name: Build Frontend
         working-directory: web
@@ -48,11 +48,13 @@ jobs:
             exit 0
           fi
           
-          # Check for required directories
-          if [ ! -d "sounds" ]; then
-            echo "Error: sounds directory is required but missing"
-            exit 1
-          fi
+          # Check for required directories and files
+          for required in "sounds" "install/system-requirements.txt"; do
+            if [ ! -e "$required" ]; then
+              echo "Error: $required is required but missing"
+              exit 1
+            fi
+          done
           
           # Create package structure
           mkdir -p dist/${PACKAGE}/{src,config,web,install,sounds,data,logs}
@@ -67,18 +69,19 @@ jobs:
           cp config/config.py dist/${PACKAGE}/config/
           cp config/stations.json dist/${PACKAGE}/config/
           
-          # Copy sound files (required)
+          # Copy sound files
           cp -r sounds/*.wav dist/${PACKAGE}/sounds/
           
           # Copy installation and management files
           cp install/install.sh dist/${PACKAGE}/install/
+          cp install/system-requirements.txt dist/${PACKAGE}/install/
           if [ -f "install/reset_radio.sh" ]; then
             cp install/reset_radio.sh dist/${PACKAGE}/install/
           fi
           cp manage_radio.sh dist/${PACKAGE}/
           
           # Copy essential files
-          cp requirements.txt dist/${PACKAGE}/
+          cp install/requirements.txt dist/${PACKAGE}/install/
           cp README.md dist/${PACKAGE}/
           if [ -f "LICENSE" ]; then
             cp LICENSE dist/${PACKAGE}/
