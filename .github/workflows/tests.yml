@@ -44,7 +44,11 @@ jobs:
         
     - name: Create mock pigpio module
       run: |
-        echo 'class pi:
+        echo 'class Callback:
+            def cancel(self):
+                pass
+                
+        class pi:
             def __init__(self, *args, **kwargs):
                 self.connected = True
             def stop(self):
@@ -54,7 +58,7 @@ jobs:
             def set_pull_up_down(self, *args, **kwargs):
                 pass
             def callback(self, *args, **kwargs):
-                pass
+                return Callback()  # Return cancellable callback object
             def get_pigpio_version(self, *args, **kwargs):
                 return 1
             def set_glitch_filter(self, *args, **kwargs):
@@ -64,6 +68,7 @@ jobs:
             def write(self, *args, **kwargs):
                 pass
 
+        # GPIO constants
         INPUT = 0
         OUTPUT = 1
         PUD_UP = 2
