@@ -86,16 +86,34 @@ publish-domain=yes
 EOF
 
 echo "6. Setting up application directory..."
+# Create required directories
 mkdir -p ${RADIO_HOME}/{logs,config}
-cp -r * ${RADIO_HOME}/
+
+# Only copy files if we're not already in the target directory
+if [ "$PWD" != "${RADIO_HOME}" ]; then
+    echo "Copying files to ${RADIO_HOME}..."
+    cp -r * ${RADIO_HOME}/
+else
+    echo "Already in installation directory, skipping file copy..."
+fi
+
+# Set correct ownership
 chown -R ${RADIO_USER}:${RADIO_USER} ${RADIO_HOME}
 
 echo "7. Setting up Python virtual environment..."
+REQUIREMENTS_FILE="${RADIO_HOME}/install/requirements.txt"
+
+# Verify requirements file exists
+if [ ! -f "$REQUIREMENTS_FILE" ]; then
+    echo "Error: requirements.txt not found at $REQUIREMENTS_FILE"
+    exit 1
+fi
+
 sudo -u ${RADIO_USER} bash << EOF
 python3 -m venv ${VENV_PATH}
 source ${VENV_PATH}/bin/activate
 pip install --upgrade pip
-pip install -r ${RADIO_HOME}/requirements.txt
+pip install -r "$REQUIREMENTS_FILE"
 EOF
 
 echo "8. Setting up audio and MPV..."
@@ -111,8 +129,16 @@ chown -R ${RADIO_USER}:${RADIO_USER} "$MPV_SOCKET_DIR"
 chmod 755 "$MPV_SOCKET_DIR"
 
 echo "9. Setting up wireless regulatory domain..."
-# Get country code from Python config
-COUNTRY_CODE=$(python3 -c "from config.config import settings; print(settings.COUNTRY_CODE)")
+# Get country code from Python config with proper PYTHONPATH
+sudo -u ${RADIO_USER} bash << EOF
+source ${VENV_PATH}/bin/activate
+export PYTHONPATH=${RADIO_HOME}
+COUNTRY_CODE=\$(python3 -c "from config.config import settings; print(settings.COUNTRY_CODE)")
+echo "\$COUNTRY_CODE" > /tmp/country_code
+EOF
+
+COUNTRY_CODE=\$(cat /tmp/country_code)
+rm /tmp/country_code
 
 # Configure wireless regulatory domain
 sudo tee /etc/default/crda <<EOF
