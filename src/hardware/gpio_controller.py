@@ -28,11 +28,16 @@ class GPIOController:
         self.rotary_dt = settings.ROTARY_DT
         self.rotary_sw = settings.ROTARY_SW
         
-        # Button pins from config
+        # Initialize button mappings
+        self.BUTTON_1 = settings.BUTTON_PIN_1
+        self.BUTTON_2 = settings.BUTTON_PIN_2
+        self.BUTTON_3 = settings.BUTTON_PIN_3
+        
+        # Button pins from config (using our new attributes)
         self.button_pins = {
-            settings.BUTTON_PIN_1: 1,
-            settings.BUTTON_PIN_2: 2,
-            settings.BUTTON_PIN_3: 3
+            self.BUTTON_1: 1,
+            self.BUTTON_2: 2,
+            self.BUTTON_3: 3
         }
         
         # Track button press times
@@ -62,8 +67,7 @@ class GPIOController:
             self.BUTTON_1: 0,
             self.BUTTON_2: 0,
             self.BUTTON_3: 0,
-            self.ROTARY_SW: 0,
-            # Add any other buttons you're using
+            self.rotary_sw: 0,  # Using self.rotary_sw which was already defined
         }
         
         try:
