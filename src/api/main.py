@@ -22,58 +22,28 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 import grp
 import pwd
+import uvicorn
 
+# Define lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan events handler"""
-    # Startup
-    try:
-        # Initialize RadioManager
-        radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
-        await radio_manager.initialize()
-        
-        # Create data directory if it doesn't exist
-        data_dir = Path("data")
-        data_dir.mkdir(exist_ok=True)
-        
-        # Set up audio permissions
-        try:
-            # Get current user
-            current_user = pwd.getpwuid(os.getuid()).pw_name
-            
-            # Check if user is in audio group
-            audio_group = grp.getgrnam('audio')
-            if current_user not in audio_group.gr_mem:
-                logger.warning(f"User {current_user} is not in audio group. Audio might not work properly.")
-                
-            # Set proper audio permissions
-            os.environ['PULSE_RUNTIME_PATH'] = '/run/user/1000/pulse'
-            logger.info("Audio environment configured")
-        except Exception as e:
-            logger.error(f"Error setting up audio permissions: {e}")
-        
-        # Ensure client mode on startup
-        current_mode = mode_manager.detect_current_mode()
-        if current_mode != "client":
-            logger.info("Switching to client mode on startup...")
-            await mode_manager.enable_client_mode()
-        else:
-            logger.info("Already in client mode")
-    except Exception as e:
-        logger.error(f"Error during startup: {e}")
-    
+    # Startup: Initialize singletons and connections
+    radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
+    mode_manager = ModeManagerSingleton.get_instance()
+    logger.info("Application startup complete")
     yield
-    
-    # Shutdown
-    # Add any cleanup code here if needed
+    # Cleanup: Close connections and cleanup resources
+    logger.info("Application shutdown")
 
+# Initialize FastAPI with lifespan
 app = FastAPI(
-    title="Internet Radio API",
-    lifespan=lifespan
+    title="Radio API",
+    # Enable docs in dev mode, disable in production
+    docs_url="/docs" if os.getenv("NODE_ENV") != "production" else None,
+    redoc_url="/redoc" if os.getenv("NODE_ENV") != "production" else None,
+    openapi_url="/openapi.json" if os.getenv("NODE_ENV") != "production" else None,
+    lifespan=lifespan  # Add lifespan context manager
 )
-
-# Initialize the singleton RadioManager with WebSocket callback
-radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
 
 # Construct the allowed origins using settings
 allowed_origins = [
@@ -201,5 +171,4 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=settings.API_PORT)

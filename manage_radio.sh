@@ -11,12 +11,6 @@ DEV_MODE=${DEV_MODE:-false}
 # Get configuration from Python
 get_config() {
     source $VENV_PATH/bin/activate
-    
-    # Create config directory with correct permissions
-    sudo mkdir -p /home/radio/radio/web/src/lib
-    sudo chown -R radio:radio /home/radio/radio/web
-    
-    # Get configuration values
     API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)")
     DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)")
     HOSTNAME=$(python3 -c "from config.config import settings; print(settings.HOSTNAME)")
@@ -24,7 +18,6 @@ get_config() {
 
 check_ports() {
     get_config
-    
     echo "Checking for processes using ports..."
     
     if [ -n "$DEV_PORT" ]; then
@@ -42,15 +35,12 @@ check_ports() {
     fi
     
     # Additional cleanup
-    echo "Cleaning up any remaining processes..."
     sudo pkill -f "uvicorn.*$APP_PATH" || true
     pkill -f "npm run dev" || true
     pkill -f "vite" || true
     
-    # Wait for ports to be freed
     sleep 3
     
-    # Verify ports are free
     if [ -n "$DEV_PORT" ] && [ -n "$API_PORT" ]; then
         if lsof -ti :$DEV_PORT 2>/dev/null || sudo lsof -ti :$API_PORT 2>/dev/null; then
             echo "Error: Ports still in use after cleanup"
@@ -59,123 +49,50 @@ check_ports() {
     fi
 }
 
-check_pigpiod() {
-    if ! pgrep -x "pigpiod" > /dev/null; then
-        echo "Starting pigpiod..."
-        sudo systemctl start pigpiod
-    else
-        echo "pigpiod is already running."
-    fi
-}
-
-check_nmcli_permissions() {
-    # Create sudo rule for nmcli if it doesn't exist
-    SUDO_FILE="/etc/sudoers.d/radio-nmcli"
-    if [ ! -f "$SUDO_FILE" ]; then
-        echo "Setting up nmcli and system permissions..."
-        sudo tee $SUDO_FILE <<EOF
-# Allow radio user to run specific nmcli commands without password
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi list
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi rescan
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli networking connectivity check
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi connect *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection up *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection delete *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device set *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection add *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection modify *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli radio wifi *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli networking *
-radio ALL=(ALL) NOPASSWD: /usr/bin/rfkill
-radio ALL=(ALL) NOPASSWD: /sbin/ip link set *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device disconnect *
-# Add system control permissions
-radio ALL=(ALL) NOPASSWD: /sbin/reboot
-radio ALL=(ALL) NOPASSWD: /sbin/shutdown
-EOF
-        sudo chmod 440 $SUDO_FILE
-    fi
-}
-
-check_audio_permissions() {
-    echo "Setting up audio permissions..."
+validate_installation() {
+    echo "Validating radio installation..."
     
-    # Add radio user to required groups if not already added
-    for group in audio pulse pulse-access; do
-        if ! groups radio | grep -q "\b${group}\b"; then
-            echo "Adding radio user to $group group..."
-            sudo usermod -a -G $group radio
+    # Run checks in parallel
+    (
+        # Check radio user and groups
+        if ! id radio >/dev/null 2>&1; then
+            echo "Error: radio user does not exist"
+            exit 1
         fi
-    done
+    ) &
     
-    # Ensure XDG_RUNTIME_DIR exists and has correct permissions
-    RUNTIME_DIR="/run/user/$(id -u radio)"
-    if [ ! -d "$RUNTIME_DIR" ]; then
-        echo "Creating runtime directory..."
-        sudo mkdir -p "$RUNTIME_DIR"
-        sudo chown radio:radio "$RUNTIME_DIR"
-        sudo chmod 700 "$RUNTIME_DIR"
-    fi
+    (
+        # Check services in parallel
+        while read -r line; do
+            [[ $line =~ ^#.*$ ]] && continue
+            [[ -z $line ]] && continue
+            
+            case "$line" in
+                "pigpio") systemctl is-active --quiet pigpiod || 
+                    { echo "Error: pigpiod not running"; exit 1; } ;;
+                "network-manager") systemctl is-active --quiet NetworkManager || 
+                    { echo "Error: NetworkManager not running"; exit 1; } ;;
+                "avahi-daemon"|"dnsmasq"|"hostapd") systemctl is-active --quiet "$line" || 
+                    { echo "Error: $line not running"; exit 1; } ;;
+            esac
+        done < /home/radio/radio/install/system-requirements.txt
+    ) &
     
-    # Set up PulseAudio runtime path
-    PULSE_DIR="$RUNTIME_DIR/pulse"
-    if [ ! -d "$PULSE_DIR" ]; then
-        echo "Setting up PulseAudio directory..."
-        sudo mkdir -p "$PULSE_DIR"
-        sudo chown radio:radio "$PULSE_DIR"
-    fi
-    
-    # Export required environment variables
-    export XDG_RUNTIME_DIR="$RUNTIME_DIR"
-    export PULSE_RUNTIME_PATH="$RUNTIME_DIR/pulse"
-    
-    # Ensure audio devices have correct permissions
-    echo "Setting audio device permissions..."
-    sudo chmod -R a+rwX /dev/snd/ || true
-}
-
-check_mpv() {
-    echo "Checking MPV setup..."
-    
-    # Ensure MPV and its development files are installed
-    if ! command -v mpv &> /dev/null || [ ! -f "/usr/include/mpv/client.h" ]; then
-        echo "Installing MPV and development files..."
-        sudo apt-get update
-        sudo apt-get install -y mpv libmpv-dev
-    fi
-    
-    # Ensure correct permissions for MPV socket directory
-    MPV_SOCKET_DIR="/tmp/mpv-socket"
-    if [ ! -d "$MPV_SOCKET_DIR" ]; then
-        echo "Creating MPV socket directory..."
-        sudo mkdir -p "$MPV_SOCKET_DIR"
-    fi
-    sudo chown -R radio:radio "$MPV_SOCKET_DIR"
-    sudo chmod 755 "$MPV_SOCKET_DIR"
+    # Wait for all checks to complete
+    wait
 }
 
 ensure_client_mode() {
     echo "Ensuring client mode on startup..."
     source $VENV_PATH/bin/activate
     
-    # Ensure correct permissions before running Python
-    sudo chown -R radio:radio /home/radio/radio/web
-    
     # Create directory and initial mode file if it doesn't exist
-    echo "Setting up mode state file..."
     sudo mkdir -p /tmp/radio
     if [ ! -f "/tmp/radio/radio_mode.json" ]; then
-        echo "Creating initial mode state file..."
         echo '{"mode": "CLIENT"}' | sudo tee /tmp/radio/radio_mode.json > /dev/null
     fi
-    
-    # Ensure correct permissions
     sudo chown -R radio:radio /tmp/radio
-    sudo chmod 644 /tmp/radio/radio_mode.json
     
-    # Add debug output
-    echo "Running mode check and switch..."
     python3 -c "
 from src.core.mode_manager import ModeManagerSingleton
 import asyncio
@@ -187,259 +104,68 @@ logger = logging.getLogger('mode_switch')
 async def ensure_client():
     try:
         manager = ModeManagerSingleton.get_instance()
-        await manager.enable_client_mode()  # This method already calls _save_state internally
+        await manager.enable_client_mode()
         logger.info('Client mode switch completed')
-            
     except Exception as e:
         logger.error(f'Error in mode switch: {str(e)}', exc_info=True)
 
 asyncio.run(ensure_client())
 "
-    
-    # Wait for network to be ready
-    echo "Waiting for network..."
-    max_attempts=30
-    attempt=0
-    while [ $attempt -lt $max_attempts ]; do
-        if sudo nmcli networking connectivity check | grep -q "full"; then
-            echo "Network is ready"
-            break
-        fi
-        echo "Waiting for network... attempt $((attempt+1))/$max_attempts"
-        attempt=$((attempt+1))
-        sleep 1
-    done
-    
-    if [ $attempt -eq $max_attempts ]; then
-        echo "Warning: Network not ready after $max_attempts attempts"
+}
+
+validate_network() {
+    echo "Validating network services..."
+    # Only check NetworkManager status
+    if ! systemctl is-active --quiet NetworkManager; then
+        echo "Restarting network services..."
+        systemctl restart NetworkManager
+        sleep 2
     fi
-}
-
-check_avahi() {
-    echo "Checking Avahi daemon..."
-    get_config
-    
-    # Install avahi-daemon if not present
-    if ! command -v avahi-daemon &> /dev/null; then
-        echo "Installing avahi-daemon..."
-        sudo apt-get update
-        sudo apt-get install -y avahi-daemon
-    fi
-    
-    # Configure Avahi with hostname
-    echo "Configuring Avahi..."
-    sudo tee /etc/avahi/avahi-daemon.conf << EOF
-[server]
-host-name=$HOSTNAME
-domain-name=local
-use-ipv4=yes
-use-ipv6=no
-enable-dbus=yes
-allow-interfaces=wlan0
-
-[publish]
-publish-addresses=yes
-publish-hinfo=yes
-publish-workstation=yes
-publish-domain=yes
-EOF
-    
-    # Restart Avahi daemon
-    echo "Restarting Avahi daemon..."
-    sudo systemctl restart avahi-daemon
-    
-    # Wait for Avahi to be ready
-    sleep 2
-    
-    # Verify Avahi is running
-    if ! systemctl is-active --quiet avahi-daemon; then
-        echo "Warning: avahi-daemon is not running"
-    else
-        echo "avahi-daemon is running"
-    fi
-}
-
-setup_service() {
-    echo "Setting up radio service..."
-    
-    # Create service file with corrected configuration
-    sudo tee /etc/systemd/system/radio.service << EOF
-[Unit]
-Description=Internet Radio Service
-After=network.target pigpiod.service avahi-daemon.service
-Wants=network.target pigpiod.service avahi-daemon.service
-
-[Service]
-Type=simple
-User=radio
-Group=radio
-WorkingDirectory=/home/radio/radio
-Environment="PYTHONPATH=/home/radio/radio"
-Environment="XDG_RUNTIME_DIR=/run/user/1000"
-Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
-RuntimeDirectory=radio
-RuntimeDirectoryMode=0755
-
-# Remove the problematic ExecStartPre commands and handle in the script
-ExecStart=/home/radio/radio/manage_radio.sh start
-ExecStop=/home/radio/radio/manage_radio.sh stop
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Set correct permissions
-    sudo chmod 644 /etc/systemd/system/radio.service
-    
-    # Create necessary directories with correct permissions
-    sudo mkdir -p /run/user/1000/pulse
-    sudo chown -R radio:radio /run/user/1000/pulse
-    
-    # Reload systemd
-    sudo systemctl daemon-reload
-    
-    # Enable service to start on boot
-    sudo systemctl enable radio.service
-    
-    echo "Radio service has been set up and enabled to start on boot"
-}
-
-service_start() {
-    sudo systemctl start radio
-}
-
-service_stop() {
-    sudo systemctl stop radio
-}
-
-service_restart() {
-    sudo systemctl restart radio
-}
-
-service_status() {
-    sudo systemctl status radio
-}
-
-open_monitor() {
-    get_config
-    
-    # Only proceed if in dev mode
-    if [ "$DEV_MODE" != true ]; then
-        echo "Monitor only available in development mode"
-        return 0  # Return success, don't trigger stop
-    fi
-
-    echo "Opening monitor..."
-    DISPLAY=:0 chromium-browser \
-        --kiosk \
-        --noerrdialogs \
-        --disable-session-crashed-bubble \
-        --disable-infobars \
-        --no-first-run \
-        --start-maximized \
-        --no-sandbox \
-        --disable-gpu \
-        --disable-software-rasterizer \
-        --disable-dev-shm-usage \
-        --user-data-dir=/tmp/chromium \
-        --no-zygote \
-        "http://$HOSTNAME.local:$DEV_PORT/monitor" > /dev/null 2>&1 &
-    
-    # Wait for process to start
-    sleep 2
-    
-    echo "Monitor URL: http://$HOSTNAME.local:$DEV_PORT/monitor"
 }
 
 start() {
-    setup_service
-    
     echo "Starting $APP_NAME..."
     get_config
     
-    # Validate port values
-    if [ -z "$API_PORT" ] || [ -z "$DEV_PORT" ]; then
-        echo "Error: Invalid port configuration"
-        exit 1
-    fi
+    # Run validations in parallel
+    validate_installation &
+    validate_network &
+    ensure_client_mode &
+    wait
     
-    echo "Using ports: API=$API_PORT, DEV=$DEV_PORT"
-    
-    # Check if already running
-    if [ -f $PID_FILE ]; then
-        echo "$APP_NAME is already running."
-        exit 1
-    fi
-    
-    # Create log directory if it doesn't exist
-    mkdir -p $(dirname $LOG_FILE)
-    WEB_LOG_FILE="${LOG_FILE%.*}_web.log"
-    
-    # Clean up any existing processes and ports
+    # Start services
     check_ports
     
-    # Add all necessary checks
-    check_pigpiod
-    check_avahi
-    check_nmcli_permissions
-    check_audio_permissions
-    check_mpv
-    ensure_client_mode
-    
-    # Start FastAPI server
-    echo "Starting FastAPI server on port $API_PORT..."
-    if [ "$DEV_MODE" = true ]; then
+    # Start FastAPI server and web server in parallel
+    (
+        echo "Starting FastAPI server on port $API_PORT..."
         nohup sudo -E env "PATH=$PATH" \
             "PYTHONPATH=/home/radio/radio" \
-            "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
-            "PULSE_RUNTIME_PATH=$PULSE_RUNTIME_PATH" \
-            "$VENV_PATH/bin/python" -m uvicorn src.api.main:app \
-            --reload \
-            --host "0.0.0.0" \
-            --port "$API_PORT" \
-            --log-level debug \
-            > $LOG_FILE 2>&1 &
-    else
-        # Add explicit sudo for port 80
-        nohup sudo -E env "PATH=$PATH" \
-            "PYTHONPATH=/home/radio/radio" \
-            "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
-            "PULSE_RUNTIME_PATH=$PULSE_RUNTIME_PATH" \
+            "XDG_RUNTIME_DIR=/run/user/1000" \
+            "PULSE_RUNTIME_PATH=/run/user/1000/pulse" \
             "$VENV_PATH/bin/python" -m uvicorn src.api.main:app \
             --host "0.0.0.0" \
             --port "$API_PORT" \
             --log-level debug \
             > $LOG_FILE 2>&1 &
-    fi
-    API_PID=$!
-    echo $API_PID > $PID_FILE
+        echo $! > $PID_FILE
+    ) &
     
-    sleep 3
-    
-    # Start web server only in development mode
     if [ "$DEV_MODE" = true ]; then
-        echo "Starting web server in development mode..."
-        cd /home/radio/radio/web
-        sudo -u radio NODE_ENV=development \
-            HOME=/home/radio \
-            npm run dev -- \
-            --host "0.0.0.0" \
-            --port "$DEV_PORT" \
-            >> "$WEB_LOG_FILE" 2>&1 &
-        DEV_PID=$!
-        echo $DEV_PID >> $PID_FILE
-        cd - # Return to original directory
+        (
+            echo "Starting web server in development mode..."
+            cd /home/radio/radio/web
+            sudo -u radio NODE_ENV=development \
+                HOME=/home/radio \
+                npm run dev -- \
+                --host "0.0.0.0" \
+                --port "$DEV_PORT" \
+                >> "$WEB_LOG_FILE" 2>&1 &
+            echo $! >> $PID_FILE
+        ) &
     fi
     
-    echo "$APP_NAME started successfully"
-    echo "FastAPI PID: $API_PID"
-    [ "$DEV_MODE" = true ] && echo "Dev Server PID: $DEV_PID"
-    
-    # Show initial log entries
-    echo "Initial log entries:"
-    tail -n 5 $LOG_FILE
+    wait
 }
 
 stop() {
@@ -448,20 +174,17 @@ stop() {
             echo "Stopping process with PID $PID..."
             sudo kill -15 $PID 2>/dev/null || true
             sleep 2
-            # Force kill if still running
             sudo kill -9 $PID 2>/dev/null || true
         done < $PID_FILE
         rm -f $PID_FILE
         echo "$APP_NAME stopped."
         
-        # Kill any remaining processes
         sudo pkill -f "uvicorn.*$APP_PATH"
         pkill -f "npm run dev"
     else
         echo "$APP_NAME is not running."
     fi
     
-    # Double check ports are free
     check_ports
 }
 
@@ -504,22 +227,7 @@ case "$1" in
     status)
         status
         ;;
-    monitor)
-        open_monitor
-        ;;
-    service-start)
-        service_start
-        ;;
-    service-stop)
-        service_stop
-        ;;
-    service-restart)
-        service_restart
-        ;;
-    service-status)
-        service_status
-        ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status|monitor|service-start|service-stop|service-restart|service-status}"
+        echo "Usage: $0 {start|stop|restart|status}"
         exit 1
 esac

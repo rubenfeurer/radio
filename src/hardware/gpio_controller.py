@@ -57,6 +57,15 @@ class GPIOController:
         self.last_rotation_time = 0
         self.ROTATION_DEBOUNCE = 0.01  # 10ms debounce for rotation
         
+        # Initialize last_press_time for all buttons
+        self.last_press_time = {
+            self.BUTTON_1: 0,
+            self.BUTTON_2: 0,
+            self.BUTTON_3: 0,
+            self.ROTARY_SW: 0,
+            # Add any other buttons you're using
+        }
+        
         try:
             # Initialize pigpio
             self.pi = pigpio.pi()
@@ -197,6 +206,8 @@ class GPIOController:
                 
         except Exception as e:
             logger.error(f"Error in button handler: {e}", exc_info=True)
+            # Ensure we still update the time even if there's an error
+            self.last_press_time[gpio] = current_time
 
     async def _monitor_long_press(self, gpio, button_number):
         """Monitor button press duration and trigger long press when threshold is met."""

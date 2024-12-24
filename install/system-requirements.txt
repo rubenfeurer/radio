@@ -1,0 +1,21 @@
+# Core system dependencies
+python3-venv
+python3-pip
+python3-dev
+build-essential
+libssl-dev
+libffi-dev
+
+# Audio dependencies
+mpv
+libmpv-dev
+pulseaudio
+
+# Network dependencies
+network-manager
+avahi-daemon
+dnsmasq
+hostapd
+
+# Hardware dependencies
+pigpio 
