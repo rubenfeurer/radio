@@ -16,6 +16,7 @@ class Settings(BaseModel):
     
     # Network Settings
     HOSTNAME: str = socket.gethostname()  # Dynamically get system hostname
+    COUNTRY_CODE: str = "CH"  # Default to Switzerland
     
     # Frontend paths
     FRONTEND_DEV_URL: str = f"http://{HOSTNAME}.local:{DEV_PORT}"  # Updated

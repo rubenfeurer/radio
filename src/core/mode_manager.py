@@ -209,9 +209,11 @@ class ModeManagerSingleton:
         try:
             logger.info("Enabling client mode...")
             
-            # 1. Stop AP/Hotspot
+            # 1. Stop and delete AP/Hotspot
             subprocess.run(['sudo', 'nmcli', 'connection', 'down', 'Hotspot'], 
                           capture_output=True)
+            subprocess.run(['sudo', 'nmcli', 'connection', 'delete', 'Hotspot'],
+                         capture_output=True)
             
             # 2. Switch to managed mode and enable WiFi
             subprocess.run(['sudo', 'nmcli', 'device', 'set', 'wlan0', 'managed'], 
@@ -219,7 +221,12 @@ class ModeManagerSingleton:
             subprocess.run(['sudo', 'nmcli', 'radio', 'wifi', 'on'],
                           capture_output=True)
             
-            # 3. Let NetworkManager auto-connect and wait for result
+            # 3. Force reconnection
+            await asyncio.sleep(1)
+            subprocess.run(['sudo', 'nmcli', 'device', 'connect', 'wlan0'],
+                           capture_output=True)
+            
+            # 4. Let NetworkManager auto-connect and wait for result
             max_attempts = 15
             connected = False
             for attempt in range(max_attempts):
@@ -234,7 +241,7 @@ class ModeManagerSingleton:
                     break
                 await asyncio.sleep(1)
             
-            # 4. Save state and notify
+            # 5. Save state and notify
             self._save_state(NetworkMode.CLIENT)
             
             if connected:
