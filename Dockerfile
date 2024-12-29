@@ -6,29 +6,32 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
-COPY install/system-requirements.txt /tmp/
-RUN apt-get update && \
-    xargs -a /tmp/system-requirements.txt apt-get install -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 # Create radio user and set up directories
 RUN useradd -m -r radio && \
-    usermod -a -G audio,gpio radio && \
+    # In Docker, we'll simulate the groups if they don't exist
+    (groupadd -r gpio 2>/dev/null || true) && \
+    (groupadd -r audio 2>/dev/null || true) && \
+    (groupadd -r dialout 2>/dev/null || true) && \
+    usermod -a -G audio,gpio,dialout radio && \
     mkdir -p /home/radio/radio/{src,config,web,install,sounds,data,logs} && \
     chown -R radio:radio /home/radio/radio
 
 # Set working directory
 WORKDIR /home/radio/radio
 
-# Copy application files
-COPY --chown=radio:radio . .
+# Copy installation files first
+COPY --chown=radio:radio install/install.sh install/
+COPY --chown=radio:radio install/system-requirements.txt install/
+COPY --chown=radio:radio install/requirements.txt install/
 
-# Install Python dependencies
-RUN python -m venv /home/radio/radio/venv && \
-    . /home/radio/radio/venv/bin/activate && \
-    pip install --no-cache-dir -r install/requirements.txt
+# Make install script executable
+RUN chmod +x install/install.sh
+
+# Run installation script
+RUN ./install/install.sh
+
+# Copy remaining application files
+COPY --chown=radio:radio . .
 
 # Switch to radio user
 USER radio

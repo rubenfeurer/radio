@@ -16,6 +16,30 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Skip if running in Docker
+if [ -f /.dockerenv ]; then
+    # Only run dependency installation in Docker
+    echo "Running in Docker environment..."
+    
+    # Install system dependencies
+    apt-get update
+    while read -r line; do
+        [[ $line =~ ^#.*$ ]] && continue
+        [[ -z $line ]] && continue
+        apt-get install -y $line
+    done < install/system-requirements.txt
+    
+    # Install Python dependencies
+    python3 -m venv ${VENV_PATH}
+    source ${VENV_PATH}/bin/activate
+    pip install --upgrade pip
+    pip install -r install/requirements.txt
+    
+    exit 0
+fi
+
+# Regular installation continues here...
+
 echo "1. Installing system dependencies..."
 apt-get update
 
@@ -38,7 +62,8 @@ echo "3. Creating radio user..."
 # Create radio user if not exists
 if ! id "${RADIO_USER}" &>/dev/null; then
     useradd -m ${RADIO_USER}
-    usermod -a -G audio,gpio,pulse-access ${RADIO_USER}
+    # Add to all necessary groups for Raspberry Pi
+    usermod -a -G audio,gpio,dialout,pulse-access,netdev ${RADIO_USER}
 fi
 
 echo "4. Setting up network permissions..."
