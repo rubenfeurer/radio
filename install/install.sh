@@ -67,6 +67,23 @@ radio ALL=(ALL) NOPASSWD: /sbin/shutdown
 EOF
 sudo chmod 440 $SUDO_FILE
 
+# Configure NetworkManager
+echo "Configuring NetworkManager..."
+sudo tee /etc/NetworkManager/NetworkManager.conf <<EOF
+[main]
+plugins=ifupdown,keyfile
+dhcp=internal
+
+[ifupdown]
+managed=true
+
+[device]
+wifi.scan-rand-mac-address=no
+EOF
+
+# Restart NetworkManager to apply changes
+systemctl restart NetworkManager
+
 echo "5. Setting up Avahi daemon..."
 # Configure Avahi for .local domain
 sudo tee /etc/avahi/avahi-daemon.conf << EOF

@@ -58,9 +58,20 @@ jobs:
           
           # Create package structure
           mkdir -p dist/${PACKAGE}/{src,config,web,install,sounds,data,logs}
+          mkdir -p dist/${PACKAGE}/src/{api,core,hardware,system,utils}
           
           # Copy backend files
-          cp -r src/{api,core,hardware,system,utils} dist/${PACKAGE}/src/
+          cp -r src/api/* dist/${PACKAGE}/src/api/
+          cp -r src/core/* dist/${PACKAGE}/src/core/
+          cp -r src/hardware/* dist/${PACKAGE}/src/hardware/
+          cp -r src/system/* dist/${PACKAGE}/src/system/
+          cp -r src/utils/* dist/${PACKAGE}/src/utils/
+          
+          # Ensure main.py is copied
+          if [ ! -f "dist/${PACKAGE}/src/api/main.py" ]; then
+              echo "Error: main.py not found after copy"
+              exit 1
+          fi
           
           # Copy frontend build
           cp -r web/build dist/${PACKAGE}/web/
