@@ -2,126 +2,86 @@ name: Build and Release
 
 on:
   push:
-    branches: 
-      - main
-      - develop
-    tags:
-      - 'v*'
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
 
 jobs:
+  test:
+    uses: ./.github/workflows/tests.yml
+        
+  test-install:
+    uses: ./.github/workflows/test-install.yml
+        
   build:
+    needs: [test, test-install]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build production image
+        uses: docker/build-push-action@v5
         with:
-          node-version: '18'
-          
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-          
-      - name: Install Python dependencies
+          context: .
+          file: Dockerfile.prod
+          load: true
+          tags: radio:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Export built files
         run: |
-          python -m pip install --upgrade pip
-          pip install -r install/requirements.txt
+          CONTAINER_ID=$(docker create radio:latest)
+          mkdir -p dist
+          docker cp $CONTAINER_ID:/home/radio/radio/. ./dist/
+          docker rm $CONTAINER_ID
           
-      - name: Build Frontend
-        working-directory: web
-        run: |
-          npm ci
-          npm run build
-          
-      - name: Create Package
-        run: |
+          # Create package name
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
-            PACKAGE="radio-${VERSION}"
-          elif [[ $GITHUB_REF == refs/heads/develop ]]; then
-            VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
-            PACKAGE="radio-${VERSION}"
           else
-            echo "Skipping package creation for main branch without tag"
-            exit 0
+            VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
           fi
-          
-          # Check for required directories and files
-          for required in "sounds" "install/system-requirements.txt"; do
-            if [ ! -e "$required" ]; then
-              echo "Error: $required is required but missing"
-              exit 1
-            fi
-          done
-          
-          # Create package structure
-          mkdir -p dist/${PACKAGE}/{src,config,web,install,sounds,data,logs}
-          mkdir -p dist/${PACKAGE}/src/{api,core,hardware,system,utils}
-          
-          # Copy backend files
-          cp -r src/api/* dist/${PACKAGE}/src/api/
-          cp -r src/core/* dist/${PACKAGE}/src/core/
-          cp -r src/hardware/* dist/${PACKAGE}/src/hardware/
-          cp -r src/system/* dist/${PACKAGE}/src/system/
-          cp -r src/utils/* dist/${PACKAGE}/src/utils/
-          
-          # Ensure main.py is copied
-          if [ ! -f "dist/${PACKAGE}/src/api/main.py" ]; then
-              echo "Error: main.py not found after copy"
-              exit 1
-          fi
-          
-          # Copy frontend build
-          cp -r web/build dist/${PACKAGE}/web/
-          
-          # Copy config files
-          cp config/config.py dist/${PACKAGE}/config/
-          cp config/stations.json dist/${PACKAGE}/config/
-          
-          # Copy sound files
-          cp -r sounds/*.wav dist/${PACKAGE}/sounds/
-          
-          # Copy installation and management files
-          cp install/install.sh dist/${PACKAGE}/install/
-          cp install/system-requirements.txt dist/${PACKAGE}/install/
-          if [ -f "install/reset_radio.sh" ]; then
-            cp install/reset_radio.sh dist/${PACKAGE}/install/
-          fi
-          cp manage_radio.sh dist/${PACKAGE}/
-          
-          # Copy essential files
-          cp install/requirements.txt dist/${PACKAGE}/install/
-          cp README.md dist/${PACKAGE}/
-          if [ -f "LICENSE" ]; then
-            cp LICENSE dist/${PACKAGE}/
-          fi
-          
-          # Create necessary empty directories
-          touch dist/${PACKAGE}/data/.keep
-          touch dist/${PACKAGE}/logs/.keep
-          
-          # Remove any Python cache files
-          find dist/${PACKAGE} -type d -name "__pycache__" -exec rm -r {} +
+          PACKAGE="radio-${VERSION}"
           
           # Create archive
           cd dist
-          tar -czf ${PACKAGE}.tar.gz ${PACKAGE}
+          tar -czf ${PACKAGE}.tar.gz ./*
           echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
-          
-      - name: Create Release (Tagged)
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: dist/${{ env.PACKAGE_NAME }}
+          name: radio-package
+          path: dist/${{ env.PACKAGE_NAME }}
+          
+  test-package:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: radio-package
+          
+      - name: Test package
+        run: |
+          tar -xzf *.tar.gz
+          # Run package tests here
+          
+  create-release:
+    needs: test-package
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: radio-package
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.PACKAGE_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Upload Development Build
-        uses: actions/upload-artifact@v4
-        if: github.ref == 'refs/heads/develop'
-        with:
-          name: develop-build
-          path: dist/${{ env.PACKAGE_NAME }}
-          retention-days: 7

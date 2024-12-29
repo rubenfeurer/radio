@@ -26,9 +26,15 @@ if [ -f /.dockerenv ]; then
     while read -r line; do
         [[ $line =~ ^#.*$ ]] && continue
         [[ -z $line ]] && continue
+        # Skip pigpio as it's already installed from source
+        [[ $line == "pigpio" ]] && continue
         apt-get install -y $line
     done < install/system-requirements.txt
     
+    # Start pigpiod service in Docker
+    echo "Starting pigpiod service..."
+    pigpiod
+
     # Install Python dependencies
     python3 -m venv ${VENV_PATH}
     source ${VENV_PATH}/bin/activate
@@ -51,7 +57,7 @@ while read -r line; do
     
     echo "Installing $line..."
     apt-get install -y $line
-done < system-requirements.txt
+done < install/system-requirements.txt
 
 # Start and enable pigpiod
 echo "2. Setting up pigpiod service..."

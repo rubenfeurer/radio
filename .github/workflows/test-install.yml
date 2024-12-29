@@ -1,0 +1,53 @@
+name: Test Installation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'install/**'
+      - 'scripts/**'
+      - '.github/workflows/test-install.yml'
+      - 'Dockerfile.test-install'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'install/**'
+      - 'scripts/**'
+
+jobs:
+  test-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build and test installation
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.test-install
+          platforms: linux/arm/v7
+          load: true
+          tags: radio-test-install:latest
+      
+      - name: Run installation test
+        run: |
+          docker run --privileged \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+            radio-test-install:latest
+
+  notify:
+    needs: test-install
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check Status
+        if: needs.test-install.result != 'success'
+        run: |
+          echo "Installation tests failed!"
+          exit 1 

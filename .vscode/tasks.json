@@ -1,0 +1,55 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Docker: Start Dev",
+            "type": "shell",
+            "command": "docker-compose -f docker-compose.dev.yml up -d",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Docker: Run Tests",
+            "type": "shell",
+            "command": "docker-compose -f docker-compose.dev.yml exec radio pytest",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            }
+        },
+        {
+            "label": "Docker: View Logs",
+            "type": "shell",
+            "command": "docker-compose -f docker-compose.dev.yml logs -f",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            }
+        },
+        {
+            "label": "Docker: Shell",
+            "type": "shell",
+            "command": "docker-compose -f docker-compose.dev.yml exec radio bash",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Docker: Rebuild",
+            "type": "shell",
+            "command": "docker-compose -f docker-compose.dev.yml build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        }
+    ]
+}

@@ -1,0 +1,31 @@
+FROM arm32v7/python:3.9-slim-bullseye
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install test dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    python3-dev \
+    python3-pip \
+    python3-venv \
+    build-essential \
+    git \
+    mpv \
+    libmpv-dev \
+    pulseaudio \
+    alsa-utils \
+    network-manager
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY install/requirements.txt .
+RUN pip install -r requirements.txt && \
+    pip install httpx pytest pytest-asyncio pytest-cov pytest-mock pytest-timeout
+
+# Create mock pigpio
+COPY scripts/create_mock_pigpio.py /usr/local/lib/python3.9/site-packages/pigpio.py
+
+CMD ["pytest"] 

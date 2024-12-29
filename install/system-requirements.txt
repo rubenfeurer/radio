@@ -1,8 +1,9 @@
 # Core system dependencies
-python3-venv
-python3-pip
 python3-dev
+python3-pip
+python3-venv
 build-essential
+git
 libssl-dev
 libffi-dev
 
@@ -10,12 +11,18 @@ libffi-dev
 mpv
 libmpv-dev
 pulseaudio
+alsa-utils
 
 # Network dependencies
 network-manager
-avahi-daemon
-dnsmasq
 hostapd
+dnsmasq
+wireless-tools
+wpasupplicant
+avahi-daemon
+avahi-discover
+avahi-utils
+libnss-mdns
 
 # Hardware dependencies
 pigpio 
