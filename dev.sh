@@ -17,6 +17,18 @@ check_node() {
     fi
 }
 
+# Function to check and install frontend dependencies
+check_frontend_deps() {
+    if [ -d "web" ]; then
+        if [ ! -d "web/node_modules" ]; then
+            echo "Installing frontend dependencies..."
+            cd web
+            npm install
+            cd ..
+        fi
+    fi
+}
+
 # Function to kill existing frontend process
 kill_frontend() {
     echo "Stopping any running frontend processes..."
@@ -35,11 +47,11 @@ start_dev() {
     # Start backend container
     docker compose -f docker/docker-compose.dev.yml up -d --build
 
-    # Start frontend development server in background
+    # Check and start frontend
     if [ -d "web" ]; then
+        check_frontend_deps
         echo "Starting frontend development server..."
         cd web
-        npm install
         npm run dev &
         cd ..
     else
@@ -57,17 +69,17 @@ rebuild_dev() {
     # Kill any existing frontend process
     kill_frontend
     
+    # Rebuild backend
     docker compose -f docker/docker-compose.dev.yml down
     docker compose -f docker/docker-compose.dev.yml rm -f
     docker rmi radio-backend
     docker compose -f docker/docker-compose.dev.yml up -d --build
     
-    # Reinstall frontend dependencies
+    # Check and start frontend
     if [ -d "web" ]; then
-        echo "Reinstalling frontend dependencies..."
+        check_frontend_deps
+        echo "Starting frontend development server..."
         cd web
-        rm -rf node_modules
-        npm install
         npm run dev &
         cd ..
     fi
