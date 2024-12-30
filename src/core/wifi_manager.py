@@ -12,14 +12,22 @@ logger = setup_logger()
 class WiFiManager:
     """Manages WiFi connections using NetworkManager"""
     
-    def __init__(self):
-        """Initialize WiFi manager"""
+    def __init__(self, skip_verify: bool = False):
+        """Initialize WiFi manager
+        
+        Args:
+            skip_verify (bool): Skip NetworkManager verification in testing
+        """
         self.logger = logger
         self.network_service = get_network_service()
         self._interface = "wlan0"
+        self._skip_verify = skip_verify
         
     def _verify_networkmanager(self) -> None:
         """Verify NetworkManager is running"""
+        if self._skip_verify:
+            return
+            
         try:
             result = self._run_command(['systemctl', 'is-active', 'NetworkManager'])
             if result.returncode != 0:

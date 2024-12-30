@@ -37,6 +37,18 @@ kill_frontend() {
     sleep 2
 }
 
+# Function to run tests in existing Docker container
+run_tests() {
+    echo "Running tests in Docker container..."
+    docker compose -f docker/docker-compose.dev.yml exec backend /home/radio/radio/venv/bin/python -m pytest "$@"
+}
+
+# Function to run tests in clean container
+run_tests_clean() {
+    echo "Running tests in clean Docker container..."
+    docker compose -f docker/docker-compose.dev.yml run --rm backend /home/radio/radio/venv/bin/python -m pytest "$@"
+}
+
 # Function to start development environment
 start_dev() {
     echo "Starting development environment..."
@@ -54,8 +66,6 @@ start_dev() {
         cd web
         npm run dev &
         cd ..
-    else
-        echo "No frontend directory found. Skipping frontend startup."
     fi
 
     # Wait for all background processes
@@ -106,8 +116,16 @@ case "$1" in
     "rebuild")
         rebuild_dev
         ;;
+    "test")
+        shift  # Remove 'test' from arguments
+        run_tests "$@"
+        ;;
+    "test-clean")
+        shift  # Remove 'test-clean' from arguments
+        run_tests_clean "$@"
+        ;;
     *)
-        echo "Usage: $0 {start|stop|logs|rebuild}"
+        echo "Usage: $0 {start|stop|logs|rebuild|test|test-clean}"
         exit 1
         ;;
 esac 

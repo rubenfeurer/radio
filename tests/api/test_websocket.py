@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 from src.core.models import SystemStatus
 
 @pytest.mark.websocket
-def test_websocket_status():
+@pytest.mark.asyncio
+async def test_websocket_connection():
     """Test WebSocket status updates"""
     client = TestClient(app)
     with client.websocket_connect(f"{settings.API_V1_STR}/ws") as ws:

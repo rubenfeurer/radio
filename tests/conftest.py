@@ -150,3 +150,10 @@ def mock_logger(monkeypatch):
 def wifi_manager(mock_logger):
     """Create a WiFiManager instance for testing"""
     return WiFiManager(skip_verify=True)
+
+def pytest_configure(config):
+    """Register custom markers."""
+    config.addinivalue_line(
+        "markers",
+        "websocket: mark test as websocket test"
+    )

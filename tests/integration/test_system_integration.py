@@ -2,13 +2,13 @@
 Integration test suite for system-wide functionality.
 """
 import pytest
+from unittest.mock import patch, Mock
 from src.hardware.gpio_controller import GPIOController
 from src.core.radio_manager import RadioManager
 from src.hardware.audio_player import AudioPlayer
 from src.core.models import RadioStation
 from config.config import settings
 import asyncio
-from unittest.mock import Mock, patch
 
 @pytest.mark.asyncio
 async def test_button_to_audio():
@@ -16,35 +16,37 @@ async def test_button_to_audio():
     # Create event loop for testing
     loop = asyncio.get_event_loop()
     
-    gpio = GPIOController(event_loop=loop)
-    manager = RadioManager()
-    player = AudioPlayer()
-    
-    # Add a test station
-    station = RadioStation(name="Test", url="http://test.com/stream", slot=1)
-    manager.add_station(station)
-    
-    # Call the callback directly
-    gpio._handle_button(settings.BUTTON_PIN_1, 0, 0)  # Press
-    gpio._handle_button(settings.BUTTON_PIN_1, 1, 0)  # Release
-    
-    # Wait for any async operations
-    await asyncio.sleep(0.1)
-    await manager.toggle_station(1)
-    
-    # Check status instead of direct attributes
-    status = manager.get_status()
-    assert status.is_playing
-    assert status.current_station == 1
+    # Add subprocess.run mock for amixer
+    with patch('subprocess.run') as mock_run:
+        gpio = GPIOController(event_loop=loop)
+        manager = RadioManager()
+        player = AudioPlayer()
+        
+        # Add a test station
+        station = RadioStation(name="Test", url="http://test.com/stream", slot=1)
+        manager.add_station(station)
+        
+        # Call the callback directly
+        gpio._handle_button(settings.BUTTON_PIN_1, 0, 0)  # Press
+        gpio._handle_button(settings.BUTTON_PIN_1, 1, 0)  # Release
+        
+        # Wait for any async operations
+        await asyncio.sleep(0.1)
+        await manager.toggle_station(1)
+        
+        # Check status instead of direct attributes
+        status = manager.get_status()
+        assert status.is_playing
+        assert status.current_station == 1
 
 @pytest.mark.asyncio
 async def test_volume_control_integration():
     """Test volume control through both rotary encoder and web interface"""
     loop = asyncio.get_event_loop()
     
-    # Initialize components
-    with patch('src.hardware.audio_player.AudioPlayer') as MockAudioPlayer:
-        mock_player = MockAudioPlayer.return_value
+    # Initialize components with subprocess.run mock
+    with patch('subprocess.run') as mock_run:
+        mock_player = Mock()
         manager = RadioManager()
         
         # Create volume callback
@@ -134,23 +136,25 @@ async def test_status_updates():
     """Test that status updates are properly propagated"""
     loop = asyncio.get_event_loop()
     
-    # Create callback counter
-    callback_count = 0
-    
-    async def status_callback(status):
-        nonlocal callback_count
-        callback_count += 1
-    
-    manager = RadioManager(status_update_callback=status_callback)
-    station = RadioStation(name="Test", url="http://test.com/stream", slot=1)
-    manager.add_station(station)
-    
-    # Test status updates for various actions
-    await manager.toggle_station(1)
-    await asyncio.sleep(0.2)  # Wait for callback
-    assert callback_count > 0
-    
-    initial_count = callback_count
-    await manager.set_volume(80)
-    await asyncio.sleep(0.2)  # Wait for callback
-    assert callback_count > initial_count
+    # Add subprocess.run mock for amixer
+    with patch('subprocess.run') as mock_run:
+        # Create callback counter
+        callback_count = 0
+        
+        async def status_callback(status):
+            nonlocal callback_count
+            callback_count += 1
+        
+        manager = RadioManager(status_update_callback=status_callback)
+        station = RadioStation(name="Test", url="http://test.com/stream", slot=1)
+        manager.add_station(station)
+        
+        # Test status updates for various actions
+        await manager.toggle_station(1)
+        await asyncio.sleep(0.2)  # Wait for callback
+        assert callback_count > 0
+        
+        initial_count = callback_count
+        await manager.set_volume(80)
+        await asyncio.sleep(0.2)  # Wait for callback
+        assert callback_count > initial_count
