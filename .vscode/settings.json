@@ -1,6 +1,6 @@
 {
-    "python.defaultInterpreterPath": "/app/venv/bin/python",
-    "python.analysis.extraPaths": ["/app"],
+    "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
+    "python.analysis.extraPaths": ["${workspaceFolder}"],
     "python.linting.enabled": true,
     "python.linting.pylintEnabled": true,
     "python.formatting.provider": "black",
@@ -8,27 +8,5 @@
     "files.watcherExclude": {
         "**/venv/**": true,
         "**/node_modules/**": true
-    },
-    "taskButtons": [
-        {
-            "task": "Docker: Start Dev",
-            "icon": "$(play)",
-            "tooltip": "Start Development Environment"
-        },
-        {
-            "task": "Docker: Run Tests",
-            "icon": "$(beaker)",
-            "tooltip": "Run Tests"
-        },
-        {
-            "task": "Docker: View Logs",
-            "icon": "$(output)",
-            "tooltip": "View Logs"
-        },
-        {
-            "task": "Docker: Shell",
-            "icon": "$(terminal)",
-            "tooltip": "Open Shell"
-        }
-    ]
+    }
 } 
