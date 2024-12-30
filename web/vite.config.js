@@ -22,7 +22,7 @@ export default defineConfig({
 		port: DEV_PORT,
 		strictPort: true,
 		hmr: {
-			host: HOSTNAME,
+			host: 'localhost',
 			protocol: 'ws',
 			clientPort: DEV_PORT
 		},
