@@ -5,18 +5,17 @@ import logging
 from .models import WiFiStatus, WiFiNetwork
 import os
 from src.utils.logger import setup_logger
+from .services.network_service import get_network_service
 
 logger = setup_logger()
 
 class WiFiManager:
     """Manages WiFi connections using NetworkManager"""
     
-    def __init__(self, skip_verify: bool = False):
+    def __init__(self):
         """Initialize WiFi manager"""
         self.logger = logger
-        # Check both environment variable and skip_verify parameter
-        if not os.getenv('SKIP_NM_CHECK') and not skip_verify:
-            self._verify_networkmanager()
+        self.network_service = get_network_service()
         self._interface = "wlan0"
         
     def _verify_networkmanager(self) -> None:

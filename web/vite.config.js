@@ -7,14 +7,15 @@ export default defineConfig({
 	server: {
 		proxy: {
 			[API_PREFIX]: {
-				target: `http://${HOSTNAME}:${API_PORT}`,
+				target: `http://localhost:${API_PORT}`,
 				changeOrigin: true,
 				rewrite: (path) => path.includes(API_V1_STR) ? path : path.replace(API_PREFIX, API_V1_STR)
 			},
 			'/ws': {
-				target: `ws://${HOSTNAME}:${API_PORT}`,
+				target: `ws://localhost:${API_PORT}`,
 				ws: true,
-				changeOrigin: true
+				changeOrigin: true,
+				rewrite: (path) => path.includes(API_V1_STR) ? path : `${API_V1_STR}${path}`
 			}
 		},
 		host: '0.0.0.0',

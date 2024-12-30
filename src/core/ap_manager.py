@@ -7,6 +7,7 @@ from .models import WiFiNetwork, WiFiStatus
 from pathlib import Path
 import json
 from datetime import datetime
+from .services.network_service import get_network_service
 
 class ConnectionError(Exception):
     """Custom exception for connection errors"""
@@ -22,6 +23,7 @@ class APManager:
         self.mode_manager = ModeManagerSingleton.get_instance()
         self.interface_stabilize_delay = 2  # seconds
         self.required_services = ['dnsmasq', 'avahi-daemon']
+        self.network_service = get_network_service()
 
     async def verify_ap_mode(self) -> bool:
         """Verify that we're in AP mode"""

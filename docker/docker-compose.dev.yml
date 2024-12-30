@@ -1,0 +1,21 @@
+name: radio
+
+services:
+  backend:
+    container_name: radio-backend
+    image: radio-backend
+    build:
+      context: ..
+      dockerfile: docker/dev/Dockerfile.backend
+    volumes:
+      - ../src:/home/radio/radio/src
+      - ../config:/home/radio/radio/config
+      - ../tests:/home/radio/radio/tests
+      - ../install/requirements.txt:/home/radio/radio/requirements.txt
+    ports:
+      - "80:80"
+    environment:
+      - MOCK_SERVICES=true
+      - DEV_MODE=true
+      - PYTHONPATH=/home/radio/radio
+    command: /home/radio/radio/venv/bin/python -m uvicorn src.api.main:app --host 0.0.0.0 --port 80 --reload

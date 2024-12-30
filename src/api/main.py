@@ -23,16 +23,23 @@ from contextlib import asynccontextmanager
 import grp
 import pwd
 import uvicorn
+from src.core.service_factory import ServiceFactory
 
 # Define lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize singletons and connections
-    radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
-    mode_manager = ModeManagerSingleton.get_instance()
+    # Initialize services based on environment
+    network_service = ServiceFactory.get_service('network')
+    gpio_service = ServiceFactory.get_service('gpio')
+    audio_service = ServiceFactory.get_service('audio')
+    
+    # Store services in app state
+    app.state.network = network_service
+    app.state.gpio = gpio_service
+    app.state.audio = audio_service
+    
     logger.info("Application startup complete")
     yield
-    # Cleanup: Close connections and cleanup resources
     logger.info("Application shutdown")
 
 # Initialize FastAPI with lifespan

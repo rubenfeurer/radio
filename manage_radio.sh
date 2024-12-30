@@ -6,7 +6,14 @@ APP_PATH="/home/radio/radio/src/api/main.py"
 LOG_FILE="/home/radio/radio/logs/radio.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
 NODE_ENV="production"
-DEV_MODE=${DEV_MODE:-false}
+
+# Check if running in Docker
+if [ -f /.dockerenv ]; then
+    echo "Running in Docker environment - skipping system checks"
+    # Simplified startup for Docker
+    exec "$VENV_PATH/bin/python" -m uvicorn src.api.main:app --host "0.0.0.0" --port "$API_PORT" --reload
+    exit 0
+fi
 
 # Get configuration from Python
 get_config() {

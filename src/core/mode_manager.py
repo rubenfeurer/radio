@@ -9,6 +9,7 @@ import os
 import asyncio
 from datetime import datetime
 from src.core.sound_manager import SoundManager, SystemEvent
+from .services.network_service import get_network_service
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class ModeManagerSingleton:
         self._current_mode = None
         self._sound_manager = SoundManager()
         self._load_state()
+        self.network_service = get_network_service()
 
     @classmethod
     def get_instance(cls):
