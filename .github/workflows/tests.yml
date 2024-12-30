@@ -2,57 +2,92 @@ name: Radio Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - ".github/workflows/**"
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    continue-on-error: false
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Build test image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: Dockerfile.test
-        load: true
-        tags: radio-test:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-    
-    - name: Run tests in container
-      run: |
-        docker run --rm \
-          -e MOCK_HARDWARE=true \
-          -e TEST_MODE=CI \
-          -e DISABLE_HARDWARE=true \
-          -e SKIP_NM_CHECK=true \
-          -e SKIP_PIGPIO=true \
-          -e PIGPIO_MOCK=true \
-          -e PYTEST_TIMEOUT=30 \
-          -e PYTEST_ASYNCIO_MODE=auto \
-          -v ${{ github.workspace }}:/app \
-          radio-test:latest \
-          pytest -v tests/ \
-            --cov=src \
-            --capture=no \
-            --log-cli-level=DEBUG \
-            --asyncio-mode=auto \
-            -p no:warnings \
-            --ignore=tests/hardware \
-            --ignore=tests/integration \
-            -k "not test_gpio and not test_hardware"
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"] # Test multiple Python versions
 
-  check:
-    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      # Cache dependencies
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      # Split tests into categories
+      - name: Run unit tests
+        env:
+          MOCK_HARDWARE: "true"
+          TEST_MODE: "CI"
+        run: |
+          pytest -v tests/unit/ --cov=src --cov-report=xml
+
+      - name: Run API tests
+        env:
+          MOCK_HARDWARE: "true"
+          TEST_MODE: "CI"
+        run: |
+          pytest -v tests/api/ --cov=src --cov-append
+
+      # Add test summary
+      - name: Test Summary
+        uses: test-summary/action@v2
+        with:
+          paths: "pytest-results.xml"
+        if: always()
+
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Tests passed
-        run: echo "All tests passed successfully!"
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # Add more linting tools
+      - name: Install dependencies
+        run: |
+          pip install black pylint mypy ruff
+
+      - name: Run black
+        run: black --check src tests
+
+      - name: Run ruff
+        run: ruff check src tests
+
+      - name: Run mypy
+        run: mypy src
+
+      - name: Run pylint
+        run: pylint src tests
