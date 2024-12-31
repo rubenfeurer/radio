@@ -9,6 +9,7 @@ router = APIRouter(prefix="/wifi")
 wifi_manager = WiFiManager()
 logger = logging.getLogger(__name__)
 
+
 @router.get("/status", response_model=WiFiStatus, tags=["WiFi"])
 async def get_wifi_status():
     """Get current WiFi status including connection state and available networks"""
@@ -24,24 +25,26 @@ async def get_wifi_status():
             is_connected=False,
             has_internet=False,
             available_networks=[],
-            preconfigured_ssid=None
+            preconfigured_ssid=None,
         )
+
 
 @router.post("/connect", tags=["WiFi"])
 async def connect_to_network(request: WiFiConnectionRequest):
     """Connect to a WiFi network"""
     try:
         logger.debug(f"Attempting to connect to SSID: {request.ssid}")
-        
+
         result = await wifi_manager.connect_to_network(request.ssid, request.password)
-        
+
         if result:
             return {"status": "success"}
         raise HTTPException(status_code=400, detail="Failed to connect to network")
-        
+
     except Exception as e:
         logger.error(f"Error connecting to network: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.get("/current", tags=["WiFi"])
 async def get_current_connection():
@@ -53,18 +56,13 @@ async def get_current_connection():
                 "ssid": status.ssid,
                 "is_connected": True,
                 "signal_strength": status.signal_strength,
-                "has_internet": status.has_internet
+                "has_internet": status.has_internet,
             }
-        return {
-            "ssid": None,
-            "is_connected": False
-        }
+        return {"ssid": None, "is_connected": False}
     except Exception as e:
         logger.error(f"Error getting current connection: {e}")
-        return {
-            "ssid": None,
-            "is_connected": False
-        }
+        return {"ssid": None, "is_connected": False}
+
 
 @router.get("/debug", tags=["Diagnostics"])
 async def debug_wifi():
@@ -73,63 +71,86 @@ async def debug_wifi():
     wifi.logger.setLevel(logging.DEBUG)
     if not wifi.logger.handlers:
         handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter('DEBUG: %(message)s'))
+        handler.setFormatter(logging.Formatter("DEBUG: %(message)s"))
         wifi.logger.addHandler(handler)
-    
+
     status = wifi.get_current_status()
-    return status 
+    return status
+
 
 @router.get("/debug_nmcli", tags=["Diagnostics"])
 async def debug_nmcli():
     """Debug endpoint to execute nmcli commands and return raw output"""
     try:
         # Execute the nmcli command to list available networks
-        list_result = wifi_manager._run_command([
-            'sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,IN-USE',
-            'device', 'wifi', 'list'
-        ], capture_output=True, text=True, timeout=5)
-        
+        list_result = wifi_manager._run_command(
+            [
+                "sudo",
+                "nmcli",
+                "-t",
+                "-f",
+                "SSID,SIGNAL,SECURITY,IN-USE",
+                "device",
+                "wifi",
+                "list",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
         # Execute the nmcli command to show saved connections
-        saved_result = wifi_manager._run_command([
-            'sudo', 'nmcli', '-t', '-f', 'NAME,TYPE,FILENAME', 'connection', 'show'
-        ], capture_output=True, text=True)
-        
+        saved_result = wifi_manager._run_command(
+            ["sudo", "nmcli", "-t", "-f", "NAME,TYPE,FILENAME", "connection", "show"],
+            capture_output=True,
+            text=True,
+        )
+
         return {
             "available_networks_output": list_result.stdout,
             "saved_connections_output": saved_result.stdout,
             "list_error": list_result.stderr,
-            "saved_error": saved_result.stderr
+            "saved_error": saved_result.stderr,
         }
     except Exception as e:
         logger.error(f"Error executing nmcli commands: {e}")
-        return {"error": str(e)} 
+        return {"error": str(e)}
+
 
 @router.post("/connect/preconfigured", tags=["WiFi"])
 async def connect_to_preconfigured():
     """Connect to the preconfigured network directly"""
     try:
         logger.debug("Attempting to connect to preconfigured network")
-        result = wifi_manager._run_command([
-            'sudo', 'nmcli', 'connection', 'up', 'preconfigured'
-        ], capture_output=True, text=True, timeout=30)
-        
+        result = wifi_manager._run_command(
+            ["sudo", "nmcli", "connection", "up", "preconfigured"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
         if result.returncode != 0:
             logger.error(f"Failed to connect to preconfigured network: {result.stderr}")
-            raise HTTPException(status_code=400, detail="Failed to connect to preconfigured network")
-            
+            raise HTTPException(
+                status_code=400, detail="Failed to connect to preconfigured network"
+            )
+
         # Verify connection was successful
-        verify_result = wifi_manager._run_command([
-            'sudo', 'nmcli', '-t', '-f', 'GENERAL.STATE', 'device', 'show', 'wlan0'
-        ], capture_output=True, text=True)
-        
-        if verify_result.returncode == 0 and '100 (connected)' in verify_result.stdout:
+        verify_result = wifi_manager._run_command(
+            ["sudo", "nmcli", "-t", "-f", "GENERAL.STATE", "device", "show", "wlan0"],
+            capture_output=True,
+            text=True,
+        )
+
+        if verify_result.returncode == 0 and "100 (connected)" in verify_result.stdout:
             return {"message": "Successfully connected to preconfigured network"}
-        
+
         raise HTTPException(status_code=400, detail="Failed to verify connection")
-        
+
     except Exception as e:
         logger.error(f"Error connecting to preconfigured network: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.delete("/forget/{ssid}", tags=["WiFi"])
 async def forget_network(ssid: str):
@@ -142,4 +163,4 @@ async def forget_network(ssid: str):
         raise HTTPException(status_code=400, detail="Failed to remove network")
     except Exception as e:
         logger.error(f"Error removing network: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=400, detail=str(e))

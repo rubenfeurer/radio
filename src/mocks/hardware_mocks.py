@@ -3,8 +3,10 @@ import asyncio
 from typing import Optional, Callable, Any
 from src.core.models import RadioStation, SystemStatus
 
+
 class MockAudioPlayer:
     """Mock implementation of AudioPlayer"""
+
     def __init__(self):
         self.volume = 70
         self.current_url = None
@@ -26,14 +28,18 @@ class MockAudioPlayer:
         self.volume = max(0, min(100, volume))
         self.mpv_instance.volume = self.volume
 
+
 class MockGPIOController:
     """Mock implementation of GPIOController"""
-    def __init__(self, 
-                 event_loop: Optional[asyncio.AbstractEventLoop] = None,
-                 button_press_callback: Optional[Callable] = None,
-                 volume_change_callback: Optional[Callable] = None,
-                 triple_press_callback: Optional[Callable] = None,
-                 long_press_callback: Optional[Callable] = None):
+
+    def __init__(
+        self,
+        event_loop: Optional[asyncio.AbstractEventLoop] = None,
+        button_press_callback: Optional[Callable] = None,
+        volume_change_callback: Optional[Callable] = None,
+        triple_press_callback: Optional[Callable] = None,
+        long_press_callback: Optional[Callable] = None,
+    ):
         self.event_loop = event_loop or asyncio.get_event_loop()
         self.button_press_callback = button_press_callback or AsyncMock()
         self.volume_change_callback = volume_change_callback or AsyncMock()
@@ -58,8 +64,10 @@ class MockGPIOController:
         """Cleanup mock resources"""
         pass
 
+
 class MockRadioManager:
     """Mock implementation of RadioManager"""
+
     def __init__(self, status_update_callback: Optional[Callable] = None):
         self.current_station: Optional[RadioStation] = None
         self.stations = {}
@@ -87,8 +95,10 @@ class MockRadioManager:
         if self.status_update_callback:
             status = SystemStatus(
                 is_playing=self.is_playing,
-                current_station=self.current_station.slot if self.current_station else None,
-                volume=self.volume
+                current_station=(
+                    self.current_station.slot if self.current_station else None
+                ),
+                volume=self.volume,
             )
             await self.status_update_callback(status)
 
@@ -96,5 +106,5 @@ class MockRadioManager:
         return SystemStatus(
             is_playing=self.is_playing,
             current_station=self.current_station.slot if self.current_station else None,
-            volume=self.volume
-        ) 
+            volume=self.volume,
+        )

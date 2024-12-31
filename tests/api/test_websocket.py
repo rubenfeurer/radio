@@ -5,6 +5,7 @@ from config.config import settings
 from unittest.mock import MagicMock, patch
 from src.core.models import SystemStatus
 
+
 @pytest.mark.websocket
 @pytest.mark.asyncio
 async def test_websocket_connection():
@@ -19,6 +20,7 @@ async def test_websocket_connection():
         assert "is_playing" in status["data"]
         assert isinstance(status["data"]["volume"], int)
         assert isinstance(status["data"]["is_playing"], bool)
+
 
 if __name__ == "__main__":
     pytest.main(["-v", "-k", "websocket"])

@@ -8,17 +8,22 @@ import socket
 router = APIRouter()
 
 # Get the singleton instance
-radio_manager = RadioManagerSingleton.get_instance(status_update_callback=broadcast_status_update)
+radio_manager = RadioManagerSingleton.get_instance(
+    status_update_callback=broadcast_status_update
+)
+
 
 @router.get("/health", tags=["Health"])
 async def health_check():
     """Check if the API is running and healthy."""
     return {"status": "healthy"}
 
+
 @router.get("/volume", tags=["Audio"])
 async def get_volume():
     """Get the current volume level."""
     return {"volume": radio_manager.get_status().volume}
+
 
 @router.post("/volume", tags=["Audio"])
 async def set_volume(request: VolumeRequest):
@@ -28,7 +33,8 @@ async def set_volume(request: VolumeRequest):
     await radio_manager.set_volume(request.volume)
     return {"message": "Volume set successfully"}
 
+
 @router.get("/hostname", tags=["System"])
 async def get_hostname():
     hostname = socket.gethostname()
-    return {"hostname": f"{hostname}.local"} 
+    return {"hostname": f"{hostname}.local"}
