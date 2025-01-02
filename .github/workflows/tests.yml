@@ -85,7 +85,7 @@ jobs:
                 cd /home/radio/radio && \
                 pip install -r install/requirements.txt -r install/requirements-dev.txt && \
 
-                # Run tests
+                # Run tests with explicit output path
                 PYTHONPATH=/home/radio/radio \
                 python -m pytest \
                   --verbose \
@@ -94,7 +94,9 @@ jobs:
                   --cov=src/hardware \
                   --cov-report=term-missing \
                   --cov-fail-under=50 \
-                  tests/
+                  --junitxml=/home/radio/radio/pytest-results.xml \
+                  tests/ && \
+                chmod 644 /home/radio/radio/pytest-results.xml
               '
             "
 
@@ -103,4 +105,5 @@ jobs:
         uses: test-summary/action@v2
         if: always()
         with:
-          paths: "pytest-results.xml"
+          paths: |
+            pytest-results.xml
