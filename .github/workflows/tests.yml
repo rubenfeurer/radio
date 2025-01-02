@@ -18,22 +18,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cache pip dependencies
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Set up BuildKit
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        if: success()
+        with:
+          buildkitd-flags: --debug
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
 
+      # Cache Docker layers
       - name: Cache Docker layers
         uses: actions/cache@v4
-        if: success()
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.backend', 'install/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-buildx-
 
+      # Build with optimized caching
       - name: Build development image
         uses: docker/build-push-action@v5
-        if: success()
         with:
           context: .
           file: ./docker/dev/Dockerfile.backend
@@ -43,46 +57,40 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+            DOCKER_BUILDKIT=1
 
-      # Run tests in container
+      # Run tests in container with root permissions
       - name: Run tests
         if: success()
         run: |
-          # Run tests in container
           docker compose -f docker/docker-compose.dev.yml run --rm \
+            --user root \
             -v ${PWD}:/home/radio/radio \
             backend bash -c "
-              # Install Python if not present
+              # Install system dependencies
               apt-get update && \
               apt-get install -y python3 python3-venv python3-pip && \
 
               # Create and activate venv
               python3 -m venv /home/radio/radio/venv && \
-              . /home/radio/radio/venv/bin/activate && \
-              pip install -r requirements.txt -r requirements-dev.txt && \
+              chown -R radio:radio /home/radio/radio/venv && \
+              su radio -c '
+                source /home/radio/radio/venv/bin/activate && \
+                pip install -r requirements.txt -r requirements-dev.txt && \
 
-              # Create test directories
-              mkdir -p tests/unit tests/api tests/integration && \
-
-              # Run tests
-              python -m pytest \
-                --verbose \
-                --cov=src/core \
-                --cov=src/api \
-                --cov=src/hardware \
-                --cov-report=xml \
-                --cov-report=term-missing \
-                --cov-fail-under=50 \
-                --junitxml=pytest-results.xml \
-                tests/
+                # Run tests
+                python -m pytest \
+                  --verbose \
+                  --cov=src/core \
+                  --cov=src/api \
+                  --cov=src/hardware \
+                  --cov-report=xml \
+                  --cov-report=term-missing \
+                  --cov-fail-under=50 \
+                  --junitxml=pytest-results.xml \
+                  tests/
+              '
             "
-
-      # Move cache
-      - name: Move cache
-        if: success()
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       # Add test summary
       - name: Test Summary
