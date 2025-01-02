@@ -40,18 +40,18 @@ jobs:
         run: |
           pip install black pylint mypy ruff
 
-      # Format and auto-commit changes
-      - name: Format with Black
-        run: black src/ tests/ config/
+      # Run exactly the same commands as dev.sh
+      - name: Run linting
+        run: |
+          black .
+          ruff check .
+          mypy src
+          pylint src tests config
 
-      # Run and fix ruff issues
-      - name: Run ruff
-        run: ruff check --fix src tests config
-
-      - name: Commit formatting changes
+      - name: Commit any formatting changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "style: format code with black and ruff"
+          commit_message: "style: format code with black"
           branch: ${{ github.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
