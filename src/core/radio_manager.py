@@ -1,22 +1,33 @@
-from typing import Dict, Optional
-from src.core.models import RadioStation, SystemStatus
+import asyncio
+import logging
+import subprocess
+from typing import Any, Callable, ClassVar, Dict, Optional
+from unittest.mock import AsyncMock
+
+import httpx
+
+from config.config import settings
+from src.core.mode_manager import ModeManagerSingleton, NetworkMode
+from src.core.models import RadioStation, Station, SystemStatus
+from src.core.sound_manager import SoundManager, SystemEvent
+from src.core.station_manager import StationManager
+from src.core.wifi_manager import WiFiManager
 from src.hardware.audio_player import AudioPlayer
 from src.hardware.gpio_controller import GPIOController
-from config.config import settings
-from src.utils.station_loader import load_default_stations, load_assigned_stations
-from src.core.station_manager import StationManager
-from src.core.sound_manager import SoundManager, SystemEvent
-from src.core.mode_manager import ModeManagerSingleton, NetworkMode
-from src.core.wifi_manager import WiFiManager
-import logging
-import asyncio
-import httpx
-import subprocess
 
 logger = logging.getLogger(__name__)
 
+last_press_time: Dict[int, float] = {}
+press_count: Dict[int, int] = {}
+stations: Dict[int, Station] = {}
+monitor_tasks: Dict[str, asyncio.Task] = {}
+
 
 class RadioManager:
+    _instance: ClassVar[Optional["RadioManager"]] = (
+        None  # Add class variable for singleton
+    )
+
     def __init__(self, status_update_callback=None, test_mode=False):
         logger.info("Initializing RadioManager")
         self._station_manager = StationManager()
@@ -93,7 +104,7 @@ class RadioManager:
         """Handle button press events."""
         logger.info(f"Button press handler called for button {button}")
         logger.info(
-            f"Current state - playing: {self._status.is_playing}, station: {self._status.current_station}"
+            f"Current state - playing: {self._status.is_playing}, station: {self._status.current_station}",
         )
 
         if button in [1, 2, 3]:
@@ -101,7 +112,7 @@ class RadioManager:
                 logger.info(f"Attempting to toggle station {button}")
                 result = await self.toggle_station(button)
                 logger.info(
-                    f"Toggle result for station {button}: {'playing' if result else 'stopped'}"
+                    f"Toggle result for station {button}: {'playing' if result else 'stopped'}",
                 )
             except Exception as e:
                 logger.error(f"Error in button press handler: {e}")
@@ -112,15 +123,17 @@ class RadioManager:
         """Play a station and update status"""
         if slot in self._station_manager.get_all_stations():
             station = self._station_manager.get_all_stations()[slot]
-            await self._player.play(station.url)
+            await self._player.play_stream(station.url)
             self._status.current_station = slot
             self._status.is_playing = True
             await self._broadcast_status()
 
     async def stop_playback(self) -> None:
-        await self._player.stop()
+        """Stop the current playback"""
+        await self._player.stop_stream()
         self._status.is_playing = False
         self._status.current_station = None
+        await self._broadcast_status()
 
     def get_status(self) -> SystemStatus:
         return self._status
@@ -143,7 +156,7 @@ class RadioManager:
             self._status.volume = ui_volume
 
             logger.info(
-                f"Volume set successfully - UI: {ui_volume}%, System: {system_volume}%"
+                f"Volume set successfully - UI: {ui_volume}%, System: {system_volume}%",
             )
             await self._broadcast_status()
         except Exception as e:
@@ -156,7 +169,7 @@ class RadioManager:
             try:
                 logger.info(f"Toggle station called for slot {slot}")
                 logger.info(
-                    f"Current state - playing: {self._status.is_playing}, station: {self._status.current_station}"
+                    f"Current state - playing: {self._status.is_playing}, station: {self._status.current_station}",
                 )
 
                 station = self.get_station(slot)
@@ -173,7 +186,7 @@ class RadioManager:
                     # If any station is playing, stop it first
                     if self._status.is_playing:
                         logger.info(
-                            f"Stopping current playing station {self._status.current_station}"
+                            f"Stopping current playing station {self._status.current_station}",
                         )
                         await self.stop_playback()
 
@@ -182,15 +195,7 @@ class RadioManager:
                     logger.info(f"Started playing station in slot {slot}")
                     result = True
 
-                # Update status
-                self._status.current_station = slot if result else None
-                self._status.is_playing = result
-
-                # Broadcast the status update
                 await self._broadcast_status()
-                logger.info(
-                    f"Updated status: playing={self._status.is_playing}, current_station={self._status.current_station}"
-                )
                 return result
 
             except Exception as e:
@@ -213,12 +218,12 @@ class RadioManager:
             # Only handle long press for rotary encoder button
             if button != settings.ROTARY_SW:
                 logger.debug(
-                    f"Ignoring long press for non-rotary button (got {button}, expected {settings.ROTARY_SW})"
+                    f"Ignoring long press for non-rotary button (got {button}, expected {settings.ROTARY_SW})",
                 )
                 return
 
             logger.info(
-                f"Long press confirmed on rotary encoder (pin {settings.ROTARY_SW}) - initiating mode toggle"
+                f"Long press confirmed on rotary encoder (pin {settings.ROTARY_SW}) - initiating mode toggle",
             )
 
             # Call the mode toggle endpoint using httpx
@@ -231,18 +236,18 @@ class RadioManager:
                     await self._sound_manager.notify(SystemEvent.MODE_SWITCH)
                 else:
                     logger.error(
-                        f"Mode toggle failed with status {response.status_code}: {response.text}"
+                        f"Mode toggle failed with status {response.status_code}: {response.text}",
                     )
 
         except Exception as e:
-            logger.error(f"Error in long press handler: {str(e)}", exc_info=True)
+            logger.error(f"Error in long press handler: {e!s}", exc_info=True)
 
     async def _handle_triple_press(self, button: int) -> None:
         """Handle triple press events."""
         try:
             if button == settings.ROTARY_SW:
                 logger.warning(
-                    "Triple press detected on rotary switch - initiating system reboot"
+                    "Triple press detected on rotary switch - initiating system reboot",
                 )
                 # Cleanup before reboot
                 await self.stop_playback()
@@ -280,3 +285,26 @@ class RadioManager:
         except Exception as e:
             logger.error(f"Network check failed: {e}")
             return False
+
+    @classmethod
+    def get_instance(
+        cls,
+        status_update_callback: Optional[Callable] = None,
+    ) -> "RadioManager":
+        if not hasattr(cls, "_instance") or cls._instance is None:
+            cls._instance = cls(status_update_callback=status_update_callback)
+        return cls._instance
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization"""
+        try:
+            if hasattr(self, "model_dump"):
+                return self.model_dump()
+            return {
+                k: v
+                for k, v in vars(self).items()
+                if not k.startswith("_") and not callable(v)
+            }
+        except Exception as e:
+            logger.error(f"Error in to_dict: {e}")
+            return {}

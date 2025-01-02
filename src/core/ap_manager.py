@@ -1,13 +1,13 @@
-from typing import List, Optional, Tuple
-import logging
 import asyncio
-from .wifi_manager import WiFiManager
+import json
+import logging
+from pathlib import Path
+from typing import Optional
+
 from .mode_manager import ModeManagerSingleton, NetworkMode
 from .models import WiFiNetwork, WiFiStatus
-from pathlib import Path
-import json
-from datetime import datetime
 from .services.network_service import get_network_service
+from .wifi_manager import WiFiManager
 
 
 class ConnectionError(Exception):
@@ -131,18 +131,24 @@ class APManager:
             return None
 
     async def add_network_connection(
-        self, ssid: str, password: str, priority: int = 1
+        self,
+        ssid: str,
+        password: str,
+        priority: int = 1,
     ) -> dict:
         """Add a new network connection with specified priority"""
         try:
             if not await self.verify_ap_mode():
                 raise ConnectionError(
-                    "Must be in AP mode to add connection", "mode_error"
+                    "Must be in AP mode to add connection",
+                    "mode_error",
                 )
 
             # Check if connection already exists and remove it
             result = self.wifi_manager._run_command(
-                ["sudo", "nmcli", "connection", "show"], capture_output=True, text=True
+                ["sudo", "nmcli", "connection", "show"],
+                capture_output=True,
+                text=True,
             )
 
             if result.returncode == 0 and ssid in result.stdout:
@@ -182,7 +188,8 @@ class APManager:
             if result.returncode != 0:
                 self.logger.error(f"Failed to add connection: {result.stderr}")
                 raise ConnectionError(
-                    f"Failed to add connection: {result.stderr}", "connection_error"
+                    f"Failed to add connection: {result.stderr}",
+                    "connection_error",
                 )
 
             # Set the connection priority
@@ -210,31 +217,38 @@ class APManager:
                 "priority": priority,
             }
 
-        except ConnectionError as e:
+        except ConnectionError:
             raise
         except Exception as e:
             self.logger.error(f"Error adding network connection: {e}")
             raise ConnectionError(str(e), "unknown_error")
 
     async def modify_network_connection(
-        self, ssid: str, password: str, priority: int = 1
+        self,
+        ssid: str,
+        password: str,
+        priority: int = 1,
     ) -> dict:
         """Modify an existing network connection with new password and priority"""
         try:
             if not await self.verify_ap_mode():
                 raise ConnectionError(
-                    "Must be in AP mode to modify connection", "mode_error"
+                    "Must be in AP mode to modify connection",
+                    "mode_error",
                 )
 
             # Check if connection exists
             result = self.wifi_manager._run_command(
-                ["sudo", "nmcli", "connection", "show"], capture_output=True, text=True
+                ["sudo", "nmcli", "connection", "show"],
+                capture_output=True,
+                text=True,
             )
 
             if result.returncode == 0 and ssid not in result.stdout:
                 self.logger.error(f"Connection {ssid} does not exist")
                 raise ConnectionError(
-                    f"Connection {ssid} does not exist", "not_found_error"
+                    f"Connection {ssid} does not exist",
+                    "not_found_error",
                 )
 
             # Modify the existing connection
@@ -258,7 +272,7 @@ class APManager:
 
             if modify_result.returncode != 0:
                 self.logger.error(
-                    f"Failed to modify connection: {modify_result.stderr}"
+                    f"Failed to modify connection: {modify_result.stderr}",
                 )
                 raise ConnectionError(
                     f"Failed to modify connection: {modify_result.stderr}",
@@ -272,7 +286,7 @@ class APManager:
                 "priority": priority,
             }
 
-        except ConnectionError as e:
+        except ConnectionError:
             raise
         except Exception as e:
             self.logger.error(f"Error modifying network connection: {e}")

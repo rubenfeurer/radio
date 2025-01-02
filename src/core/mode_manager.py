@@ -1,14 +1,16 @@
-from enum import Enum
-import subprocess
-import logging
-import json
-from pathlib import Path
-from typing import Optional, List, Dict, Any
-from config.config import settings
-import os
 import asyncio
+import json
+import logging
+import subprocess
 from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from subprocess import CompletedProcess
+from typing import Any, ClassVar, Dict, Optional
+
+from config.config import settings
 from src.core.sound_manager import SoundManager, SystemEvent
+
 from .services.network_service import get_network_service
 
 # Set up logger
@@ -21,7 +23,7 @@ class NetworkMode(Enum):
 
 
 class ModeManagerSingleton:
-    _instance = None
+    _instance: ClassVar[Optional["ModeManagerSingleton"]] = None
 
     def __init__(self):
         if ModeManagerSingleton._instance is not None:
@@ -36,12 +38,12 @@ class ModeManagerSingleton:
         self.network_service = get_network_service()
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> "ModeManagerSingleton":
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def _save_state(self, mode: NetworkMode):
+    def _save_state(self, mode: NetworkMode) -> None:
         """Save current mode to state file"""
         try:
             self._MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -69,7 +71,10 @@ class ModeManagerSingleton:
 
             # Check if running as AP/Hotspot
             result = subprocess.run(
-                ["nmcli", "device", "show", "wlan0"], capture_output=True, text=True
+                ["nmcli", "device", "show", "wlan0"],
+                capture_output=True,
+                text=True,
+                check=False,
             )
 
             logger.debug(f"Network status from nmcli: {result.stdout}")
@@ -82,7 +87,7 @@ class ModeManagerSingleton:
             return NetworkMode.CLIENT
 
         except Exception as e:
-            logger.error(f"Error detecting mode: {str(e)}", exc_info=True)
+            logger.error(f"Error detecting mode: {e!s}", exc_info=True)
             return NetworkMode.AP  # Default to AP mode
 
     def _verify_mode(self, mode: NetworkMode) -> bool:
@@ -103,23 +108,25 @@ class ModeManagerSingleton:
                     ],
                     capture_output=True,
                     text=True,
+                    check=False,
                 )
                 return "AP" in result.stdout
-            else:
-                result = subprocess.run(
-                    ["nmcli", "-t", "-f", "GENERAL.STATE", "device", "show", "wlan0"],
-                    capture_output=True,
-                    text=True,
-                )
-                return "AP" not in result.stdout
+            result = subprocess.run(
+                ["nmcli", "-t", "-f", "GENERAL.STATE", "device", "show", "wlan0"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return "AP" not in result.stdout
         except Exception as e:
             self.logger.error(f"Mode verification failed: {e}")
             return False
 
-    async def enable_ap_mode(self) -> None:
+    async def enable_ap_mode(self) -> bool:
+        """Enable AP mode with configured SSID and password."""
         try:
             logger.info(
-                f"Enabling AP mode with SSID: {self.AP_SSID}, Password: {self.AP_PASS}"
+                f"Enabling AP mode with SSID: {self.AP_SSID}, Password: {self.AP_PASS}",
             )
 
             # Save current WiFi status before switching
@@ -168,9 +175,10 @@ class ModeManagerSingleton:
                 ["sudo", "nmcli", "device", "disconnect", "wlan0"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             logger.debug(
-                f"Disconnect result: {disconnect_result.stdout} {disconnect_result.stderr}"
+                f"Disconnect result: {disconnect_result.stdout} {disconnect_result.stderr}",
             )
 
             await asyncio.sleep(2)
@@ -180,9 +188,10 @@ class ModeManagerSingleton:
                 ["sudo", "nmcli", "connection", "delete", "Hotspot"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             logger.debug(
-                f"Delete result: {delete_result.stdout} {delete_result.stderr}"
+                f"Delete result: {delete_result.stdout} {delete_result.stderr}",
             )
 
             # Create new hotspot with explicit security settings
@@ -222,7 +231,7 @@ class ModeManagerSingleton:
             ]
             logger.debug(f"Running command: {' '.join(cmd)}")
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
             if result.returncode != 0:
                 error_msg = f"Failed to create AP connection. Return code: {result.returncode}\nStdout: {result.stdout}\nStderr: {result.stderr}"
@@ -232,7 +241,10 @@ class ModeManagerSingleton:
             # Activate the connection
             activate_cmd = ["sudo", "nmcli", "connection", "up", "Hotspot"]
             activate_result = subprocess.run(
-                activate_cmd, capture_output=True, text=True
+                activate_cmd,
+                capture_output=True,
+                text=True,
+                check=False,
             )
 
             if activate_result.returncode != 0:
@@ -245,36 +257,44 @@ class ModeManagerSingleton:
             return True
 
         except Exception as e:
-            logger.error(f"Error enabling AP mode: {str(e)}", exc_info=True)
+            logger.error(f"Error enabling AP mode: {e!s}", exc_info=True)
             raise
 
-    async def enable_client_mode(self) -> None:
-        """Enable client mode and let NetworkManager auto-connect to saved networks"""
+    async def enable_client_mode(self) -> bool:
+        """Enable client mode and connect to saved networks."""
         try:
             logger.info("Enabling client mode...")
 
             # 1. Stop and delete AP/Hotspot
             subprocess.run(
-                ["sudo", "nmcli", "connection", "down", "Hotspot"], capture_output=True
+                ["sudo", "nmcli", "connection", "down", "Hotspot"],
+                capture_output=True,
+                check=False,
             )
             subprocess.run(
                 ["sudo", "nmcli", "connection", "delete", "Hotspot"],
                 capture_output=True,
+                check=False,
             )
 
             # 2. Switch to managed mode and enable WiFi
             subprocess.run(
                 ["sudo", "nmcli", "device", "set", "wlan0", "managed"],
                 capture_output=True,
+                check=False,
             )
             subprocess.run(
-                ["sudo", "nmcli", "radio", "wifi", "on"], capture_output=True
+                ["sudo", "nmcli", "radio", "wifi", "on"],
+                capture_output=True,
+                check=False,
             )
 
             # 3. Force reconnection
             await asyncio.sleep(1)
             subprocess.run(
-                ["sudo", "nmcli", "device", "connect", "wlan0"], capture_output=True
+                ["sudo", "nmcli", "device", "connect", "wlan0"],
+                capture_output=True,
+                check=False,
             )
 
             # 4. Let NetworkManager auto-connect and wait for result
@@ -282,12 +302,13 @@ class ModeManagerSingleton:
             connected = False
             for attempt in range(max_attempts):
                 logger.debug(
-                    f"Checking connection status (attempt {attempt + 1}/{max_attempts})"
+                    f"Checking connection status (attempt {attempt + 1}/{max_attempts})",
                 )
                 check = subprocess.run(
                     ["nmcli", "-t", "-f", "GENERAL.STATE", "device", "show", "wlan0"],
                     capture_output=True,
                     text=True,
+                    check=False,
                 )
                 if "connected" in check.stdout.lower():
                     logger.info("Network connection established")
@@ -301,10 +322,9 @@ class ModeManagerSingleton:
             if connected:
                 await self._sound_manager.notify(SystemEvent.WIFI_CONNECTED)
                 return True
-            else:
-                await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
-                logger.warning("No connection established")
-                return False
+            await self._sound_manager.notify(SystemEvent.STARTUP_ERROR)
+            logger.warning("No connection established")
+            return False
 
         except Exception as e:
             logger.error(f"Error enabling client mode: {e}", exc_info=True)
@@ -312,7 +332,7 @@ class ModeManagerSingleton:
             raise
 
     async def toggle_mode(self) -> NetworkMode:
-        """Toggle between AP and Client modes"""
+        """Toggle between AP and Client modes."""
         try:
             current_mode = self.detect_current_mode()
 
@@ -334,11 +354,32 @@ class ModeManagerSingleton:
             self.logger.error(f"Failed to toggle mode: {e}")
             raise
 
-    async def scan_wifi_networks(self) -> List[Dict[str, Any]]:
-        """Scan for available WiFi networks"""
+    def _run_command(
+        self,
+        cmd: list[str],
+        check: bool = False,
+        capture_output: bool = True,
+        text: bool = True,
+        timeout: Optional[int] = None,
+    ) -> CompletedProcess[str]:
+        """Run a shell command and return the result"""
+        try:
+            return subprocess.run(
+                cmd,
+                check=check,
+                capture_output=capture_output,
+                text=text,
+                timeout=timeout,
+            )
+        except subprocess.SubprocessError as e:
+            logger.error(f"Command failed: {' '.join(cmd)}\nError: {e}")
+            raise
+
+    async def scan_wifi_networks(self) -> list[Dict[str, Any]]:
+        """Scan for available WiFi networks."""
         try:
             logger.info("Scanning for WiFi networks...")
-            current_mode = await self.detect_current_mode()
+            current_mode = self.detect_current_mode()
 
             # If in AP mode, temporarily switch to client mode for scanning
             temp_switch = False
@@ -349,11 +390,14 @@ class ModeManagerSingleton:
                 subprocess.run(
                     ["sudo", "nmcli", "device", "set", "wlan0", "managed"],
                     capture_output=True,
+                    check=False,
                 )
 
             # Perform the scan
             subprocess.run(
-                ["sudo", "nmcli", "device", "wifi", "rescan"], capture_output=True
+                ["sudo", "nmcli", "device", "wifi", "rescan"],
+                capture_output=True,
+                check=False,
             )
             await asyncio.sleep(2)  # Wait for scan to complete
 
@@ -361,6 +405,7 @@ class ModeManagerSingleton:
                 ["sudo", "nmcli", "device", "wifi", "list"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
 
             # If we temporarily switched modes, restore AP mode
@@ -369,6 +414,7 @@ class ModeManagerSingleton:
                 subprocess.run(
                     ["sudo", "nmcli", "device", "set", "wlan0", "ap"],
                     capture_output=True,
+                    check=False,
                 )
 
             # Parse the scan results

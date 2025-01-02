@@ -6,6 +6,7 @@ build-essential
 git
 libssl-dev
 libffi-dev
+curl
 
 # Audio dependencies
 mpv

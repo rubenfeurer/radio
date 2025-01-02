@@ -1,9 +1,11 @@
-from enum import Enum
 import asyncio
 import logging
+from enum import Enum
 from pathlib import Path
-from config.config import settings
+
 from mpv import MPV
+
+from config.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ class SoundManager:
 
         Args:
             test_mode (bool): If True, use test mode (no actual sounds)
+
         """
         self._test_mode = test_mode
         self.sound_dir = Path("/home/radio/radio/sounds")
@@ -50,7 +53,7 @@ class SoundManager:
                 return
 
             logger.info(
-                f"Playing sound: {sound_path} at volume {settings.NOTIFICATION_VOLUME}%"
+                f"Playing sound: {sound_path} at volume {settings.NOTIFICATION_VOLUME}%",
             )
 
             # Create temporary MPV instance for notification
@@ -94,7 +97,7 @@ class SoundManager:
             if event in self.event_sounds:
                 sound_file = self.event_sounds[event]
                 logger.info(
-                    f"Playing notification for event: {event.value} using {sound_file}"
+                    f"Playing notification for event: {event.value} using {sound_file}",
                 )
                 await self.play_sound(sound_file)
             else:

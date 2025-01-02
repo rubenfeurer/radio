@@ -1,9 +1,12 @@
-import pigpio
-from typing import Optional, Callable
 import asyncio
-from src.utils.logger import logger
-from config.config import settings
 import time
+from typing import Callable, Dict, Optional
+
+import pigpio
+import requests
+
+from config.config import settings
+from src.utils.logger import logger
 
 
 class GPIOController:
@@ -14,7 +17,7 @@ class GPIOController:
         long_press_callback: Optional[Callable[[int], None]] = None,
         triple_press_callback: Optional[Callable[[int], None]] = None,
         volume_step: int = settings.ROTARY_VOLUME_STEP,
-        event_loop: asyncio.AbstractEventLoop = None,
+        event_loop: Optional[asyncio.AbstractEventLoop] = None,
     ):
         logger.info("Initializing GPIOController with pigpio")
         self.volume_step = volume_step
@@ -35,37 +38,40 @@ class GPIOController:
         self.BUTTON_3 = settings.BUTTON_PIN_3
 
         # Button pins from config (using our new attributes)
-        self.button_pins = {self.BUTTON_1: 1, self.BUTTON_2: 2, self.BUTTON_3: 3}
+        self.button_pins: Dict[int, int] = {
+            self.BUTTON_1: 1,
+            self.BUTTON_2: 2,
+            self.BUTTON_3: 3,
+        }
 
         # Track button press times
-        self.last_press_time = {}
-        self.press_start_time = {}
-        self.long_press_triggered = {}  # Track if long press was triggered
-        self.monitor_tasks = {}  # Track monitoring tasks
-
-        self.push_counter = 0
-        self.last_push_time = 0
-        self.PUSH_TIMEOUT = 2  # seconds
-        self.PUSH_THRESHOLD = 4  # number of pushes needed
-
-        self.press_count = {}  # Add press counter
+        self.last_press_time: Dict[int, float] = {}
+        self.press_start_time: Dict[int, float] = {}
+        self.long_press_triggered: Dict[int, bool] = {}
+        self.monitor_tasks: Dict[int, asyncio.Task] = {}
+        self.press_count: Dict[int, int] = {}
         self.TRIPLE_PRESS_INTERVAL = 0.5  # Time window for triple press in seconds
 
         # Add these constants
         self.LONG_PRESS_DURATION = settings.LONG_PRESS_DURATION  # e.g., 2 seconds
 
         # Add state tracking for rotary encoder
-        self.last_clk_state = None
-        self.last_rotation_time = 0
+        self.last_clk_state: Optional[int] = None
+        self.last_rotation_time: float = 0
         self.ROTATION_DEBOUNCE = 0.01  # 10ms debounce for rotation
 
         # Initialize last_press_time for all buttons
         self.last_press_time = {
-            self.BUTTON_1: 0,
-            self.BUTTON_2: 0,
-            self.BUTTON_3: 0,
-            self.rotary_sw: 0,  # Using self.rotary_sw which was already defined
+            self.BUTTON_1: 0.0,
+            self.BUTTON_2: 0.0,
+            self.BUTTON_3: 0.0,
+            self.rotary_sw: 0.0,
         }
+
+        self.push_counter: int = 0
+        self.last_push_time: float = 0
+        self.PUSH_TIMEOUT = 2  # seconds
+        self.PUSH_THRESHOLD = 4  # number of pushes needed
 
         try:
             # Initialize pigpio
@@ -101,7 +107,7 @@ class GPIOController:
             logger.info("GPIO initialization completed successfully")
 
         except Exception as e:
-            logger.error(f"GPIO initialization failed: {str(e)}")
+            logger.error(f"GPIO initialization failed: {e!s}")
             if hasattr(self, "pi") and self.pi.connected:
                 self.pi.stop()
             raise
@@ -138,12 +144,13 @@ class GPIOController:
                         )
 
                     logger.debug(
-                        f"Rotation detected - CLK: {clk_state}, DT: {dt_state}, Change: {volume_change}"
+                        f"Rotation detected - CLK: {clk_state}, DT: {dt_state}, Change: {volume_change}",
                     )
 
                     if self.volume_change_callback and self.loop:
                         asyncio.run_coroutine_threadsafe(
-                            self.volume_change_callback(volume_change), self.loop
+                            self.volume_change_callback(volume_change),
+                            self.loop,
                         )
 
                     self.last_rotation_time = current_time
@@ -168,14 +175,13 @@ class GPIOController:
                 # Start monitoring for long press only for rotary switch
                 if is_rotary_switch and self.long_press_callback and self.loop:
                     task = asyncio.run_coroutine_threadsafe(
-                        self._monitor_long_press(gpio, button_number), self.loop
+                        self._monitor_long_press(gpio, button_number),
+                        self.loop,
                     )
                     self.monitor_tasks[gpio] = task
 
             # Button released (level = 1)
             elif level == 1 and gpio in self.press_start_time:
-                press_duration = current_time - self.press_start_time[gpio]
-
                 # Cancel long press monitoring if exists
                 if gpio in self.monitor_tasks:
                     self.monitor_tasks[gpio].cancel()
@@ -198,7 +204,7 @@ class GPIOController:
                             if self.press_count[gpio] >= 2:  # Third press detected
                                 if self.triple_press_callback and self.loop:
                                     logger.info(
-                                        f"Triple press detected on button {button_number}"
+                                        f"Triple press detected on button {button_number}",
                                     )
                                     asyncio.run_coroutine_threadsafe(
                                         self.triple_press_callback(button_number),
@@ -214,7 +220,8 @@ class GPIOController:
                     # Handle regular button press
                     if self.button_press_callback and self.loop:
                         asyncio.run_coroutine_threadsafe(
-                            self.button_press_callback(button_number), self.loop
+                            self.button_press_callback(button_number),
+                            self.loop,
                         )
 
         except Exception as e:
@@ -256,7 +263,8 @@ class GPIOController:
                 volume_change = 5 if way == 1 else -5
                 logger.info(f"Processing volume change: {volume_change}")
                 asyncio.run_coroutine_threadsafe(
-                    self.volume_change_callback(volume_change), self.loop
+                    self.volume_change_callback(volume_change),
+                    self.loop,
                 )
         except Exception as e:
             logger.error(f"Error handling rotary turn: {e}")
@@ -273,11 +281,11 @@ class GPIOController:
             logger.info(f"Requesting toggle for station in slot {button}")
             try:
                 response = requests.post(
-                    f"http://localhost:8000/api/v1/stations/{button}/toggle"
+                    f"http://localhost:8000/api/v1/stations/{button}/toggle",
                 )
                 response.raise_for_status()
             except requests.RequestException as e:
-                logger.error(f"Failed to toggle station {button}: {str(e)}")
+                logger.error(f"Failed to toggle station {button}: {e!s}")
         else:
             logger.warning(f"Invalid button number received: {button}")
 

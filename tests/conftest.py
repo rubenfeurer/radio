@@ -1,25 +1,26 @@
 import os
 import sys
 from pathlib import Path
+from typing import Any, Dict, Optional
+from unittest.mock import MagicMock, PropertyMock, patch
+
+import pytest
+
+from src.core.wifi_manager import WiFiManager
 
 # Add project root to Python path BEFORE imports
 project_root = str(Path(__file__).parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-import pytest
-from unittest.mock import MagicMock, PropertyMock, patch
-from src.core.wifi_manager import WiFiManager
-from src.utils.logger import setup_logger
-
 # Create module level mocks
-mock_mpv_instance = None
-mock_pi_instance = None
+mock_mpv_instance: Optional[MagicMock] = None
+mock_pi_instance: Optional[MagicMock] = None
 
 
 @pytest.fixture(autouse=True)
-def mock_hardware(monkeypatch):
-    """Mock hardware components for testing"""
+def mock_hardware(monkeypatch) -> Optional[Dict[str, MagicMock]]:
+    """Mock hardware components for testing."""
     if os.getenv("GITHUB_ACTIONS") or os.getenv("MOCK_HARDWARE") == "true":
         global mock_mpv_instance, mock_pi_instance
 
@@ -62,7 +63,8 @@ def mock_hardware(monkeypatch):
 
 # Add cleanup
 @pytest.fixture(autouse=True)
-def cleanup():
+def cleanup() -> None:
+    """Clean up mock instances after each test."""
     yield
     global mock_mpv_instance, mock_pi_instance
     if mock_mpv_instance:
@@ -72,8 +74,8 @@ def cleanup():
 
 
 @pytest.fixture
-def mock_websocket():
-    """Mock WebSocket for testing"""
+def mock_websocket() -> MagicMock:
+    """Mock WebSocket for testing."""
     mock_ws = MagicMock()
     mock_ws.send = MagicMock()
     mock_ws.receive_json = MagicMock(return_value={"type": "status_request"})
@@ -81,8 +83,8 @@ def mock_websocket():
 
 
 @pytest.fixture
-def mock_radio_manager():
-    """Mock RadioManager for testing"""
+def mock_radio_manager() -> MagicMock:
+    """Mock RadioManager for testing."""
     mock_manager = MagicMock()
     mock_manager.get_status.return_value = {
         "volume": 50,
@@ -93,8 +95,8 @@ def mock_radio_manager():
 
 
 @pytest.fixture
-def mock_wifi_process():
-    """Create a basic WiFi process mock with success status"""
+def mock_wifi_process() -> MagicMock:
+    """Create a basic WiFi process mock with success status."""
     process = MagicMock()
     process.returncode = 0
     process.stderr = ""
@@ -103,10 +105,10 @@ def mock_wifi_process():
 
 
 @pytest.fixture
-def mock_networkmanager(mock_wifi_process):
-    """Mock NetworkManager for WiFi testing"""
+def mock_networkmanager(mock_wifi_process) -> MagicMock:
+    """Mock NetworkManager for WiFi testing."""
 
-    def command_response(*args, **kwargs):
+    def command_response(*args: Any, **kwargs: Any) -> MagicMock:
         command = args[0]
         process = MagicMock()
         process.returncode = 0
@@ -137,15 +139,15 @@ def mock_networkmanager(mock_wifi_process):
 
 
 @pytest.fixture(autouse=True)
-def mock_logger(monkeypatch):
-    """Mock logger for all tests"""
+def mock_logger(monkeypatch) -> MagicMock:
+    """Mock logger for all tests."""
     mock_logger = MagicMock()
     mock_logger.debug = MagicMock()
     mock_logger.info = MagicMock()
     mock_logger.warning = MagicMock()
     mock_logger.error = MagicMock()
 
-    def mock_setup_logger(*args, **kwargs):
+    def mock_setup_logger(*args: Any, **kwargs: Any) -> MagicMock:
         return mock_logger
 
     monkeypatch.setattr("src.utils.logger.setup_logger", mock_setup_logger)
@@ -153,11 +155,11 @@ def mock_logger(monkeypatch):
 
 
 @pytest.fixture
-def wifi_manager(mock_logger):
-    """Create a WiFiManager instance for testing"""
+def wifi_manager(mock_logger) -> WiFiManager:
+    """Create a WiFiManager instance for testing."""
     return WiFiManager(skip_verify=True)
 
 
-def pytest_configure(config):
+def pytest_configure(config: Any) -> None:
     """Register custom markers."""
     config.addinivalue_line("markers", "websocket: mark test as websocket test")

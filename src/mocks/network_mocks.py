@@ -1,7 +1,6 @@
-import subprocess
-from typing import List
 import logging
-from ..core.models import WiFiNetwork, WiFiStatus
+import subprocess
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,19 @@ class MockNetworkManagerService:
         }
         self._connected_ssid = "Mock WiFi 1"
 
-    def _run_command(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
-        """Mock command execution"""
+    def _run_command(
+        self, command: list[str], **kwargs
+    ) -> subprocess.CompletedProcess[str]:
+        """Mock command execution with proper return type"""
         logger.debug(f"Mock executing: {' '.join(command)}")
-        # ... (keep existing mock command logic)
+        return subprocess.CompletedProcess(
+            args=command, returncode=0, stdout="mock output", stderr=""
+        )
+
+    def some_function(self) -> bool:
+        """Mock function with explicit return"""
+        return True
+
+    def get_network_status(self) -> Dict[str, Any]:
+        """Get mock network status"""
+        return {"connected": True, "ssid": "Test Network", "signal_strength": 100}

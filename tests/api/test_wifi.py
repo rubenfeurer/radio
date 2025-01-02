@@ -1,8 +1,10 @@
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
+
 from src.api.main import app
-from src.core.models import WiFiStatus, WiFiNetwork
+from src.core.models import WiFiNetwork, WiFiStatus
 
 client = TestClient(app)
 
@@ -52,7 +54,8 @@ async def test_connect_to_network(mock_connect):
     mock_connect.return_value = True
 
     response = client.post(
-        "/api/v1/wifi/connect", json={"ssid": "TestNetwork", "password": "TestPassword"}
+        "/api/v1/wifi/connect",
+        json={"ssid": "TestNetwork", "password": "TestPassword"},
     )
 
     assert response.status_code == 200

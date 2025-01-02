@@ -1,37 +1,31 @@
+# Standard library imports
 import logging
+import os
+from contextlib import asynccontextmanager
+
+import uvicorn
+
+# Third-party imports
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from config.config import settings
+
+# Local imports
+from src.api.routes import ap, mode, monitor, stations, system, websocket, wifi
+from src.core.mode_manager import ModeManagerSingleton
+from src.core.models import SystemStatus
+from src.core.service_factory import ServiceFactory
+from src.core.singleton_manager import RadioManagerSingleton
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Set up logging first
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from src.api.routes import (
-    stations,
-    system,
-    websocket,
-    wifi,
-    monitor,
-    mode,
-    ap,
-)  # Import the ap router
-from src.core.singleton_manager import RadioManagerSingleton
-from src.api.routes.websocket import broadcast_status_update
-import socket
-import logging
-from fastapi import WebSocket, WebSocketDisconnect
-from src.core.models import SystemStatus
-from config.config import settings
-import os
-from src.core.mode_manager import ModeManagerSingleton
-from pathlib import Path
-from contextlib import asynccontextmanager
-import grp
-import pwd
-import uvicorn
-from src.core.service_factory import ServiceFactory
 
 
 # Define lifespan context manager
@@ -122,7 +116,7 @@ if os.path.exists(frontend_path) and not dev_mode:
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 elif dev_mode:
     # Development: Let Vite handle frontend, only serve API
-    logger.info(f"Running in development mode - frontend served by Vite")
+    logger.info("Running in development mode - frontend served by Vite")
 
     @app.get("/")
     async def root():
@@ -155,15 +149,15 @@ async def internal_error_handler(request, exc):
     )
 
 
-@app.websocket(f"{settings.API_V1_STR}{settings.WS_PATH}")
+@app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
             data = await websocket.receive_json()
-            logger.debug(f"WS received: {data}")
-
             if data.get("type") == "status_request":
+                # Initialize radio_manager before using it
+                radio_manager = RadioManagerSingleton.get_instance()
                 status = radio_manager.get_status()
                 status_dict = SystemStatus(
                     current_station=(
@@ -176,7 +170,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 ).model_dump()
 
                 await websocket.send_json(
-                    {"type": "status_response", "data": status_dict}
+                    {"type": "status_response", "data": status_dict},
                 )
             elif data.get("type") == "monitor_request":
                 # Get mode info
@@ -186,13 +180,13 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 # Send mode update first
                 await websocket.send_json(
-                    {"type": "mode_update", "data": {"mode": current_mode.value}}
+                    {"type": "mode_update", "data": {"mode": current_mode.value}},
                 )
 
                 # Then send monitor update
                 monitor_data = await monitor.router.get_monitor_data()
                 await websocket.send_json(
-                    {"type": "monitor_update", "data": monitor_data}
+                    {"type": "monitor_update", "data": monitor_data},
                 )
             elif data.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})

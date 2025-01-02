@@ -145,11 +145,17 @@ sudo systemctl stop radio
 ### Using Docker (Recommended)
 
 ```bash
+# Run linting checks
+./dev.sh lint
+
 # Run tests in existing container (fast, for development)
 ./dev.sh test
 
 # Run tests in clean container (for verification)
 ./dev.sh test-clean
+
+# Run both linting and tests (recommended before committing)
+./dev.sh test-all
 
 # Common test options:
 ./dev.sh test --cov=src            # Run with coverage
@@ -159,6 +165,23 @@ sudo systemctl stop radio
 ```
 
 All tests run with hardware mocking enabled (`MOCK_SERVICES=true`).
+
+### Linting
+
+The project uses several linting tools to maintain code quality:
+
+- **Black**: Code formatting
+- **Ruff**: Fast Python linter
+- **MyPy**: Static type checking
+- **Pylint**: Code analysis
+
+Run all linting checks with:
+
+```bash
+./dev.sh lint
+```
+
+These are the same checks that run in the CI pipeline.
 
 ## Troubleshooting
 

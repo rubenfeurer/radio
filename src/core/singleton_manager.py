@@ -1,13 +1,12 @@
-from functools import wraps
-from src.core.radio_manager import RadioManager
 import logging
+
+from src.core.radio_manager import RadioManager
 
 logger = logging.getLogger(__name__)
 
 
 def singleton_with_callback(cls):
-    """
-    Decorator that creates a singleton instance of a class,
+    """Decorator that creates a singleton instance of a class,
     allowing for callback initialization/updates.
     """
     instance = None

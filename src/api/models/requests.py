@@ -1,5 +1,6 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
-from typing import Optional, List
 
 
 class VolumeRequest(BaseModel):
@@ -44,9 +45,9 @@ class WebAccess(BaseModel):
 class MonitorUpdate(BaseModel):
     type: str = "monitor_update"
     systemInfo: SystemInfo
-    services: List[ServiceStatus]
+    services: list[ServiceStatus]
     webAccess: WebAccess
-    logs: List[str]
+    logs: list[str]
 
 
 class NetworkAddRequest(BaseModel):

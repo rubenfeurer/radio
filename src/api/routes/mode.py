@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException
 import logging
+
+from fastapi import APIRouter, HTTPException
+
 from src.core.mode_manager import ModeManagerSingleton, NetworkMode
-from src.core.wifi_manager import WiFiManager
 from src.core.models import ModeResponse
+from src.core.wifi_manager import WiFiManager
 
 router = APIRouter(prefix="/mode", tags=["Mode"])
 mode_manager = ModeManagerSingleton.get_instance()
@@ -19,7 +21,7 @@ async def get_current_mode():
         logger.info(f"API: Current mode detected as: {current_mode}")
         return ModeResponse(mode=current_mode.value)
     except Exception as e:
-        logger.error(f"Error getting current mode: {str(e)}")
+        logger.error(f"Error getting current mode: {e!s}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -1,9 +1,11 @@
-import pytest
-from pathlib import Path
 import json
-from unittest.mock import patch, mock_open
-from src.core.station_manager import StationManager
+from pathlib import Path
+from unittest.mock import mock_open, patch
+
+import pytest
+
 from src.core.models import RadioStation
+from src.core.station_manager import StationManager
 
 
 @pytest.fixture
@@ -69,7 +71,9 @@ def test_empty_slots_get_defaults(station_manager):
     """Test that empty slots are filled with defaults"""
     # Mock both assigned stations file and default stations
     with patch("builtins.open", mock_open(read_data="{}")), patch.object(
-        Path, "exists", return_value=True
+        Path,
+        "exists",
+        return_value=True,
     ), patch("src.utils.station_loader.load_default_stations") as mock_defaults:
 
         # Create a new station manager with empty assigned stations
@@ -77,7 +81,7 @@ def test_empty_slots_get_defaults(station_manager):
 
         # Setup mock default stations
         mock_defaults.return_value = {
-            3: RadioStation(name="Default", url="http://default.com", slot=3)
+            3: RadioStation(name="Default", url="http://default.com", slot=3),
         }
 
         # Force reload of stations to get defaults
@@ -97,10 +101,10 @@ def test_assigned_stations_override_defaults(test_stations):
     with patch("builtins.open", mock_open(read_data=json.dumps(test_stations))):
         with patch.object(Path, "exists", return_value=True):
             with patch(
-                "src.utils.station_loader.load_default_stations"
+                "src.utils.station_loader.load_default_stations",
             ) as mock_defaults:
                 mock_defaults.return_value = {
-                    1: RadioStation(name="Default1", url="http://default1.com", slot=1)
+                    1: RadioStation(name="Default1", url="http://default1.com", slot=1),
                 }
 
                 manager = StationManager()

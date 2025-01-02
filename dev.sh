@@ -98,6 +98,62 @@ rebuild_dev() {
     wait
 }
 
+# Function to run linting checks
+run_lint() {
+    echo "Running linting checks..."
+    docker compose -f docker/docker-compose.dev.yml exec backend bash -c "
+        source /home/radio/radio/venv/bin/activate && \
+        black --check src tests && \
+        ruff check \
+            --ignore E501,D100,D101,D102,D103,D104,D105,D106,D107,D400,D415,ANN201,ANN202,ANN001,S101,SLF001,ARG001 \
+            src tests && \
+        mypy --ignore-missing-imports --disable-error-code attr-defined --explicit-package-bases src && \
+        pylint --disable=C0111,C0114,C0115,C0116,E1101,R0801,R0903,W0511,C0103 src tests
+    "
+}
+
+# Function to run all checks (tests + lint)
+run_all_checks() {
+    echo "Running all checks (lint + tests)..."
+    run_lint
+    if [ $? -eq 0 ]; then
+        run_tests "$@"
+    else
+        echo "Linting failed! Please fix linting issues before running tests."
+        exit 1
+    fi
+}
+
+# Function to auto-fix code issues
+run_fix() {
+    echo "Auto-fixing code issues..."
+    
+    # Check if backend is running
+    if ! docker compose -f docker/docker-compose.dev.yml ps --status running backend >/dev/null 2>&1; then
+        echo "Starting backend container..."
+        docker compose -f docker/docker-compose.dev.yml up -d --build backend
+        sleep 5
+    fi
+
+    # Run the fix commands
+    if docker compose -f docker/docker-compose.dev.yml ps --status running backend >/dev/null 2>&1; then
+        docker compose -f docker/docker-compose.dev.yml exec backend bash -c "
+            source /home/radio/radio/venv/bin/activate && \
+            # Format with Black (force write)
+            black --fast --force-exclude '/\.' src tests && \
+            # Fix imports
+            isort --atomic src tests && \
+            # Run ruff with all fixes enabled
+            ruff check --fix --unsafe-fixes --ignore E501,D100,D101,D102,D103,D104,D105,D106,D107,D400,D415,ANN201,ANN202,ANN001,S101,SLF001,ARG001 src tests && \
+            # Final Black pass to ensure consistency
+            black --fast --force-exclude '/\.' src tests
+        "
+    else
+        echo "Error: Backend service failed to start"
+        exit 1
+    fi
+}
+
 # Main script
 check_docker
 check_node
@@ -124,8 +180,17 @@ case "$1" in
         shift  # Remove 'test-clean' from arguments
         run_tests_clean "$@"
         ;;
+    "lint")
+        run_lint
+        ;;
+    "test-all")
+        run_all_checks "${@:2}"
+        ;;
+    "fix")
+        run_fix
+        ;;
     *)
-        echo "Usage: $0 {start|stop|logs|rebuild|test|test-clean}"
+        echo "Usage: $0 {start|stop|logs|rebuild|test|test-clean|lint|test-all|fix}"
         exit 1
         ;;
 esac 

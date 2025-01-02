@@ -1,8 +1,9 @@
-from typing import Dict, Optional
-from src.core.models import RadioStation
 import json
-from pathlib import Path
 import logging
+from pathlib import Path
+from typing import Dict, Optional
+
+from src.core.models import RadioStation
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +13,9 @@ class StationManager:
 
     STATIONS_FILE = Path("data/assigned_stations.json")
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._stations: Dict[int, RadioStation] = {}
+        self.current_station: Optional[int] = None
         self._load_stations()
 
     def _load_stations(self) -> None:
@@ -25,7 +27,7 @@ class StationManager:
 
             # Log what was loaded
             logger.info(
-                f"Loaded {len(assigned)} assigned stations: {[s.name for s in assigned.values()]}"
+                f"Loaded {len(assigned)} assigned stations: {[s.name for s in assigned.values()]}",
             )
 
             # Only load defaults for empty slots
@@ -35,12 +37,12 @@ class StationManager:
             logger.error(f"Error loading stations: {e}")
             raise
 
-    def _load_assigned_stations(self) -> Dict[int, RadioStation]:
+    def _load_assigned_stations(self) -> dict[int, RadioStation]:
         """Load stations from JSON file"""
         if not self.STATIONS_FILE.exists():
             return {}
 
-        with open(self.STATIONS_FILE, "r") as f:
+        with open(self.STATIONS_FILE) as f:
             data = json.load(f)
             return {
                 int(slot): RadioStation(**station_data)
@@ -58,7 +60,7 @@ class StationManager:
             if slot not in self._stations:
                 self._stations[slot] = station
                 logger.info(
-                    f"Added default station to empty slot {slot}: {station.name}"
+                    f"Added default station to empty slot {slot}: {station.name}",
                 )
 
     def save_station(self, station: RadioStation) -> None:
@@ -102,6 +104,17 @@ class StationManager:
         """Get station by slot number"""
         return self._stations.get(slot)
 
-    def get_all_stations(self) -> Dict[int, RadioStation]:
+    def get_all_stations(self) -> dict[int, RadioStation]:
         """Get all loaded stations"""
         return self._stations.copy()
+
+    def assign_station(self, station: RadioStation, slot: int) -> None:
+        """Assign station to slot"""
+        if 1 <= slot <= 3:  # Only allow slots 1-3
+            station.slot = slot
+            self._stations[slot] = station
+
+    def remove_station(self, slot: int) -> None:
+        """Remove station from slot"""
+        if slot in self._stations:
+            del self._stations[slot]

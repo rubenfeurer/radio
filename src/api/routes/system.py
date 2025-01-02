@@ -1,15 +1,17 @@
-from fastapi import APIRouter, HTTPException
-from src.api.models.requests import VolumeRequest
-from src.core.singleton_manager import RadioManagerSingleton
-from src.api.routes.websocket import broadcast_status_update
 import socket
+
+from fastapi import APIRouter, HTTPException
+
+from src.api.models.requests import VolumeRequest
+from src.api.routes.websocket import broadcast_status_update
+from src.core.singleton_manager import RadioManagerSingleton
 
 # Base router without tags
 router = APIRouter()
 
 # Get the singleton instance
 radio_manager = RadioManagerSingleton.get_instance(
-    status_update_callback=broadcast_status_update
+    status_update_callback=broadcast_status_update,
 )
 
 

@@ -1,10 +1,12 @@
-import pytest
-from src.core.radio_manager import RadioManager
-from src.core.models import RadioStation, SystemStatus
-from unittest.mock import patch, MagicMock, AsyncMock
 import asyncio
-from config.config import settings
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
+import pytest
+
+from config.config import settings
+from src.core.models import RadioStation
+from src.core.radio_manager import RadioManager
 
 """
 Test suite for RadioManager class.
@@ -25,7 +27,9 @@ def mock_station_manager():
     with patch("src.core.station_manager.StationManager") as mock:
         manager = mock.return_value
         manager.get_station.return_value = RadioStation(
-            name="Test Station", url="http://test.com", slot=1
+            name="Test Station",
+            url="http://test.com",
+            slot=1,
         )
         yield manager
 
@@ -53,9 +57,9 @@ async def test_play_station_with_status_update(radio_manager):
 
     # Verify
     status = radio_manager.get_status()
-    assert status.is_playing == True
+    assert status.is_playing
     assert status.current_station == 1
-    assert callback_called == True
+    assert callback_called
 
 
 @pytest.mark.asyncio
@@ -63,14 +67,14 @@ async def test_toggle_station_behavior(radio_manager):
     """Test complete toggle station behavior"""
     # First toggle - should start playing
     result = await radio_manager.toggle_station(1)
-    assert result == True
-    assert radio_manager.get_status().is_playing == True
+    assert result
+    assert radio_manager.get_status().is_playing
     assert radio_manager.get_status().current_station == 1
 
     # Second toggle - should stop
     result = await radio_manager.toggle_station(1)
-    assert result == False
-    assert radio_manager.get_status().is_playing == False
+    assert not result
+    assert not radio_manager.get_status().is_playing
     assert radio_manager.get_status().current_station is None
 
 
@@ -126,7 +130,7 @@ async def test_long_press_rotary_switch(radio_manager):
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            return_value=mock_response
+            return_value=mock_response,
         )
 
         # Test long press on rotary switch
@@ -134,7 +138,7 @@ async def test_long_press_rotary_switch(radio_manager):
 
         # Verify mode toggle endpoint was called
         mock_client.return_value.__aenter__.return_value.post.assert_called_once_with(
-            "http://localhost:80/api/v1/mode/toggle"
+            "http://localhost:80/api/v1/mode/toggle",
         )
 
 
@@ -159,7 +163,7 @@ async def test_long_press_failed_toggle(radio_manager):
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            return_value=mock_response
+            return_value=mock_response,
         )
 
         # Test long press with failed response
@@ -167,7 +171,7 @@ async def test_long_press_failed_toggle(radio_manager):
 
         # Verify error was handled gracefully
         mock_client.return_value.__aenter__.return_value.post.assert_called_once_with(
-            "http://localhost:80/api/v1/mode/toggle"
+            "http://localhost:80/api/v1/mode/toggle",
         )
 
 
@@ -176,7 +180,7 @@ async def test_long_press_network_error(radio_manager):
     """Test handling of network error during mode toggle"""
     with patch("httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            side_effect=httpx.NetworkError("Connection failed")
+            side_effect=httpx.NetworkError("Connection failed"),
         )
 
         # Test long press with network error
@@ -184,5 +188,5 @@ async def test_long_press_network_error(radio_manager):
 
         # Verify error was handled gracefully
         mock_client.return_value.__aenter__.return_value.post.assert_called_once_with(
-            "http://localhost:80/api/v1/mode/toggle"
+            "http://localhost:80/api/v1/mode/toggle",
         )

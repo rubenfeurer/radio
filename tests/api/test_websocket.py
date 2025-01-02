@@ -1,9 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
-from src.api.main import app
+
 from config.config import settings
-from unittest.mock import MagicMock, patch
-from src.core.models import SystemStatus
+from src.api.main import app
 
 
 @pytest.mark.websocket

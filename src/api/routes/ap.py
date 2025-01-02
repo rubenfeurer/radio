@@ -1,11 +1,10 @@
-from fastapi import APIRouter, HTTPException
-from typing import List
 import logging
+
+from fastapi import APIRouter, HTTPException
+
+from src.api.models.requests import NetworkAddRequest
 from src.core.ap_manager import APManager, ConnectionError
-from src.core.mode_manager import ModeManagerSingleton, NetworkMode
-from src.core.models import WiFiNetwork, WiFiStatus
-from src.api.models.requests import WiFiConnectionRequest, NetworkAddRequest
-from pathlib import Path
+from src.core.models import WiFiStatus
 
 router = APIRouter(prefix="/ap", tags=["Access Point"])
 ap_manager = APManager()
@@ -37,7 +36,9 @@ async def add_network_connection(request: NetworkAddRequest):
     """Add a new network connection while in AP mode"""
     try:
         result = await ap_manager.add_network_connection(
-            request.ssid, request.password, request.priority
+            request.ssid,
+            request.password,
+            request.priority,
         )
         return result
     except Exception as e:
@@ -50,7 +51,9 @@ async def modify_network_connection(request: NetworkAddRequest):
     """Modify an existing network connection while in AP mode"""
     try:
         result = await ap_manager.modify_network_connection(
-            request.ssid, request.password, request.priority
+            request.ssid,
+            request.password,
+            request.priority,
         )
         return result
     except ConnectionError as e:

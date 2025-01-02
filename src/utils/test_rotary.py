@@ -1,7 +1,9 @@
-import pigpio
-import time
-from config.config import settings
 import logging
+import time
+
+import pigpio
+
+from config.config import settings
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -19,7 +21,7 @@ class RotaryTest:
         self.rotary_dt = settings.ROTARY_DT
         self.rotary_sw = settings.ROTARY_SW
 
-        logger.info(f"Testing rotary encoder with pins:")
+        logger.info("Testing rotary encoder with pins:")
         logger.info(f"CLK: GPIO{self.rotary_clk}")
         logger.info(f"DT: GPIO{self.rotary_dt}")
         logger.info(f"SW: GPIO{self.rotary_sw}")
@@ -67,7 +69,7 @@ class RotaryTest:
                 dt_state = self.pi.read(self.rotary_dt)
                 sw_state = self.pi.read(self.rotary_sw)
                 logger.debug(
-                    f"Current states - CLK: {clk_state}, DT: {dt_state}, SW: {sw_state}"
+                    f"Current states - CLK: {clk_state}, DT: {dt_state}, SW: {sw_state}",
                 )
                 time.sleep(1)
 

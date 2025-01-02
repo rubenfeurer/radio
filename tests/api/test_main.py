@@ -1,14 +1,15 @@
+import shutil
+import tempfile
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from src.api.main import app
-from src.core.models import RadioStation, SystemStatus
-from src.api.models.requests import VolumeRequest, AssignStationRequest
+
 from config.config import settings
-from unittest.mock import MagicMock, patch, AsyncMock
-import os
-from pathlib import Path
-import tempfile
-import shutil
+from src.api.main import app
+from src.api.models.requests import AssignStationRequest
+from src.core.models import RadioStation
 
 # Create test client
 client = TestClient(app)
@@ -32,7 +33,8 @@ def setup_test_environment(monkeypatch):
 
     # Patch the STATIONS_FILE path in StationManager
     with patch(
-        "src.core.station_manager.StationManager.STATIONS_FILE", test_stations_file
+        "src.core.station_manager.StationManager.STATIONS_FILE",
+        test_stations_file,
     ):
         yield test_stations_file
 
@@ -78,7 +80,8 @@ async def test_add_station():
     """Test adding a station"""
     station = RadioStation(name="Test Radio", url="http://test.stream/radio", slot=1)
     response = client.post(
-        f"{settings.API_V1_STR}/stations/", json=station.model_dump()
+        f"{settings.API_V1_STR}/stations/",
+        json=station.model_dump(),
     )
     assert response.status_code == 200
 
@@ -100,10 +103,13 @@ async def test_get_station():
 async def test_assign_station():
     """Test assigning a station to a slot"""
     request = AssignStationRequest(
-        stationId=1, name="Test Station", url="http://test.stream/radio"
+        stationId=1,
+        name="Test Station",
+        url="http://test.stream/radio",
     )
     response = client.post(
-        f"{settings.API_V1_STR}/stations/1/assign", json=request.model_dump()
+        f"{settings.API_V1_STR}/stations/1/assign",
+        json=request.model_dump(),
     )
     assert response.status_code == 200
     assert "success" in response.json()["status"]

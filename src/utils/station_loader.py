@@ -1,32 +1,32 @@
 import json
-from typing import Dict
-from src.core.models import RadioStation
-from config.config import settings
 import logging
+
+from config.config import settings
+from src.core.models import RadioStation
 
 logger = logging.getLogger(__name__)
 
 
-def load_default_stations() -> Dict[int, RadioStation]:
-    """
-    Load default stations from stations.json based on names specified in config
-    """
+def load_default_stations() -> dict[int, RadioStation]:
+    """Load default stations from stations.json based on names specified in config"""
     try:
         # Load all stations from JSON
-        with open("config/stations.json", "r") as file:
+        with open("config/stations.json") as file:
             all_stations = json.load(file)
 
         # Create a name-to-station mapping
         station_map = {station["name"]: station for station in all_stations}
 
         # Create RadioStation objects for configured defaults
-        default_stations: Dict[int, RadioStation] = {}
+        default_stations: dict[int, RadioStation] = {}
 
         for slot, station_name in settings.DEFAULT_STATIONS.items():
             if station_name in station_map:
                 station_data = station_map[station_name]
                 default_stations[slot] = RadioStation(
-                    name=station_data["name"], url=station_data["url"], slot=slot
+                    name=station_data["name"],
+                    url=station_data["url"],
+                    slot=slot,
                 )
                 logger.info(f"Loaded default station for slot {slot}: {station_name}")
             else:
@@ -34,17 +34,17 @@ def load_default_stations() -> Dict[int, RadioStation]:
 
         return default_stations
     except Exception as e:
-        logger.error(f"Error loading default stations: {str(e)}")
+        logger.error(f"Error loading default stations: {e!s}")
         return {}
 
 
-def load_all_stations() -> Dict[int, RadioStation]:
+def load_all_stations() -> dict[int, RadioStation]:
     """Load all available radio stations from stations.json."""
     try:
-        with open("config/stations.json", "r") as f:
+        with open("config/stations.json") as f:
             stations_data = json.load(f)
             logger.info(
-                f"Successfully loaded {len(stations_data)} stations from config/stations.json"
+                f"Successfully loaded {len(stations_data)} stations from config/stations.json",
             )
 
             # Convert the list of stations to RadioStation objects with auto-generated IDs
@@ -59,25 +59,25 @@ def load_all_stations() -> Dict[int, RadioStation]:
 
             return stations_dict
     except Exception as e:
-        logger.error(f"Error loading stations from config/stations.json: {str(e)}")
+        logger.error(f"Error loading stations from config/stations.json: {e!s}")
         return {}
 
 
-def load_assigned_stations() -> Dict[int, RadioStation]:
+def load_assigned_stations() -> dict[int, RadioStation]:
     """Load assigned stations from JSON file"""
     try:
-        with open("data/assigned_stations.json", "r") as f:
+        with open("data/assigned_stations.json") as f:
             assigned_data = json.load(f)
-            assigned_stations: Dict[int, RadioStation] = {}
+            assigned_stations: dict[int, RadioStation] = {}
 
             for slot, station in assigned_data.items():
                 if station:  # Check if station exists
                     assigned_stations[int(slot)] = RadioStation(**station)
                     logger.info(
-                        f"Loaded assigned station for slot {slot}: {station['name']}"
+                        f"Loaded assigned station for slot {slot}: {station['name']}",
                     )
 
             return assigned_stations
     except Exception as e:
-        logger.error(f"Error loading assigned stations: {str(e)}")
+        logger.error(f"Error loading assigned stations: {e!s}")
         return {}

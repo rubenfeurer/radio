@@ -16,6 +16,7 @@ RUN apt-get update && \
     libffi-dev \
     # Audio dependencies
     pulseaudio \
+    alsa-utils \
     # Add backports and install MPV from there
     && echo "deb http://deb.debian.org/debian bookworm main" >> /etc/apt/sources.list \
     && apt-get update \
@@ -51,12 +52,34 @@ WORKDIR /home/radio/radio
 RUN virtualenv venv && \
     /home/radio/radio/venv/bin/pip install --upgrade pip
 
-# Install Python dependencies
+# Install Python dependencies and development tools
 COPY --chown=radio:radio install/requirements.txt requirements.txt
-RUN /home/radio/radio/venv/bin/pip install -r requirements.txt
+COPY --chown=radio:radio install/requirements-dev.txt requirements-dev.txt
+RUN /home/radio/radio/venv/bin/pip install -r requirements.txt -r requirements-dev.txt && \
+    /home/radio/radio/venv/bin/pip install \
+    isort \
+    pyupgrade \
+    types-requests \
+    types-psutil \
+    mypy-extensions
+
+# Create stubs directory
+RUN mkdir -p /home/radio/radio/src/stubs
+
+# Add auto-formatting git hooks
+RUN git config --global core.hooksPath .git/hooks/ && \
+    mkdir -p .git/hooks && \
+    echo '#!/bin/sh\n\
+    black . && \
+    ruff check --fix --unsafe-fixes . && \
+    ruff check --fix --select F401,F841,F821 . && \
+    isort . && \
+    pyupgrade --py39-plus $(find . -name "*.py")' > .git/hooks/pre-commit && \
+    chmod +x .git/hooks/pre-commit
 
 # Set environment variables
 ENV PYTHONPATH=/home/radio/radio
+ENV MYPYPATH=/home/radio/radio/src/stubs
 ENV MOCK_SERVICES=true
 ENV DEV_MODE=true
 ENV XDG_RUNTIME_DIR=/run/user/1000

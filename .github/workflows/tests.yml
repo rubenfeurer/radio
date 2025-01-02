@@ -12,7 +12,7 @@ on:
     branches: [main, develop]
 
 jobs:
-  format:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,20 +25,32 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install Black
-        run: pip install black
+      - name: Install dependencies
+        run: |
+          pip install black pylint mypy ruff
 
+      # Format and auto-commit changes
       - name: Format with Black
         run: black src/ tests/
 
-      - name: Commit changes
+      - name: Commit formatting changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "style: format code with black"
           branch: ${{ github.head_ref }}
 
+      # Run other linting checks
+      - name: Run ruff
+        run: ruff check src tests
+
+      - name: Run mypy
+        run: mypy src
+
+      - name: Run pylint
+        run: pylint src tests
+
   test:
-    needs: format # Run tests after formatting
+    needs: lint # Run tests after linting
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -89,31 +101,3 @@ jobs:
         with:
           paths: "pytest-results.xml"
         if: always()
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-
-      # Add more linting tools
-      - name: Install dependencies
-        run: |
-          pip install black pylint mypy ruff
-
-      - name: Run black
-        run: black --check src tests
-
-      - name: Run ruff
-        run: ruff check src tests
-
-      - name: Run mypy
-        run: mypy src
-
-      - name: Run pylint
-        run: pylint src tests

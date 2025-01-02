@@ -1,0 +1,17 @@
+# Linting and formatting
+black
+ruff
+pylint
+mypy
+isort
+
+# Testing
+pytest
+pytest-cov
+pytest-asyncio
+types-requests>=2.31.0
+
+# Development tools
+ipython
+debugpy
+requests>=2.31.0 

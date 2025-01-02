@@ -1,67 +1,55 @@
-import mpv
-import asyncio
-from typing import Optional
 import subprocess
+from typing import Optional
+
+import mpv
 
 
 class AudioPlayer:
-    def __init__(self):
+    def __init__(self, status_update_callback=None) -> None:
+        # Initialize system audio
+        subprocess.run(["amixer", "sset", "Master", "unmute"], check=False)
+
         self._player = mpv.MPV(
             input_default_bindings=True,
             input_vo_keyboard=True,
             video=False,
             volume_max=100,
         )
-        self._volume = 70
-        self._is_playing = False
+        self._volume: int = 70
+        self._is_playing: bool = False
         self._current_url: Optional[str] = None
         self._player.volume = self._volume
+        self._status_callback = status_update_callback
 
-    def _map_volume_to_hardware(self, volume: int) -> int:
-        """Map 0-100 volume range to hardware-appropriate range."""
-        # Use MPV's native 0-100 range
-        return volume  # Direct mapping, no scaling
-
-    @property
-    def volume(self) -> int:
-        return self._volume
-
-    @property
-    def is_playing(self) -> bool:
-        return self._is_playing
-
-    @property
-    def current_url(self) -> Optional[str]:
-        return self._current_url
-
-    async def play(self, url: str) -> None:
+    async def play_stream(self, url: str) -> None:
+        """Play an audio stream"""
         try:
             self._player.play(url)
-            self._is_playing = True
             self._current_url = url
+            self._is_playing = True
+            if self._status_callback:
+                await self._status_callback({"is_playing": True})
         except Exception as e:
             print(f"Error playing stream: {e}")
             self._is_playing = False
-            self._current_url = None
-            raise
 
-    async def stop(self) -> None:
+    async def stop_stream(self) -> None:
+        """Stop the current stream"""
         try:
             self._player.stop()
-            self._is_playing = False
             self._current_url = None
+            self._is_playing = False
+            if self._status_callback:
+                await self._status_callback({"is_playing": False})
         except Exception as e:
             print(f"Error stopping stream: {e}")
-            raise
 
     async def set_volume(self, volume: int) -> None:
-        self._volume = max(0, min(100, volume))
+        """Set the audio volume"""
         try:
-            self._player.volume = self._volume  # Direct volume setting
-            # Set ALSA PCM volume to maximum once
-            subprocess.run(
-                ["amixer", "-c", "2", "sset", "PCM", "400"], capture_output=True
-            )
+            self._volume = max(0, min(100, volume))
+            self._player.volume = self._volume
+            if self._status_callback:
+                await self._status_callback({"volume": self._volume})
         except Exception as e:
             print(f"Error setting volume: {e}")
-            raise

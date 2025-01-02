@@ -1,10 +1,10 @@
-import pytest
-from unittest.mock import Mock, patch
-from src.hardware.gpio_controller import GPIOController
-from config.config import settings
-import time
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from config.config import settings
+from src.hardware.gpio_controller import GPIOController
 
 """
 Test suite for GPIO Controller.
@@ -42,7 +42,8 @@ def test_button_callback():
         asyncio.set_event_loop(loop)
 
         controller = GPIOController(
-            button_press_callback=mock_callback, event_loop=loop
+            button_press_callback=mock_callback,
+            event_loop=loop,
         )
         # Simulate full button press cycle
         controller._handle_button(settings.BUTTON_PIN_1, 0, 0)  # Press
@@ -68,7 +69,8 @@ def test_volume_callback():
         asyncio.set_event_loop(loop)
 
         controller = GPIOController(
-            volume_change_callback=mock_callback, event_loop=loop
+            volume_change_callback=mock_callback,
+            event_loop=loop,
         )
         # Simulate rotation with proper DT pin state
         controller._handle_rotation(settings.ROTARY_CLK, 1, 0)
@@ -100,7 +102,8 @@ def test_rotation_direction():
         asyncio.set_event_loop(loop)
 
         controller = GPIOController(
-            volume_change_callback=mock_callback, event_loop=loop
+            volume_change_callback=mock_callback,
+            event_loop=loop,
         )
 
         # Test clockwise rotation
@@ -133,7 +136,7 @@ async def test_long_press_detection():
         # Simulate long press
         controller._handle_button(gpio, 0, 0)  # Press down
         await asyncio.sleep(
-            settings.LONG_PRESS_DURATION + 0.1
+            settings.LONG_PRESS_DURATION + 0.1,
         )  # Wait longer than threshold
         controller._handle_button(gpio, 1, 0)  # Release
 
@@ -158,7 +161,8 @@ async def test_triple_press_detection():
         loop = asyncio.get_event_loop()
 
         controller = GPIOController(
-            triple_press_callback=mock_callback, event_loop=loop
+            triple_press_callback=mock_callback,
+            event_loop=loop,
         )
         gpio = settings.ROTARY_SW  # Use rotary switch for triple press
 

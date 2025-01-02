@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query
-from typing import List
-from src.core.wifi_manager import WiFiManager
-from src.core.models import WiFiStatus, WiFiNetwork
-from src.api.models.requests import WiFiConnectionRequest
 import logging
+
+from fastapi import APIRouter, HTTPException
+
+from src.api.models.requests import WiFiConnectionRequest
+from src.core.models import WiFiStatus
+from src.core.wifi_manager import WiFiManager
 
 router = APIRouter(prefix="/wifi")
 wifi_manager = WiFiManager()
@@ -42,7 +43,7 @@ async def connect_to_network(request: WiFiConnectionRequest):
         raise HTTPException(status_code=400, detail="Failed to connect to network")
 
     except Exception as e:
-        logger.error(f"Error connecting to network: {str(e)}")
+        logger.error(f"Error connecting to network: {e!s}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -132,7 +133,8 @@ async def connect_to_preconfigured():
         if result.returncode != 0:
             logger.error(f"Failed to connect to preconfigured network: {result.stderr}")
             raise HTTPException(
-                status_code=400, detail="Failed to connect to preconfigured network"
+                status_code=400,
+                detail="Failed to connect to preconfigured network",
             )
 
         # Verify connection was successful
@@ -148,7 +150,7 @@ async def connect_to_preconfigured():
         raise HTTPException(status_code=400, detail="Failed to verify connection")
 
     except Exception as e:
-        logger.error(f"Error connecting to preconfigured network: {str(e)}")
+        logger.error(f"Error connecting to preconfigured network: {e!s}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -162,5 +164,5 @@ async def forget_network(ssid: str):
             return {"status": "success"}
         raise HTTPException(status_code=400, detail="Failed to remove network")
     except Exception as e:
-        logger.error(f"Error removing network: {str(e)}")
+        logger.error(f"Error removing network: {e!s}")
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,10 +1,10 @@
-import asyncio
-from typing import List, Optional
 import subprocess
-import logging
-from .models import WiFiStatus, WiFiNetwork
-import os
+from subprocess import CompletedProcess
+from typing import Optional
+
 from src.utils.logger import setup_logger
+
+from .models import WiFiNetwork, WiFiStatus
 from .services.network_service import get_network_service
 
 logger = setup_logger()
@@ -18,6 +18,7 @@ class WiFiManager:
 
         Args:
             skip_verify (bool): Skip NetworkManager verification in testing
+
         """
         self.logger = logger
         self.network_service = get_network_service()
@@ -87,11 +88,11 @@ class WiFiManager:
                                             ssid = config_line.split("=")[1].strip()
                                             saved_networks.add(ssid)
                                             self.logger.debug(
-                                                f"Added preconfigured SSID: {ssid}"
+                                                f"Added preconfigured SSID: {ssid}",
                                             )
                             except Exception as e:
                                 self.logger.error(
-                                    f"Error reading preconfigured network: {e}"
+                                    f"Error reading preconfigured network: {e}",
                                 )
 
                         self.logger.debug(f"Added saved connection: {conn_name}")
@@ -138,10 +139,10 @@ class WiFiManager:
 
                         self.logger.debug(f"\nProcessing network: {ssid}")
                         self.logger.debug(
-                            f"  - In saved_networks: {ssid in saved_networks}"
+                            f"  - In saved_networks: {ssid in saved_networks}",
                         )
                         self.logger.debug(
-                            f"  - Without spaces: {ssid.replace(' ', '') in saved_networks}"
+                            f"  - Without spaces: {ssid.replace(' ', '') in saved_networks}",
                         )
                         self.logger.debug(f"  - In use: {in_use == '*'}")
                         self.logger.debug(f"  - Final saved status: {is_saved}")
@@ -153,7 +154,7 @@ class WiFiManager:
                                 security=security if security != "" else None,
                                 in_use=(in_use == "*"),
                                 saved=is_saved,
-                            )
+                            ),
                         )
                 except Exception as e:
                     self.logger.error(f"Error parsing network: {line} - {e}")
@@ -168,7 +169,8 @@ class WiFiManager:
 
             # Get current network from aggregated list
             current_network = next(
-                (net for net in aggregated_networks if net.in_use), None
+                (net for net in aggregated_networks if net.in_use),
+                None,
             )
 
             # Check internet connectivity
@@ -210,11 +212,11 @@ class WiFiManager:
                                             ssid = config_line.split("=")[1].strip()
                                             ssid_to_conn_name[ssid] = conn_name
                                             self.logger.debug(
-                                                f"Mapped SSID {ssid} to connection name {conn_name}"
+                                                f"Mapped SSID {ssid} to connection name {conn_name}",
                                             )
                             except Exception as e:
                                 self.logger.error(
-                                    f"Error reading preconfigured network: {e}"
+                                    f"Error reading preconfigured network: {e}",
                                 )
 
             return WiFiStatus(
@@ -228,10 +230,10 @@ class WiFiManager:
             )
 
         except Exception as e:
-            self.logger.error(f"Error getting WiFi status: {str(e)}", exc_info=True)
+            self.logger.error(f"Error getting WiFi status: {e!s}", exc_info=True)
             return WiFiStatus()
 
-    async def _scan_networks(self) -> List[WiFiNetwork]:
+    async def _scan_networks(self) -> list[WiFiNetwork]:
         """Scan for available networks"""
         try:
             result = self._run_command(
@@ -260,28 +262,24 @@ class WiFiManager:
     def _get_current_connection(self) -> Optional[WiFiNetwork]:
         """Get current WiFi connection details"""
         try:
-            # Use iwconfig instead of nmcli for more reliable access
             output = self._run_command(["iwconfig", self._interface])
-
-            if "ESSID:" in output:
-                ssid = output.split('ESSID:"')[1].split('"')[0]
+            if output and isinstance(output.stdout, str) and "ESSID:" in output.stdout:
+                ssid = output.stdout.split('ESSID:"')[1].split('"')[0]
                 if ssid:
-                    # Get signal strength using iwconfig
-                    quality = output.split("Quality=")[1].split(" ")[0]
+                    quality = output.stdout.split("Quality=")[1].split(" ")[0]
                     level = (
                         int(quality.split("/")[0]) / int(quality.split("/")[1]) * 100
                     )
-
                     return WiFiNetwork(
                         ssid=ssid,
                         signal_strength=int(level),
-                        security="WPA2",  # Assume WPA2 as default
+                        security="WPA2",  # Assuming WPA2 as default
                         in_use=True,
+                        saved=True,
                     )
             return None
-
         except Exception as e:
-            logger.error(f"Error getting current connection: {e}")
+            self.logger.error(f"Error getting current connection: {e}")
             return None
 
     def _check_internet_connection(self) -> bool:
@@ -294,7 +292,7 @@ class WiFiManager:
             logger.warning(f"Internet check failed: {e}")
             return False
 
-    def _run_command(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
+    def _run_command(self, command: list[str], **kwargs) -> subprocess.CompletedProcess:
         """Run a shell command and return the result"""
         default_kwargs = {"capture_output": True, "text": True, "timeout": 5}
         kwargs = {**default_kwargs, **kwargs}
@@ -303,21 +301,29 @@ class WiFiManager:
         except subprocess.TimeoutExpired:
             self.logger.error(f"Command timed out: {' '.join(command)}")
             return subprocess.CompletedProcess(
-                args=command, returncode=1, stdout="", stderr="Command timed out"
+                args=command,
+                returncode=1,
+                stdout="",
+                stderr="Command timed out",
             )
         except Exception as e:
             self.logger.error(f"Command failed: {' '.join(command)} - {e}")
             return subprocess.CompletedProcess(
-                args=command, returncode=1, stdout="", stderr=str(e)
+                args=command,
+                returncode=1,
+                stdout="",
+                stderr=str(e),
             )
 
     async def connect_to_network(
-        self, ssid: str, password: Optional[str] = None
+        self,
+        ssid: str,
+        password: Optional[str] = None,
     ) -> bool:
         """Connect to a WiFi network"""
         try:
             self.logger.debug(
-                f"Received connection request for SSID: {ssid} with password: {'(none)' if password is None else '****'}"
+                f"Received connection request for SSID: {ssid} with password: {'(none)' if password is None else '****'}",
             )
 
             # Force a rescan to ensure network list is up to date
@@ -368,19 +374,23 @@ class WiFiManager:
             # Connect to network
             if is_saved:
                 self.logger.debug(f"Using saved connection for {ssid}")
-                result = self._run_command(
+                connect_result = self._run_command(
                     ["sudo", "nmcli", "connection", "up", ssid],
                     capture_output=True,
                     text=True,
                     timeout=30,
                 )
+                if connect_result.returncode != 0:
+                    self.logger.error(f"Failed to connect: {connect_result.stderr}")
+                    return False
             else:
                 if not password:
                     self.logger.error("Password required for unsaved network")
                     return False
 
                 self.logger.debug(f"Creating new connection for {ssid}")
-                result = self._run_command(
+                # Check the return value instead of ignoring it
+                connect_result = self._run_command(
                     [
                         "sudo",
                         "nmcli",
@@ -391,10 +401,12 @@ class WiFiManager:
                         "password",
                         password,
                     ],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
                 )
+                if connect_result.returncode != 0:
+                    self.logger.error(
+                        f"Failed to create connection: {connect_result.stderr}",
+                    )
+                    return False
 
             # Verify connection was successful
             verify_result = self._run_command(
@@ -424,7 +436,7 @@ class WiFiManager:
             return success
 
         except Exception as e:
-            self.logger.error(f"Error connecting to network: {str(e)}", exc_info=True)
+            self.logger.error(f"Error connecting to network: {e!s}", exc_info=True)
             return False
 
     def _remove_connection(self, ssid: str) -> bool:
@@ -445,8 +457,10 @@ class WiFiManager:
             return False
 
     def _parse_network_list(
-        self, output: str, saved_networks: Optional[set] = None
-    ) -> List[WiFiNetwork]:
+        self,
+        output: str,
+        saved_networks: Optional[set] = None,
+    ) -> list[WiFiNetwork]:
         """Parse nmcli output into WiFiNetwork objects"""
         networks = []
 
@@ -474,7 +488,7 @@ class WiFiManager:
                             security=security if security != "" else None,
                             in_use=(in_use == "*"),
                             saved=(ssid in saved_networks),
-                        )
+                        ),
                     )
             except Exception as e:
                 self.logger.error(f"Error parsing network: {line} - {e}")
@@ -494,7 +508,7 @@ class WiFiManager:
         except Exception as e:
             self.logger.error(f"Error during network rescan: {e}")
 
-    def _aggregate_networks(self, networks: List[WiFiNetwork]) -> List[WiFiNetwork]:
+    def _aggregate_networks(self, networks: list[WiFiNetwork]) -> list[WiFiNetwork]:
         """Aggregate networks with the same SSID, keeping the strongest signal"""
         aggregated = {}
         for network in networks:
@@ -519,7 +533,9 @@ class WiFiManager:
                 "/etc/NetworkManager/system-connections/preconfigured.nmconnection"
             )
             config_result = self._run_command(
-                ["sudo", "cat", config_file], capture_output=True, text=True
+                ["sudo", "cat", config_file],
+                capture_output=True,
+                text=True,
             )
 
             if config_result.returncode == 0:
@@ -531,3 +547,52 @@ class WiFiManager:
         except Exception as e:
             self.logger.error(f"Error reading preconfigured network: {e}")
         return None
+
+    def _create_new_connection(self, ssid: str, password: str) -> bool:
+        try:
+            if self._connection_exists(ssid):
+                self.logger.debug(f"Connection already exists for {ssid}")
+                return True
+
+            self.logger.debug(f"Creating new connection for {ssid}")
+            # Remove the result assignment completely
+            self._run_command(
+                [
+                    "sudo",
+                    "nmcli",
+                    "device",
+                    "wifi",
+                    "connect",
+                    ssid,
+                    "password",
+                    password,
+                ],
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to create connection: {e}")
+            return False
+
+    def _connect_to_saved(self, ssid: str) -> bool:
+        try:
+            is_saved = self._connection_exists(ssid)
+            if is_saved:
+                self.logger.debug(f"Using saved connection for {ssid}")
+                # Use the command result to determine success
+                cmd_result = self._run_command(
+                    ["sudo", "nmcli", "connection", "up", ssid],
+                    capture_output=True,
+                )
+                return cmd_result.returncode == 0
+            return False
+        except Exception as e:
+            self.logger.error(f"Failed to connect to saved network: {e}")
+            return False
+
+    def _check_process_output(
+        self, process: CompletedProcess[str], expected: str
+    ) -> bool:
+        """Check if process output contains expected string"""
+        if process and process.stdout:
+            return expected in str(process.stdout)
+        return False

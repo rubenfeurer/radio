@@ -12,6 +12,7 @@ services:
       - ../config:/home/radio/radio/config
       - ../tests:/home/radio/radio/tests
       - ../install/requirements.txt:/home/radio/radio/requirements.txt
+      - ../.git:/home/radio/radio/.git
     ports:
       - "80:80"
     environment:

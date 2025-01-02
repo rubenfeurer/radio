@@ -1,22 +1,23 @@
-from fastapi import APIRouter, HTTPException, Query, Path
+import json
+import logging
+from pathlib import Path as PathLib
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+from src.api.routes.websocket import broadcast_status_update
 from src.core.models import RadioStation
 from src.core.singleton_manager import RadioManagerSingleton
-from src.api.routes.websocket import broadcast_status_update
 from src.utils.station_loader import load_all_stations, load_default_stations
-from typing import List, Optional
-import logging
-import json
-import os
-from pathlib import Path
 
 router = APIRouter()
 radio_manager = RadioManagerSingleton.get_instance(
-    status_update_callback=broadcast_status_update
+    status_update_callback=broadcast_status_update,
 )
 logger = logging.getLogger(__name__)
 
-STATIONS_FILE = Path("data/assigned_stations.json")
+STATIONS_FILE = PathLib("data/assigned_stations.json")
 
 
 def ensure_stations_file():
@@ -32,7 +33,7 @@ def save_stations_to_file(slot: int, station: RadioStation):
     ensure_stations_file()
     try:
         # Load existing assignments
-        with open(STATIONS_FILE, "r") as f:
+        with open(STATIONS_FILE) as f:
             stations = json.load(f)
 
         # Update or add new station
@@ -57,7 +58,7 @@ def load_stations_from_file():
     """Load station assignments from JSON file"""
     ensure_stations_file()
     try:
-        with open(STATIONS_FILE, "r") as f:
+        with open(STATIONS_FILE) as f:
             assigned_stations = json.load(f)
 
         # Check if we have any non-null stations
@@ -185,7 +186,8 @@ async def assign_station_to_slot(slot: int, request: AssignStationRequest):
         if not station:
             logger.error(f"Station with ID {request.stationId} not found")
             raise HTTPException(
-                status_code=404, detail=f"Station with ID {request.stationId} not found"
+                status_code=404,
+                detail=f"Station with ID {request.stationId} not found",
             )
 
         # Create a new RadioStation instance with the slot number
@@ -208,5 +210,5 @@ async def assign_station_to_slot(slot: int, request: AssignStationRequest):
             "message": f"Station {station.name} assigned to slot {slot}",
         }
     except Exception as e:
-        logger.error(f"Error assigning station: {str(e)}", exc_info=True)
+        logger.error(f"Error assigning station: {e!s}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

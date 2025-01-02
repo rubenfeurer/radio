@@ -1,15 +1,15 @@
-"""
-Integration test suite for system-wide functionality.
+"""Integration test suite for system-wide functionality.
 """
 
-import pytest
-from unittest.mock import patch, Mock
-from src.hardware.gpio_controller import GPIOController
-from src.core.radio_manager import RadioManager
-from src.hardware.audio_player import AudioPlayer
-from src.core.models import RadioStation
-from config.config import settings
 import asyncio
+from unittest.mock import patch
+
+import pytest
+
+from config.config import settings
+from src.core.models import RadioStation
+from src.core.radio_manager import RadioManager
+from src.hardware.gpio_controller import GPIOController
 
 
 @pytest.mark.asyncio
@@ -19,10 +19,9 @@ async def test_button_to_audio():
     loop = asyncio.get_event_loop()
 
     # Add subprocess.run mock for amixer
-    with patch("subprocess.run") as mock_run:
+    with patch("subprocess.run"):  # Remove mock_run if not used
         gpio = GPIOController(event_loop=loop)
         manager = RadioManager()
-        player = AudioPlayer()
 
         # Add a test station
         station = RadioStation(name="Test", url="http://test.com/stream", slot=1)
@@ -48,8 +47,7 @@ async def test_volume_control_integration():
     loop = asyncio.get_event_loop()
 
     # Initialize components with subprocess.run mock
-    with patch("subprocess.run") as mock_run:
-        mock_player = Mock()
+    with patch("subprocess.run"):  # Remove mock_run if not used
         manager = RadioManager()
 
         # Create volume callback
@@ -64,7 +62,9 @@ async def test_volume_control_integration():
 
         # Mock the DT pin read to simulate rotation direction
         with patch.object(
-            gpio.pi, "read", return_value=0
+            gpio.pi,
+            "read",
+            return_value=0,
         ):  # Simulate clockwise rotation
             gpio._handle_rotation(settings.ROTARY_CLK, 1, 0)
             await asyncio.sleep(0.1)  # Allow async operation to complete
@@ -131,7 +131,7 @@ async def test_button_press_types():
         await asyncio.sleep(0.05)  # Short press duration
         gpio._handle_button(settings.ROTARY_SW, 1, 0)  # Release
         await asyncio.sleep(
-            0.2
+            0.2,
         )  # Interval between presses within TRIPLE_PRESS_INTERVAL
 
     await asyncio.sleep(0.5)  # Wait for triple press detection
@@ -144,10 +144,7 @@ async def test_button_press_types():
 @pytest.mark.asyncio
 async def test_status_updates():
     """Test that status updates are properly propagated"""
-    loop = asyncio.get_event_loop()
-
-    # Add subprocess.run mock for amixer
-    with patch("subprocess.run") as mock_run:
+    with patch("subprocess.run"):  # Remove unused mock_run variable
         # Create callback counter
         callback_count = 0
 

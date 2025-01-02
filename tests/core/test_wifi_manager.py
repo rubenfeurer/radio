@@ -1,7 +1,7 @@
-import pytest
-from unittest.mock import MagicMock, call
-from src.core.models import WiFiStatus
 import logging
+from unittest.mock import MagicMock, call
+
+import pytest
 
 
 def test_get_current_status_connected(wifi_manager):
@@ -53,7 +53,8 @@ async def test_connect_to_network(wifi_manager):
         MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
         MagicMock(returncode=0, stdout=""),  # connect command
         MagicMock(
-            returncode=0, stdout="GENERAL.STATE:100 (connected)\n"
+            returncode=0,
+            stdout="GENERAL.STATE:100 (connected)\n",
         ),  # verify connection
     ]
 
@@ -70,11 +71,13 @@ async def test_connect_to_nonexistent_network(wifi_manager):
         MagicMock(returncode=0, stdout=""),  # rescan
         MagicMock(returncode=0, stdout=""),  # check saved networks
         MagicMock(
-            returncode=0, stdout="Network1:75:WPA2:no\nNetwork2:70:WPA2:no"
+            returncode=0,
+            stdout="Network1:75:WPA2:no\nNetwork2:70:WPA2:no",
         ),  # list networks
         MagicMock(returncode=0, stdout=""),  # connect attempt
         MagicMock(
-            returncode=0, stdout="Network1:75:WPA2:no\nNetwork2:70:WPA2:no"
+            returncode=0,
+            stdout="Network1:75:WPA2:no\nNetwork2:70:WPA2:no",
         ),  # verify networks
         MagicMock(returncode=0, stdout=""),  # saved networks for verification
     ]
@@ -96,7 +99,8 @@ async def test_connect_to_saved_network(wifi_manager):
         MagicMock(returncode=0, stdout="SavedNetwork:80:WPA2:no\n"),  # scan networks
         MagicMock(returncode=0, stdout=""),  # connect command
         MagicMock(
-            returncode=0, stdout="GENERAL.STATE:100 (connected)\n"
+            returncode=0,
+            stdout="GENERAL.STATE:100 (connected)\n",
         ),  # verify connection
     ]
 
@@ -107,7 +111,7 @@ async def test_connect_to_saved_network(wifi_manager):
 def test_network_manager_not_running(wifi_manager):
     """Test behavior when network manager is not running"""
     wifi_manager._run_command = MagicMock(
-        return_value=MagicMock(returncode=1, stderr="Network manager is not running")
+        return_value=MagicMock(returncode=1, stderr="Network manager is not running"),
     )
 
     status = wifi_manager.get_current_status()
@@ -130,12 +134,12 @@ def test_get_current_status_with_preconfigured_network(wifi_manager):
         # Second call - list available networks
         MagicMock(
             returncode=0,
-            stdout="Salt_2GHz_D8261F:82:WPA2:no\n" "Salt_5GHz_D8261F:82:WPA2:*\n",
+            stdout="Salt_2GHz_D8261F:82:WPA2:no\nSalt_5GHz_D8261F:82:WPA2:*\n",
         ),
         # Third call - get network list for verification
         MagicMock(
             returncode=0,
-            stdout="Salt_2GHz_D8261F:82:WPA2:no\n" "Salt_5GHz_D8261F:82:WPA2:*\n",
+            stdout="Salt_2GHz_D8261F:82:WPA2:no\nSalt_5GHz_D8261F:82:WPA2:*\n",
         ),
         # Internet check
         MagicMock(returncode=0, stdout=""),
@@ -164,12 +168,12 @@ def test_get_current_status_with_saved_networks(wifi_manager):
         # Second call - list available networks
         MagicMock(
             returncode=0,
-            stdout="Salt_2GHz_D8261F:84:WPA2:no\n" "Salt_5GHz_D8261F:67:WPA2:*\n",
+            stdout="Salt_2GHz_D8261F:84:WPA2:no\nSalt_5GHz_D8261F:67:WPA2:*\n",
         ),
         # Third call - get network list for verification
         MagicMock(
             returncode=0,
-            stdout="Salt_2GHz_D8261F:84:WPA2:no\n" "Salt_5GHz_D8261F:67:WPA2:*\n",
+            stdout="Salt_2GHz_D8261F:84:WPA2:no\nSalt_5GHz_D8261F:67:WPA2:*\n",
         ),
         # Internet check
         MagicMock(returncode=0, stdout=""),
@@ -195,10 +199,13 @@ async def test_failed_connection_gets_removed(wifi_manager):
         MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
         MagicMock(returncode=0, stdout=""),  # check saved networks again
         MagicMock(
-            returncode=1, stdout="", stderr="Invalid password"
+            returncode=1,
+            stdout="",
+            stderr="Invalid password",
         ),  # connect command fails
         MagicMock(
-            returncode=0, stdout="GENERAL.STATE:20 (unavailable)"
+            returncode=0,
+            stdout="GENERAL.STATE:20 (unavailable)",
         ),  # verification check
         MagicMock(returncode=0, stdout=""),  # remove connection
     ]
@@ -226,7 +233,8 @@ async def test_verification_failure_removes_connection(wifi_manager):
         MagicMock(returncode=0, stdout=""),  # check saved networks again
         MagicMock(returncode=0, stdout=""),  # connect command succeeds
         MagicMock(
-            returncode=0, stdout="GENERAL.STATE:20 (unavailable)"
+            returncode=0,
+            stdout="GENERAL.STATE:20 (unavailable)",
         ),  # verification fails
         MagicMock(returncode=0, stdout=""),  # remove connection
     ]
@@ -249,7 +257,7 @@ async def test_forget_network(wifi_manager):
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
         # Delete connection command
-        MagicMock(returncode=0, stdout="")
+        MagicMock(returncode=0, stdout=""),
     ]
 
     result = wifi_manager._remove_connection("SavedNetwork")
@@ -270,7 +278,7 @@ async def test_forget_nonexistent_network(wifi_manager):
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
         # Delete connection command fails
-        MagicMock(returncode=1, stdout="", stderr="No such connection profile")
+        MagicMock(returncode=1, stdout="", stderr="No such connection profile"),
     ]
 
     result = wifi_manager._remove_connection("NonExistentNetwork")
