@@ -33,6 +33,13 @@ jobs:
         run: |
           pip install black pylint mypy ruff isort
 
+      # Set up environment to match Docker container
+      - name: Set up environment
+        run: |
+          echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "MOCK_HARDWARE=true" >> $GITHUB_ENV
+          echo "TEST_MODE=CI" >> $GITHUB_ENV
+
       # Run exactly the same commands as dev.sh
       - name: Run linting
         run: |
@@ -45,10 +52,13 @@ jobs:
             src tests
 
           # Run mypy with config file
-          mypy src --config-file mypy.ini
+          cd src && mypy . \
+            --config-file ../mypy.ini \
+            --namespace-packages \
+            --explicit-package-bases
 
           # Run pylint with same flags as dev.sh
-          pylint --disable=C0111,C0114,C0115,C0116,E1101,R0801,R0903,W0511,C0103 src tests
+          cd .. && pylint --disable=C0111,C0114,C0115,C0116,E1101,R0801,R0903,W0511,C0103 src tests
 
       - name: Commit any formatting changes
         uses: stefanzweifel/git-auto-commit-action@v5
