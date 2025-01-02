@@ -92,36 +92,43 @@ jobs:
           echo "MOCK_HARDWARE=true" >> $GITHUB_ENV
           echo "TEST_MODE=CI" >> $GITHUB_ENV
 
-      # Cache dependencies
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r install/requirements.txt
           pip install -r install/requirements-dev.txt
 
-      # List directory contents for debugging
-      - name: List directory structure
+      # Debug directory structure
+      - name: Debug directory structure
         run: |
+          echo "Current directory:"
           pwd
+          echo "\nDirectory contents:"
           ls -la
-          ls -la tests/
+          echo "\nTests directory structure:"
+          find tests -type d
+          echo "\nPython path:"
+          echo $PYTHONPATH
+          echo "\nTest file contents:"
+          find tests -type f -name "test_*.py"
 
-      # Run tests with explicit path discovery
+      # Run tests with better error handling
       - name: Run unit tests
         env:
           PYTHONPATH: ${{ github.workspace }}
           MOCK_HARDWARE: "true"
           TEST_MODE: "CI"
         run: |
-          python -m pytest tests/unit -v --cov=src --cov-report=xml --junitxml=pytest-results.xml
+          # Create test directories if they don't exist
+          mkdir -p tests/unit tests/api
+
+          # Run tests with explicit test discovery
+          python -m pytest \
+            --verbose \
+            --cov=src \
+            --cov-report=xml \
+            --junitxml=pytest-results.xml \
+            $(find tests -type f -name "test_*.py")
 
       - name: Run API tests
         env:
@@ -129,7 +136,12 @@ jobs:
           MOCK_HARDWARE: "true"
           TEST_MODE: "CI"
         run: |
-          python -m pytest tests/api -v --cov=src --cov-append --junitxml=pytest-results.xml
+          python -m pytest \
+            --verbose \
+            --cov=src \
+            --cov-append \
+            --junitxml=pytest-results.xml \
+            $(find tests/api -type f -name "test_*.py")
 
       # Add test summary
       - name: Test Summary
