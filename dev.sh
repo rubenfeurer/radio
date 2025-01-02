@@ -58,21 +58,22 @@ check_precommit() {
         echo "Installing pre-commit in backend container..."
         docker compose -f docker/docker-compose.dev.yml exec backend bash -c "
             source /home/radio/radio/venv/bin/activate && \
-            pip install pre-commit && \
-            pre-commit install
+            pip install pre-commit
         "
     else
         echo "pre-commit is already installed"
     fi
 
-    # Check if hooks are installed
-    if ! docker compose -f docker/docker-compose.dev.yml exec backend bash -c "[ -f .git/hooks/pre-commit ]"; then
-        echo "Installing pre-commit hooks..."
-        docker compose -f docker/docker-compose.dev.yml exec backend bash -c "
-            source /home/radio/radio/venv/bin/activate && \
-            pre-commit install
-        "
-    fi
+    # Reset git hooks path and install hooks
+    echo "Setting up git hooks..."
+    docker compose -f docker/docker-compose.dev.yml exec backend bash -c "
+        # Reset git hooks path
+        git config --unset-all core.hooksPath || true
+        
+        # Install pre-commit hooks
+        source /home/radio/radio/venv/bin/activate && \
+        pre-commit install
+    "
 }
 
 # Function to start development environment

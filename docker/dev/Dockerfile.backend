@@ -68,17 +68,6 @@ RUN /home/radio/radio/venv/bin/pip install -r requirements.txt -r requirements-d
     pydantic[mypy] \
     fastapi[all]
 
-# Add auto-formatting git hooks
-RUN git config --global core.hooksPath .git/hooks/ && \
-    mkdir -p .git/hooks && \
-    echo '#!/bin/sh\n\
-    black . && \
-    ruff check --fix --unsafe-fixes . && \
-    ruff check --fix --select F401,F841,F821 . && \
-    isort . && \
-    pyupgrade --py39-plus $(find . -name "*.py")' > .git/hooks/pre-commit && \
-    chmod +x .git/hooks/pre-commit
-
 # Set environment variables
 ENV PYTHONPATH=/home/radio/radio
 ENV MOCK_SERVICES=true

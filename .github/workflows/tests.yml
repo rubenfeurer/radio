@@ -22,6 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Install system dependencies
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libmpv1 \
+            libmpv-dev \
+            mpv \
+            pulseaudio \
+            alsa-utils
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -34,6 +45,7 @@ jobs:
           echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
           echo "MOCK_HARDWARE=true" >> $GITHUB_ENV
           echo "TEST_MODE=CI" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: |
@@ -54,6 +66,10 @@ jobs:
           echo $PYTHONPATH
           echo "\nTest file contents:"
           find tests -type f -name "test_*.py"
+          echo "\nMPV library location:"
+          ldconfig -p | grep mpv
+          echo "\nMPV version:"
+          mpv --version
 
       # Run tests with better error handling
       - name: Run unit tests
@@ -61,6 +77,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
           MOCK_HARDWARE: "true"
           TEST_MODE: "CI"
+          LD_LIBRARY_PATH: /usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
         run: |
           mkdir -p tests/unit tests/api
           python -m pytest \
@@ -75,6 +92,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
           MOCK_HARDWARE: "true"
           TEST_MODE: "CI"
+          LD_LIBRARY_PATH: /usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
         run: |
           python -m pytest \
             --verbose \
