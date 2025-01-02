@@ -65,8 +65,8 @@ RUN /home/radio/radio/venv/bin/pip install -r requirements.txt -r requirements-d
     types-requests \
     types-psutil \
     mypy-extensions \
-    types-pydantic \
-    types-fastapi
+    pydantic[mypy] \
+    fastapi[all]
 
 # Create stubs directory
 RUN mkdir -p /home/radio/radio/src/stubs

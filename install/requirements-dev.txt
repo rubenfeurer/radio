@@ -11,9 +11,10 @@ pytest-cov
 pytest-asyncio
 types-requests>=2.31.0
 
-# Type stubs
-types-pydantic>=2.6.0
-types-fastapi>=0.109.0
+# Type support
+pydantic[mypy]>=2.6.0
+fastapi[all]>=0.109.0
+mypy-extensions>=1.0.0
 
 # Development tools
 ipython
