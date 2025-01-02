@@ -64,6 +64,10 @@ RUN /home/radio/radio/venv/bin/pip install -r requirements.txt -r requirements-d
     pyupgrade \
     types-requests \
     types-psutil \
+    types-uvicorn \
+    types-pigpio \
+    types-mpv \
+    types-httpx \
     mypy-extensions \
     pydantic[mypy] \
     fastapi[all]
