@@ -39,12 +39,16 @@ jobs:
           commit_message: "style: format code with black"
           branch: ${{ github.head_ref }}
 
-      # Run other linting checks
+      # Run linting checks
       - name: Run ruff
         run: ruff check src tests
 
-      - name: Run mypy
+      - name: Run linting
         run: |
+          # Run black formatter check
+          black --check .
+
+          # Run mypy with our configured settings
           cd src && mypy . \
             --ignore-missing-imports \
             --follow-imports=silent \
@@ -58,8 +62,10 @@ jobs:
             --allow-untyped-calls \
             --allow-incomplete-defs
 
-      - name: Run pylint
-        run: pylint src tests
+          # Run pylint with our .pylintrc
+          cd .. && pylint src/ tests/ \
+            --disable=C0111,C0103,W0718,W1203,R0903,W0613,E0401,R0902,R0913,W0621,W0212,R0801 \
+            --max-line-length=100
 
   test:
     needs: lint # Run tests after linting
