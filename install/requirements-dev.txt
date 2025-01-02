@@ -13,10 +13,6 @@ pytest-asyncio
 # Type stubs
 types-requests>=2.31.0
 types-psutil>=5.9.5
-types-uvicorn>=0.27.1
-types-pigpio>=1.78.1
-types-mpv>=1.0.0
-types-httpx>=0.27.0
 
 # Type support
 pydantic[mypy]>=2.6.0

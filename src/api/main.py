@@ -16,7 +16,7 @@ from config.config import settings
 # Local imports
 from src.api.routes import ap, mode, monitor, stations, system, websocket, wifi
 from src.core.mode_manager import ModeManagerSingleton
-from src.core.models import SystemStatus
+from src.core.models import Station
 from src.core.service_factory import ServiceFactory
 from src.core.singleton_manager import RadioManagerSingleton
 
@@ -156,37 +156,36 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_json()
             if data.get("type") == "status_request":
-                # Initialize radio_manager before using it
                 radio_manager = RadioManagerSingleton.get_instance()
                 status = radio_manager.get_status()
-                status_dict = SystemStatus(
-                    current_station=(
-                        status.current_station.model_dump()
-                        if status.current_station
-                        else None
-                    ),
-                    volume=status.volume,
-                    is_playing=status.is_playing,
-                ).model_dump()
+
+                current_station = None
+                if isinstance(status.current_station, Station):
+                    current_station = status.current_station.dict()
+                elif isinstance(status.current_station, int):
+                    current_station = status.current_station
+
+                status_dict = {
+                    "current_station": current_station,
+                    "volume": status.volume,
+                    "is_playing": status.is_playing,
+                }
 
                 await websocket.send_json(
                     {"type": "status_response", "data": status_dict},
                 )
             elif data.get("type") == "monitor_request":
-                # Get mode info
                 mode_manager = ModeManagerSingleton.get_instance()
                 current_mode = mode_manager.detect_current_mode()
                 logger.debug(f"Current mode detected as: {current_mode}")
 
-                # Send mode update first
                 await websocket.send_json(
                     {"type": "mode_update", "data": {"mode": current_mode.value}},
                 )
 
-                # Then send monitor update
-                monitor_data = await monitor.router.get_monitor_data()
+                monitor_status = await monitor.get_status()
                 await websocket.send_json(
-                    {"type": "monitor_update", "data": monitor_data},
+                    {"type": "monitor_update", "data": monitor_status},
                 )
             elif data.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})

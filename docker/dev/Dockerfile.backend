@@ -64,16 +64,9 @@ RUN /home/radio/radio/venv/bin/pip install -r requirements.txt -r requirements-d
     pyupgrade \
     types-requests \
     types-psutil \
-    types-uvicorn \
-    types-pigpio \
-    types-mpv \
-    types-httpx \
     mypy-extensions \
     pydantic[mypy] \
     fastapi[all]
-
-# Create stubs directory
-RUN mkdir -p /home/radio/radio/src/stubs
 
 # Add auto-formatting git hooks
 RUN git config --global core.hooksPath .git/hooks/ && \
@@ -88,7 +81,6 @@ RUN git config --global core.hooksPath .git/hooks/ && \
 
 # Set environment variables
 ENV PYTHONPATH=/home/radio/radio
-ENV MYPYPATH=/home/radio/radio/src/stubs
 ENV MOCK_SERVICES=true
 ENV DEV_MODE=true
 ENV XDG_RUNTIME_DIR=/run/user/1000
