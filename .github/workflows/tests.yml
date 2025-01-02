@@ -6,6 +6,7 @@ on:
     paths:
       - "src/**"
       - "tests/**"
+      - "config/**"
       - "requirements*.txt"
       - ".github/workflows/**"
   pull_request:
@@ -31,7 +32,7 @@ jobs:
 
       # Format and auto-commit changes
       - name: Format with Black
-        run: black src/ tests/
+        run: black src/ tests/ config/
 
       - name: Commit formatting changes
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -41,7 +42,7 @@ jobs:
 
       # Run linting checks
       - name: Run ruff
-        run: ruff check src tests
+        run: ruff check src tests config
 
       - name: Run linting
         run: |
@@ -63,7 +64,7 @@ jobs:
             --allow-incomplete-defs
 
           # Run pylint with our .pylintrc
-          cd .. && pylint src/ tests/ \
+          cd .. && pylint src/ tests/ config/ \
             --disable=C0111,C0103,W0718,W1203,R0903,W0613,E0401,R0902,R0913,W0621,W0212,R0801 \
             --max-line-length=100
 
