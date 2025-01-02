@@ -52,37 +52,60 @@ run_tests_clean() {
 # Function to check and install pre-commit
 check_precommit() {
     echo "Checking pre-commit installation..."
-    
-    # Check if pre-commit is installed in the backend container
-    if ! docker compose -f docker/docker-compose.dev.yml exec backend bash -c "source /home/radio/radio/venv/bin/activate && pre-commit --version" >/dev/null 2>&1; then
-        echo "Installing pre-commit in backend container..."
-        docker compose -f docker/docker-compose.dev.yml exec backend bash -c "
-            source /home/radio/radio/venv/bin/activate && \
-            pip install pre-commit
-        "
-    else
-        echo "pre-commit is already installed"
+
+    # Create virtual environment if it doesn't exist
+    if [ ! -d "venv" ]; then
+        echo "Creating virtual environment..."
+        python3 -m venv venv
     fi
 
-    # Reset git hooks path and install hooks
-    echo "Setting up git hooks..."
-    docker compose -f docker/docker-compose.dev.yml exec backend bash -c "
-        # Reset git hooks path
-        git config --unset-all core.hooksPath || true
-        
-        # Install pre-commit hooks
-        source /home/radio/radio/venv/bin/activate && \
-        pre-commit install
-    "
+    # Add venv/bin to PATH
+    export PATH="$PWD/venv/bin:$PATH"
+
+    # Activate virtual environment
+    echo "Activating virtual environment..."
+    source venv/bin/activate || source venv/Scripts/activate
+
+    # Install pre-commit locally if not present
+    if ! command -v pre-commit >/dev/null 2>&1; then
+        echo "Installing pre-commit locally..."
+        pip install pre-commit
+    fi
+
+    # Unset core.hooksPath before installing hooks
+    echo "Unsetting core.hooksPath..."
+    git config --unset-all core.hooksPath
+
+    # Install pre-commit hooks locally
+    echo "Installing pre-commit hooks locally..."
+    pre-commit install
+
+    # Create a wrapper script for pre-commit in .git/hooks
+    cat > .git/hooks/pre-commit << 'EOF'
+#!/bin/bash
+source "$(dirname "$0")/../../venv/bin/activate"
+exec pre-commit run --hook-stage pre-commit
+EOF
+
+    # Make the wrapper script executable
+    chmod +x .git/hooks/pre-commit
+
+    # Deactivate virtual environment
+    deactivate
+
+    echo "Pre-commit setup complete"
 }
 
 # Function to start development environment
 start_dev() {
+    # Add pre-commit check at the start
+    check_precommit
+
     echo "Starting development environment..."
-    
+
     # Kill any existing frontend process
     kill_frontend
-    
+
     # Start backend container
     docker compose -f docker/docker-compose.dev.yml up -d --build
 
@@ -105,16 +128,16 @@ start_dev() {
 # Function to rebuild environment
 rebuild_dev() {
     echo "Rebuilding development environment..."
-    
+
     # Kill any existing frontend process
     kill_frontend
-    
+
     # Rebuild backend
     docker compose -f docker/docker-compose.dev.yml down
     docker compose -f docker/docker-compose.dev.yml rm -f
     docker rmi radio-backend
     docker compose -f docker/docker-compose.dev.yml up -d --build
-    
+
     # Check and start frontend
     if [ -d "web" ]; then
         check_frontend_deps
@@ -157,7 +180,7 @@ run_all_checks() {
 # Function to auto-fix code issues
 run_fix() {
     echo "Auto-fixing code issues..."
-    
+
     # Check if backend is running
     if ! docker compose -f docker/docker-compose.dev.yml ps --status running backend >/dev/null 2>&1; then
         echo "Starting backend container..."
@@ -223,4 +246,4 @@ case "$1" in
         echo "Usage: $0 {start|stop|logs|rebuild|test|test-clean|lint|test-all|fix}"
         exit 1
         ;;
-esac 
+esac

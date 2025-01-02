@@ -9,84 +9,62 @@ on:
       - "config/**"
       - "requirements*.txt"
       - ".github/workflows/**"
+      - "docker/**"
   pull_request:
     branches: [main, develop]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
 
-      # Install system dependencies with correct package names
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          # Install MPV and audio packages directly from Ubuntu repos
-          sudo apt-get install -y \
-            libmpv-dev \
-            mpv \
-            pulseaudio \
-            alsa-utils
+      # Set up Docker Buildx for better caching
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      # Cache Docker layers
+      - name: Cache Docker layers
+        uses: actions/cache@v4
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: "pip"
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
 
-      # Set up environment variables
-      - name: Set up environment
-        run: |
-          echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
-          echo "MOCK_HARDWARE=true" >> $GITHUB_ENV
-          echo "TEST_MODE=CI" >> $GITHUB_ENV
-          # Update library path to include common locations
-          echo "LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+      # Build with cache
+      - name: Build development image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.dev
+          push: false
+          load: true
+          tags: radio-dev:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r install/requirements.txt
-          pip install -r install/requirements-dev.txt
-
-      # Debug MPV installation
-      - name: Debug MPV installation
-        run: |
-          echo "MPV package status:"
-          dpkg -l | grep mpv
-          echo "\nMPV library location:"
-          find /usr -name "libmpv*"
-          echo "\nSystem libraries:"
-          ldconfig -p | grep mpv
-          echo "\nLD_LIBRARY_PATH:"
-          echo $LD_LIBRARY_PATH
-          echo "\nMPV version:"
-          mpv --version || true
-
-      # Run tests with better error handling and create directories first
-      - name: Prepare test directories
-        run: mkdir -p tests/unit tests/api tests/integration
-
+      # Run tests in container
       - name: Run tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-          MOCK_HARDWARE: "true"
-          TEST_MODE: "CI"
-          LD_LIBRARY_PATH: /usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:$LD_LIBRARY_PATH
         run: |
-          # Run all tests in one go to generate a single coverage report
-          python -m pytest \
-            --verbose \
-            --cov=src \
-            --cov-report=xml \
-            --cov-report=term \
-            --junitxml=pytest-results.xml \
-            tests/ || true
+          docker compose -f docker/docker-compose.dev.yml run --rm backend bash -c "
+            source /home/radio/radio/venv/bin/activate && \
+            mkdir -p tests/unit tests/api tests/integration && \
+            python -m pytest \
+              --verbose \
+              --cov=src \
+              --cov-report=xml \
+              --cov-report=term \
+              --junitxml=pytest-results.xml \
+              tests/
+          "
+
+      # Move cache to prevent cache growth
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       # Add test summary
       - name: Test Summary
@@ -95,7 +73,7 @@ jobs:
           paths: "pytest-results.xml"
         if: always()
 
-      # Upload coverage report
+      # Upload coverage reports
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
         with:
