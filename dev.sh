@@ -49,6 +49,32 @@ run_tests_clean() {
     docker compose -f docker/docker-compose.dev.yml run --rm backend /home/radio/radio/venv/bin/python -m pytest "$@"
 }
 
+# Function to check and install pre-commit
+check_precommit() {
+    echo "Checking pre-commit installation..."
+    
+    # Check if pre-commit is installed in the backend container
+    if ! docker compose -f docker/docker-compose.dev.yml exec backend bash -c "source /home/radio/radio/venv/bin/activate && pre-commit --version" >/dev/null 2>&1; then
+        echo "Installing pre-commit in backend container..."
+        docker compose -f docker/docker-compose.dev.yml exec backend bash -c "
+            source /home/radio/radio/venv/bin/activate && \
+            pip install pre-commit && \
+            pre-commit install
+        "
+    else
+        echo "pre-commit is already installed"
+    fi
+
+    # Check if hooks are installed
+    if ! docker compose -f docker/docker-compose.dev.yml exec backend bash -c "[ -f .git/hooks/pre-commit ]"; then
+        echo "Installing pre-commit hooks..."
+        docker compose -f docker/docker-compose.dev.yml exec backend bash -c "
+            source /home/radio/radio/venv/bin/activate && \
+            pre-commit install
+        "
+    fi
+}
+
 # Function to start development environment
 start_dev() {
     echo "Starting development environment..."
@@ -58,6 +84,9 @@ start_dev() {
     
     # Start backend container
     docker compose -f docker/docker-compose.dev.yml up -d --build
+
+    # Install pre-commit if needed
+    check_precommit
 
     # Check and start frontend
     if [ -d "web" ]; then
