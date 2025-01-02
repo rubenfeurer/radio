@@ -1,0 +1,61 @@
+FROM debian:bullseye
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    python3-dev \
+    python3-pip \
+    python3-venv \
+    python3.9-venv \
+    python3-virtualenv \
+    virtualenv \
+    build-essential \
+    git \
+    libssl-dev \
+    libffi-dev \
+    pulseaudio \
+    alsa-utils \
+    network-manager \
+    wireless-tools \
+    procps \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create radio user and group
+RUN useradd -m -s /bin/bash radio && \
+    usermod -aG sudo,audio,pulse,pulse-access radio && \
+    echo "radio ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Create test directories
+RUN mkdir -p /home/radio/radio/logs /home/radio/radio/data && \
+    chown -R radio:radio /home/radio/radio
+
+# Copy installation files
+COPY install/ /home/radio/radio/install/
+COPY scripts/ /home/radio/radio/scripts/
+COPY src/ /home/radio/radio/src/
+COPY tests/ /home/radio/radio/tests/
+
+# Set ownership
+RUN chown -R radio:radio /home/radio/radio
+
+# Switch to radio user
+USER radio
+WORKDIR /home/radio/radio
+
+# Create and activate virtual environment
+RUN python3 -m venv venv && \
+    /home/radio/radio/venv/bin/pip install --upgrade pip
+
+# Install Python dependencies
+RUN /home/radio/radio/venv/bin/pip install -r install/requirements.txt -r install/requirements-dev.txt
+
+# Set environment variables for testing
+ENV PYTHONPATH=/home/radio/radio
+ENV MOCK_SERVICES=true
+ENV DEV_MODE=true
+ENV MOCK_GPIO=true
+ENV TEST_MODE=CI
+
+# Run installation tests
+CMD ["./scripts/test_install.sh"] 

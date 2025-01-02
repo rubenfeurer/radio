@@ -44,7 +44,8 @@ jobs:
         run: ruff check src tests
 
       - name: Run mypy
-        run: mypy src
+        run: |
+          PYTHONPATH=src mypy src
 
       - name: Run pylint
         run: pylint src tests
@@ -77,8 +78,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install -r install/requirements.txt
+          pip install -r install/requirements-dev.txt
 
       # Split tests into categories
       - name: Run unit tests
