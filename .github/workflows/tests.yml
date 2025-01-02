@@ -107,14 +107,21 @@ jobs:
           pip install -r install/requirements.txt
           pip install -r install/requirements-dev.txt
 
-      # Split tests into categories
+      # List directory contents for debugging
+      - name: List directory structure
+        run: |
+          pwd
+          ls -la
+          ls -la tests/
+
+      # Run tests with explicit path discovery
       - name: Run unit tests
         env:
           PYTHONPATH: ${{ github.workspace }}
           MOCK_HARDWARE: "true"
           TEST_MODE: "CI"
         run: |
-          pytest -v tests/unit/ --cov=src --cov-report=xml --junitxml=pytest-results.xml
+          python -m pytest tests/unit -v --cov=src --cov-report=xml --junitxml=pytest-results.xml
 
       - name: Run API tests
         env:
@@ -122,7 +129,7 @@ jobs:
           MOCK_HARDWARE: "true"
           TEST_MODE: "CI"
         run: |
-          pytest -v tests/api/ --cov=src --cov-append --junitxml=pytest-results.xml
+          python -m pytest tests/api -v --cov=src --cov-append --junitxml=pytest-results.xml
 
       # Add test summary
       - name: Test Summary
