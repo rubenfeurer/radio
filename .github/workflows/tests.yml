@@ -45,7 +45,7 @@ jobs:
         if: success()
         with:
           context: .
-          file: ./docker/Dockerfile.dev
+          file: ./docker/dev/Dockerfile.backend
           load: true
           tags: radio-dev:latest
           cache-from: type=local,src=/tmp/.buildx-cache
