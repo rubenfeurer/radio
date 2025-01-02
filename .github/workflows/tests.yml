@@ -76,7 +76,8 @@ jobs:
               chown -R radio:radio /home/radio/radio/venv && \
               su radio -c '
                 source /home/radio/radio/venv/bin/activate && \
-                pip install -r requirements.txt -r requirements-dev.txt && \
+                cd /home/radio/radio && \
+                pip install -r install/requirements.txt -r install/requirements-dev.txt && \
 
                 # Run tests
                 python -m pytest \
