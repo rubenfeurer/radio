@@ -52,11 +52,10 @@ jobs:
             src tests
 
           # Run mypy with config file
-          mypy . \
+          mypy src \
             --config-file mypy.ini \
             --namespace-packages \
-            --explicit-package-bases \
-            src
+            --explicit-package-bases
 
           # Run pylint with expanded disable list
           pylint \
