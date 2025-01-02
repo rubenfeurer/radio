@@ -71,15 +71,9 @@ jobs:
               apt-get update && \
               apt-get install -y python3 python3-venv python3-pip && \
 
-              # Create full directory structure (matching install.sh)
-              mkdir -p /home/radio/radio/{src,config,web,install,sounds,data,logs,tests/{unit,integration,e2e}} && \
-
-              # Create MPV socket directory
-              mkdir -p /tmp/mpv-socket && \
-
-              # Set correct ownership
-              chown -R radio:radio /home/radio/radio /tmp/mpv-socket && \
-              chmod 755 /tmp/mpv-socket && \
+              # Create logs directory with correct permissions
+              mkdir -p /home/radio/radio/logs && \
+              chown -R radio:radio /home/radio/radio && \
 
               # Create and activate venv
               python3 -m venv /home/radio/radio/venv && \
@@ -91,10 +85,8 @@ jobs:
                 cd /home/radio/radio && \
                 pip install -r install/requirements.txt -r install/requirements-dev.txt && \
 
-                # Run tests with proper environment
+                # Run tests
                 PYTHONPATH=/home/radio/radio \
-                XDG_RUNTIME_DIR=/run/user/1000 \
-                PULSE_RUNTIME_PATH=/run/user/1000/pulse \
                 python -m pytest \
                   --verbose \
                   --cov=src/core \
@@ -107,7 +99,6 @@ jobs:
                   tests/
               '
             "
-
       # Add test summary
       - name: Test Summary
         uses: test-summary/action@v2
