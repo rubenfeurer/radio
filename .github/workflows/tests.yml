@@ -70,7 +70,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   test:
-    needs: lint # Run tests after linting
+    needs: lint
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -84,6 +84,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
+
+      # Set up environment variables
+      - name: Set up environment
+        run: |
+          echo "PYTHONPATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "MOCK_HARDWARE=true" >> $GITHUB_ENV
+          echo "TEST_MODE=CI" >> $GITHUB_ENV
 
       # Cache dependencies
       - name: Cache pip packages
@@ -103,6 +110,7 @@ jobs:
       # Split tests into categories
       - name: Run unit tests
         env:
+          PYTHONPATH: ${{ github.workspace }}
           MOCK_HARDWARE: "true"
           TEST_MODE: "CI"
         run: |
@@ -110,6 +118,7 @@ jobs:
 
       - name: Run API tests
         env:
+          PYTHONPATH: ${{ github.workspace }}
           MOCK_HARDWARE: "true"
           TEST_MODE: "CI"
         run: |
