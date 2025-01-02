@@ -12,30 +12,25 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # Add fail-fast to stop all jobs if any fail
     strategy:
       fail-fast: true
 
     steps:
       - uses: actions/checkout@v4
 
-      # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        # Add error handling
         if: success()
 
-      # Cache Docker layers
       - name: Cache Docker layers
         uses: actions/cache@v4
         if: success()
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.backend', 'install/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      # Build with cache
       - name: Build development image
         uses: docker/build-push-action@v5
         if: success()
@@ -44,28 +39,28 @@ jobs:
           file: ./docker/dev/Dockerfile.backend
           load: true
           tags: radio-dev:latest
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
-      # Run tests in container with targeted coverage
+      # Run tests in container
       - name: Run tests
         if: success()
         run: |
-          # Create test directories if they don't exist
-          docker compose -f docker/docker-compose.dev.yml run --rm \
-            --user root \
-            backend bash -c "
-              mkdir -p /home/radio/radio/tests/unit \
-                       /home/radio/radio/tests/api \
-                       /home/radio/radio/tests/integration && \
-              chown -R radio:radio /home/radio/radio/tests
-            "
-
-          # Run tests as radio user and ensure output files are created in workspace
+          # Run tests in container
           docker compose -f docker/docker-compose.dev.yml run --rm \
             -v ${PWD}:/home/radio/radio \
             backend bash -c "
-              source /home/radio/radio/venv/bin/activate && \
+              # Ensure venv exists and is activated
+              python -m venv /home/radio/radio/venv && \
+              . /home/radio/radio/venv/bin/activate && \
+              pip install -r requirements.txt -r requirements-dev.txt && \
+
+              # Create test directories
+              mkdir -p tests/unit tests/api tests/integration && \
+
+              # Run tests
               python -m pytest \
                 --verbose \
                 --cov=src/core \
@@ -74,7 +69,7 @@ jobs:
                 --cov-report=xml \
                 --cov-report=term-missing \
                 --cov-fail-under=50 \
-                --junitxml=/home/radio/radio/pytest-results.xml \
+                --junitxml=pytest-results.xml \
                 tests/
             "
 
