@@ -45,7 +45,7 @@ jobs:
 
       - name: Run mypy
         run: |
-          PYTHONPATH=src mypy src
+          cd src && PYTHONPATH=. mypy .
 
       - name: Run pylint
         run: pylint src tests
