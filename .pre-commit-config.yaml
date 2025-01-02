@@ -48,3 +48,17 @@ repos:
     hooks:
       - id: isort
         args: ["--profile", "black"]
+
+  - repo: local
+    hooks:
+      - id: fast-tests
+        name: Run Fast Unit Tests
+        entry: pytest
+        language: python
+        types: [python]
+        pass_filenames: false
+        stages: [pre-commit]
+        args: ["tests/unit", "-v", "--no-cov", "--timeout=1"]
+        additional_dependencies:
+          - pytest
+          - pytest-timeout

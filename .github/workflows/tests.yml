@@ -1,17 +1,13 @@
 name: Radio Tests
 
 on:
-  push:
-    branches: [main, develop]
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "config/**"
-      - "requirements*.txt"
-      - ".github/workflows/**"
-      - "docker/**"
   pull_request:
     branches: [main, develop]
+  push:
+    branches:
+      - "*"
+      - "!main"
+      - "!develop"
 
 jobs:
   test:
@@ -55,20 +51,31 @@ jobs:
       - name: Run tests
         if: success()
         run: |
-          docker compose -f docker/docker-compose.dev.yml run --rm backend bash -c "
-            source /home/radio/radio/venv/bin/activate && \
-            mkdir -p tests/unit tests/api tests/integration && \
-            python -m pytest \
-              --verbose \
-              --cov=src/core \
-              --cov=src/api \
-              --cov=src/hardware \
-              --cov-report=xml \
-              --cov-report=term-missing \
-              --cov-fail-under=80 \
-              --junitxml=pytest-results.xml \
-              tests/
-          "
+          # Create test directories if they don't exist
+          docker compose -f docker/docker-compose.dev.yml run --rm \
+            --user root \
+            backend bash -c "
+              mkdir -p /home/radio/radio/tests/unit \
+                       /home/radio/radio/tests/api \
+                       /home/radio/radio/tests/integration && \
+              chown -R radio:radio /home/radio/radio/tests
+            "
+
+          # Run tests as radio user
+          docker compose -f docker/docker-compose.dev.yml run --rm \
+            backend bash -c "
+              source /home/radio/radio/venv/bin/activate && \
+              python -m pytest \
+                --verbose \
+                --cov=src/core \
+                --cov=src/api \
+                --cov=src/hardware \
+                --cov-report=xml \
+                --cov-report=term-missing \
+                --cov-fail-under=80 \
+                --junitxml=pytest-results.xml \
+                tests/
+            "
 
       # Move cache
       - name: Move cache

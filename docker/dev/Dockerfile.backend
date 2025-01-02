@@ -44,6 +44,12 @@ RUN useradd -m -s /bin/bash radio && \
 RUN mkdir -p /home/radio/radio/logs /home/radio/radio/data /tmp/mpv-socket && \
     chown -R radio:radio /home/radio/radio /tmp/mpv-socket
 
+# Create test directories with correct permissions
+RUN mkdir -p /home/radio/radio/tests/unit \
+    /home/radio/radio/tests/integration \
+    /home/radio/radio/tests/e2e && \
+    chown -R radio:radio /home/radio/radio/tests
+
 # Switch to radio user
 USER radio
 WORKDIR /home/radio/radio
@@ -77,4 +83,4 @@ ENV PULSE_RUNTIME_PATH=/run/user/1000/pulse
 ENV MOCK_GPIO=true
 
 # Start command
-CMD ["/home/radio/radio/venv/bin/python", "-m", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "80", "--reload"] 
+CMD ["/home/radio/radio/venv/bin/python", "-m", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
