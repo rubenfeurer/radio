@@ -52,6 +52,9 @@ WORKDIR /home/radio/radio
 RUN virtualenv venv && \
     /home/radio/radio/venv/bin/pip install --upgrade pip
 
+# Copy mypy configuration
+COPY --chown=radio:radio mypy.ini /home/radio/radio/mypy.ini
+
 # Install Python dependencies and development tools
 COPY --chown=radio:radio install/requirements.txt requirements.txt
 COPY --chown=radio:radio install/requirements-dev.txt requirements-dev.txt
@@ -61,7 +64,9 @@ RUN /home/radio/radio/venv/bin/pip install -r requirements.txt -r requirements-d
     pyupgrade \
     types-requests \
     types-psutil \
-    mypy-extensions
+    mypy-extensions \
+    types-pydantic \
+    types-fastapi
 
 # Create stubs directory
 RUN mkdir -p /home/radio/radio/src/stubs

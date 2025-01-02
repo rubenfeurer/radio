@@ -107,7 +107,7 @@ run_lint() {
         ruff check \
             --ignore E501,D100,D101,D102,D103,D104,D105,D106,D107,D400,D415,ANN201,ANN202,ANN001,S101,SLF001,ARG001 \
             src tests && \
-        mypy --ignore-missing-imports --disable-error-code attr-defined --explicit-package-bases src && \
+        mypy src --config-file mypy.ini && \
         pylint --disable=C0111,C0114,C0115,C0116,E1101,R0801,R0903,W0511,C0103 src tests
     "
 }

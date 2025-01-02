@@ -11,6 +11,10 @@ pytest-cov
 pytest-asyncio
 types-requests>=2.31.0
 
+# Type stubs
+types-pydantic>=2.6.0
+types-fastapi>=0.109.0
+
 # Development tools
 ipython
 debugpy
