@@ -1,6 +1,6 @@
 FROM debian:bullseye
 
-# Install system dependencies including Rust
+# Install system dependencies including Rust and build tools
 RUN apt-get update && \
     apt-get install -y \
     python3-dev \
@@ -8,6 +8,10 @@ RUN apt-get update && \
     python3-venv \
     build-essential \
     curl \
+    # Add dependencies for cryptography and cffi
+    libffi-dev \
+    libssl-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust
