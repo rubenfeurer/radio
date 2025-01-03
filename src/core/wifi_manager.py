@@ -596,3 +596,17 @@ class WiFiManager:
         if process and process.stdout:
             return expected in str(process.stdout)
         return False
+
+    def _verify_interface_state(self) -> bool:
+        """Verify wlan0 is in correct state"""
+        try:
+            result = self._run_command(
+                ["nmcli", "device", "status"], capture_output=True, text=True
+            )
+            if "wlan0" not in result.stdout:
+                self.logger.error("wlan0 interface not found")
+                return False
+            return True
+        except Exception as e:
+            self.logger.error(f"Interface verification failed: {e}")
+            return False

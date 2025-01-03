@@ -53,12 +53,9 @@ repos:
     hooks:
       - id: fast-tests
         name: Run Fast Unit Tests
-        entry: pytest
-        language: python
+        entry: bash -c 'docker compose -f docker/docker-compose.dev.yml run --rm backend /home/radio/radio/venv/bin/python -m pytest'
+        language: system
         types: [python]
         pass_filenames: false
         stages: [pre-commit]
         args: ["tests/unit", "-v", "--no-cov", "--timeout=1"]
-        additional_dependencies:
-          - pytest
-          - pytest-timeout

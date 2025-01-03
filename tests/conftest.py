@@ -6,12 +6,20 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from src.core.wifi_manager import WiFiManager
-
-# Add project root to Python path BEFORE imports
+# Add project root to Python path
 project_root = str(Path(__file__).parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
+# Mock MPV when running in pre-commit or CI
+if os.getenv("CI") or os.getenv("MOCK_MPV"):
+    sys.modules["mpv"] = MagicMock()
+
+# Now we can import local modules
+try:
+    from src.core.wifi_manager import WiFiManager  # noqa: E402
+except ImportError:
+    from radio.src.core.wifi_manager import WiFiManager  # noqa: E402
 
 # Create module level mocks
 mock_mpv_instance: Optional[MagicMock] = None

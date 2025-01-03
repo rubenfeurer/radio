@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import subprocess
-from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -123,142 +122,43 @@ class ModeManagerSingleton:
             return False
 
     async def enable_ap_mode(self) -> bool:
-        """Enable AP mode with configured SSID and password."""
+        """Enable AP mode using NetworkManager"""
         try:
-            logger.info(
-                f"Enabling AP mode with SSID: {self.AP_SSID}, Password: {self.AP_PASS}",
-            )
+            logger.info(f"Enabling AP mode with SSID: {self.AP_SSID}")
 
             # Save current WiFi status before switching
-            try:
-                from .wifi_manager import WiFiManager
+            await self._save_wifi_status()
 
-                wifi_manager = WiFiManager()
-
-                # Get comprehensive WiFi status
-                status = wifi_manager.get_current_status()
-
-                data_dir = Path("data")
-                data_dir.mkdir(exist_ok=True)
-
-                # Create a more detailed status dictionary
-                wifi_status = {
-                    "ssid": status.ssid,
-                    "signal_strength": status.signal_strength,
-                    "is_connected": status.is_connected,
-                    "has_internet": status.has_internet,
-                    "available_networks": [
-                        {
-                            "ssid": net.ssid,
-                            "signal_strength": net.signal_strength,
-                            "security": net.security,
-                            "in_use": net.in_use,
-                            "saved": net.saved,
-                        }
-                        for net in status.available_networks
-                    ],
-                    "timestamp": str(datetime.now()),
-                }
-
-                # Save to JSON file
-                status_file = data_dir / "last_wifi_status.json"
-                logger.info(f"Saving detailed WiFi status to {status_file}")
-                with open(status_file, "w") as f:
-                    json.dump(wifi_status, f, indent=2)
-
-            except Exception as e:
-                logger.error(f"Failed to save WiFi status: {e}")
-                # Continue with mode switch even if save fails
-
-            # First disconnect from current network
-            disconnect_result = subprocess.run(
-                ["sudo", "nmcli", "device", "disconnect", "wlan0"],
+            # Create AP connection if it doesn't exist
+            result = subprocess.run(
+                [
+                    "sudo",
+                    "nmcli",
+                    "device",
+                    "wifi",
+                    "hotspot",
+                    "ifname",
+                    "wlan0",
+                    "ssid",
+                    self.AP_SSID,
+                    "password",
+                    self.AP_PASS,
+                ],
                 capture_output=True,
                 text=True,
                 check=False,
             )
-            logger.debug(
-                f"Disconnect result: {disconnect_result.stdout} {disconnect_result.stderr}",
-            )
-
-            await asyncio.sleep(2)
-
-            # Remove existing hotspot connection
-            delete_result = subprocess.run(
-                ["sudo", "nmcli", "connection", "delete", "Hotspot"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            logger.debug(
-                f"Delete result: {delete_result.stdout} {delete_result.stderr}",
-            )
-
-            # Create new hotspot with explicit security settings
-            cmd = [
-                "sudo",
-                "nmcli",
-                "connection",
-                "add",
-                "type",
-                "wifi",
-                "ifname",
-                "wlan0",
-                "con-name",
-                "Hotspot",
-                "autoconnect",
-                "yes",
-                "ssid",
-                self.AP_SSID,
-                "mode",
-                "ap",
-                "ipv4.method",
-                "shared",
-                "802-11-wireless-security.key-mgmt",
-                "wpa-psk",
-                "802-11-wireless-security.psk",
-                self.AP_PASS,
-                "802-11-wireless-security.proto",
-                "rsn",
-                "802-11-wireless-security.pairwise",
-                "ccmp",
-                "802-11-wireless-security.group",
-                "ccmp",
-                "802-11-wireless.band",
-                settings.AP_BAND,
-                "802-11-wireless.channel",
-                str(settings.AP_CHANNEL),
-            ]
-            logger.debug(f"Running command: {' '.join(cmd)}")
-
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
             if result.returncode != 0:
-                error_msg = f"Failed to create AP connection. Return code: {result.returncode}\nStdout: {result.stdout}\nStderr: {result.stderr}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+                logger.error(f"Failed to create AP: {result.stderr}")
+                return False
 
-            # Activate the connection
-            activate_cmd = ["sudo", "nmcli", "connection", "up", "Hotspot"]
-            activate_result = subprocess.run(
-                activate_cmd,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-
-            if activate_result.returncode != 0:
-                error_msg = f"Failed to activate AP mode. Return code: {activate_result.returncode}\nStdout: {activate_result.stdout}\nStderr: {activate_result.stderr}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
-
-            logger.info("AP mode enabled successfully")
-            await self._sound_manager.notify(SystemEvent.MODE_SWITCH)
+            self._save_state(NetworkMode.AP)
             return True
 
         except Exception as e:
-            logger.error(f"Error enabling AP mode: {e!s}", exc_info=True)
-            raise
+            logger.error(f"Error enabling AP mode: {e}", exc_info=True)
+            return False
 
     async def enable_client_mode(self) -> bool:
         """Enable client mode and connect to saved networks."""
@@ -332,27 +232,30 @@ class ModeManagerSingleton:
             raise
 
     async def toggle_mode(self) -> NetworkMode:
-        """Toggle between AP and Client modes."""
+        """Toggle between AP and Client modes with stability checks"""
         try:
-            current_mode = self.detect_current_mode()
+            # Allow interface to stabilize
+            await asyncio.sleep(1)
 
-            # Switch to opposite mode
+            current_mode = self.detect_current_mode()
             if current_mode == NetworkMode.CLIENT:
                 success = await self.enable_ap_mode()
-                new_mode = NetworkMode.AP
             else:
                 success = await self.enable_client_mode()
-                new_mode = NetworkMode.CLIENT
 
-            if success:
-                self._save_state(new_mode)
-                return new_mode
+            # Verify mode switch
+            if not success:
+                self.logger.error(f"Failed to switch from {current_mode}")
+                return current_mode
 
-            raise Exception(f"Failed to switch to {new_mode} mode")
+            # Allow mode to stabilize
+            await asyncio.sleep(2)
+
+            return self.detect_current_mode()
 
         except Exception as e:
-            self.logger.error(f"Failed to toggle mode: {e}")
-            raise
+            self.logger.error(f"Mode toggle failed: {e}")
+            return current_mode
 
     def _run_command(
         self,
@@ -424,6 +327,24 @@ class ModeManagerSingleton:
         except Exception as e:
             logger.error(f"Error scanning networks: {e}")
             raise
+
+    async def recover_network_state(self) -> bool:
+        """Recover last known network state after power loss or failure"""
+        try:
+            last_mode = self._load_state()
+            if not last_mode:
+                self.logger.warning("No saved state found, defaulting to client mode")
+                return await self.enable_client_mode()
+
+            self.logger.info(f"Recovering last known state: {last_mode}")
+            if last_mode == NetworkMode.AP:
+                return await self.enable_ap_mode()
+            return await self.enable_client_mode()
+
+        except Exception as e:
+            self.logger.error(f"Failed to recover network state: {e}")
+            # Default to client mode on failure
+            return await self.enable_client_mode()
 
 
 # For backwards compatibility

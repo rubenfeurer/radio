@@ -11,16 +11,38 @@ RADIO_HOME="/home/${RADIO_USER}/radio"
 VENV_PATH="${RADIO_HOME}/venv"
 
 # Check if running as root
-if [ "$EUID" -ne 0 ]; then 
+if [ "$EUID" -ne 0 ]; then
     echo "Please run as root"
     exit 1
+fi
+
+# Docker environment check
+if [ -f /.dockerenv ]; then
+    echo "Docker environment detected - configuring for container use..."
+    # Skip network service management and hardware setup
+    export SKIP_HARDWARE=1
+    export SKIP_NETWORK_SETUP=1
+
+    # Only run essential setup in Docker
+    echo "Running minimal Docker setup..."
+    apt-get update
+    # Install core dependencies only
+    while read -r line; do
+        [[ $line =~ ^#.*$ ]] && continue
+        [[ -z $line ]] && continue
+        # Skip hardware-specific packages
+        [[ $line == "pigpio" ]] && continue
+        [[ $line == "alsa-utils" ]] && continue
+        apt-get install -y $line
+    done < install/system-requirements.txt
+    exit 0
 fi
 
 # Skip if running in Docker
 if [ -f /.dockerenv ]; then
     # Only run dependency installation in Docker
     echo "Running in Docker environment..."
-    
+
     # Install system dependencies
     apt-get update
     while read -r line; do
@@ -30,7 +52,7 @@ if [ -f /.dockerenv ]; then
         [[ $line == "pigpio" ]] && continue
         apt-get install -y $line
     done < install/system-requirements.txt
-    
+
     # Start pigpiod service in Docker
     echo "Starting pigpiod service..."
     pigpiod
@@ -40,7 +62,7 @@ if [ -f /.dockerenv ]; then
     source ${VENV_PATH}/bin/activate
     pip install --upgrade pip
     pip install -r install/requirements.txt
-    
+
     exit 0
 fi
 
@@ -54,7 +76,7 @@ while read -r line; do
     # Skip comments and empty lines
     [[ $line =~ ^#.*$ ]] && continue
     [[ -z $line ]] && continue
-    
+
     echo "Installing $line..."
     apt-get install -y $line
 done < install/system-requirements.txt
@@ -98,22 +120,63 @@ radio ALL=(ALL) NOPASSWD: /sbin/shutdown
 EOF
 sudo chmod 440 $SUDO_FILE
 
+# Network Service Management
+echo "Configuring network services..."
+
+if [ -f /.dockerenv ]; then
+    echo "Docker environment detected - skipping network service management"
+else
+    # Stop and disable all potentially conflicting network services
+    NETWORK_SERVICES=(
+        "dhcpcd"
+        "wpa_supplicant"
+        "systemd-networkd"
+        "raspberrypi-net-mods"
+    )
+
+    for service in "${NETWORK_SERVICES[@]}"; do
+        echo "Disabling $service..."
+        if systemctl is-active --quiet $service; then
+            systemctl stop $service
+            systemctl disable $service
+            systemctl mask $service
+        else
+            echo "$service is already disabled"
+        fi
+    done
+
+    # Ensure NetworkManager is enabled and running
+    echo "Enabling NetworkManager..."
+    systemctl enable NetworkManager
+    systemctl restart NetworkManager
+fi
+
+# Ensure consistent network interface naming
+echo "Configuring network interface naming..."
+sudo tee /etc/udev/rules.d/72-wlan-geo-dependent.rules <<EOF
+ACTION=="add", SUBSYSTEM=="net", DRIVERS=="brcmfmac", NAME="wlan0"
+EOF
+
 # Configure NetworkManager
-echo "Configuring NetworkManager..."
 sudo tee /etc/NetworkManager/NetworkManager.conf <<EOF
 [main]
 plugins=ifupdown,keyfile
 dhcp=internal
+dns=default
+no-auto-default=*
 
 [ifupdown]
 managed=true
 
 [device]
 wifi.scan-rand-mac-address=no
+
+[connection]
+wifi.mac-address-randomization=1
 EOF
 
-# Restart NetworkManager to apply changes
-systemctl restart NetworkManager
+# Wait for NetworkManager to be ready
+sleep 2
 
 echo "5. Setting up Avahi daemon..."
 # Configure Avahi for .local domain
@@ -162,7 +225,7 @@ REQUIRED_DIRS=(
 # Only copy files if we're not already in the target directory
 if [ "$PWD" != "${RADIO_HOME}" ]; then
     echo "Copying files to ${RADIO_HOME}..."
-    
+
     # Copy directories with verification
     for dir in "${REQUIRED_DIRS[@]}"; do
         if [ -d "$dir" ]; then
@@ -173,7 +236,7 @@ if [ "$PWD" != "${RADIO_HOME}" ]; then
             exit 1
         fi
     done
-    
+
     # Copy individual files with verification
     for file in "${REQUIRED_FILES[@]}"; do
         if [ -f "$file" ]; then
@@ -281,18 +344,13 @@ ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
 EOF
 
-# Configure hostapd country
-sudo tee /etc/hostapd/hostapd.conf <<EOF
-country_code=${COUNTRY_CODE}
-EOF
-
 echo "10. Setting up systemd service..."
 # Create and configure radio service
-sudo tee /etc/systemd/system/radio.service << EOF
+sudo tee /etc/systemd/system/radio.service <<EOF
 [Unit]
 Description=Internet Radio Service
-After=network.target pigpiod.service avahi-daemon.service
-Wants=network.target pigpiod.service avahi-daemon.service
+After=network-online.target NetworkManager.service pigpiod.service
+Wants=network-online.target NetworkManager.service pigpiod.service
 
 [Service]
 Type=simple
@@ -302,7 +360,6 @@ WorkingDirectory=/home/radio/radio
 Environment="PYTHONPATH=/home/radio/radio"
 Environment="XDG_RUNTIME_DIR=/run/user/1000"
 Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
-# Python optimizations
 Environment="PYTHONOPTIMIZE=2"
 Environment="PYTHONDONTWRITEBYTECODE=1"
 Environment="PYTHONUNBUFFERED=1"
@@ -318,9 +375,8 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-sudo chmod 644 /etc/systemd/system/radio.service
-sudo systemctl daemon-reload
-sudo systemctl enable radio.service
+# Reload systemd to apply changes
+systemctl daemon-reload
 
 echo "11. Setting up permissions..."
 chmod +x ${RADIO_HOME}/manage_radio.sh
@@ -350,4 +406,164 @@ echo "- Check status: sudo systemctl status radio"
 echo
 echo "Default AP mode:"
 echo "- SSID: RadioPi"
-echo "- Password: Check config/settings.json" 
+echo "- Password: Check config/settings.json"
+
+# Add NetworkManager permissions for radio user
+echo "Configuring NetworkManager permissions..."
+sudo tee /etc/polkit-1/localauthority/50-local.d/radio.pkla <<EOF
+[radio-network-control]
+Identity=unix-user:radio
+Action=org.freedesktop.NetworkManager.*
+ResultAny=yes
+ResultInactive=yes
+ResultActive=yes
+EOF
+
+# Configure interface priorities
+sudo tee /etc/NetworkManager/conf.d/10-interface-priority.conf <<EOF
+[connection]
+# Prefer wlan0 over other interfaces
+match-device=interface-name:wlan0
+ipv4.route-metric=50
+ipv6.route-metric=50
+EOF
+
+# Configure NetworkManager DNS
+sudo tee /etc/NetworkManager/conf.d/dns.conf <<EOF
+[main]
+dns=default
+systemd-resolved=false
+
+[global-dns-domain-*]
+servers=1.1.1.1,8.8.8.8
+EOF
+
+# Add network recovery script with detailed logging
+echo "Adding network recovery handler..."
+sudo tee /etc/NetworkManager/dispatcher.d/99-radio-recovery <<EOF
+#!/bin/bash
+
+# Log function for better debugging
+log_msg() {
+    logger -t "radio-recovery" "\$1"
+}
+
+# Get interface name and status
+IFACE="\$1"
+STATUS="\$2"
+
+log_msg "Network change detected: Interface=\$IFACE, Status=\$STATUS"
+
+# Only handle wlan0 events
+if [ "\$IFACE" != "wlan0" ]; then
+    log_msg "Ignoring non-wlan0 interface"
+    exit 0
+fi
+
+# Handle network state changes
+if [ "\$STATUS" = "down" ] || [ "\$STATUS" = "up" ]; then
+    log_msg "Checking radio service status..."
+
+    # Check if service is active
+    if ! systemctl is-active --quiet radio; then
+        log_msg "Radio service is down, attempting restart..."
+        systemctl restart radio
+
+        # Verify restart
+        if systemctl is-active --quiet radio; then
+            log_msg "Radio service successfully restarted"
+        else
+            log_msg "Failed to restart radio service"
+        fi
+    else
+        log_msg "Radio service is running normally"
+    fi
+fi
+EOF
+
+# Make the script executable
+sudo chmod +x /etc/NetworkManager/dispatcher.d/99-radio-recovery
+
+# Add pre-commit setup if in development mode
+if [ "$DEV_MODE" = "true" ]; then
+    echo "Setting up pre-commit hooks..."
+    pre-commit install
+fi
+
+# Check if running in development environment
+if [ -f docker-compose.dev.yml ]; then
+    echo "Development environment detected"
+    export DEV_MODE=true
+else
+    export DEV_MODE=false
+fi
+
+# Add pre-flight checks
+echo "Running pre-flight checks..."
+for cmd in nmcli ip systemctl logger; do
+    if ! command -v $cmd >/dev/null 2>&1; then
+        echo "Error: Required command '$cmd' not found"
+        exit 1
+    fi
+done
+
+# Verify wlan0 interface exists or wait for it
+echo "Verifying network interface..."
+if ! ip link show wlan0 >/dev/null 2>&1; then
+    echo "Warning: wlan0 interface not found"
+    echo "Waiting for interface..."
+    # Wait up to 30 seconds for interface
+    for i in {1..30}; do
+        if ip link show wlan0 >/dev/null 2>&1; then
+            echo "Interface wlan0 found"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo "Error: wlan0 interface not found after 30 seconds"
+            exit 1
+        fi
+        sleep 1
+    done
+fi
+
+# Add installation validation function
+validate_installation() {
+    echo "Validating installation..."
+
+    # Check critical services
+    for service in "NetworkManager" "pigpiod" "radio"; do
+        if ! systemctl is-active --quiet $service; then
+            echo "Error: $service is not running"
+            return 1
+        fi
+    done
+
+    # Verify network interface
+    if ! ip link show wlan0 >/dev/null 2>&1; then
+        echo "Error: wlan0 interface not found"
+        return 1
+    fi
+
+    # Check radio user and permissions
+    if ! id "radio" >/dev/null 2>&1; then
+        echo "Error: radio user not found"
+        return 1
+    fi
+
+    # Verify critical directories
+    for dir in "/home/radio/radio" "/etc/NetworkManager/system-connections"; do
+        if [ ! -d "$dir" ]; then
+            echo "Error: Directory $dir not found"
+            return 1
+        fi
+    done
+
+    echo "✓ Installation validation successful"
+    return 0
+}
+
+# Run validation at the end of installation
+if ! validate_installation; then
+    echo "! Installation validation failed"
+    exit 1
+fi
