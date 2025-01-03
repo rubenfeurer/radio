@@ -12,14 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Cache pip dependencies
-      - name: Cache pip packages
-        uses: actions/cache@v4
+      # Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
 
       # Cache Docker layers
       - name: Cache Docker layers
@@ -30,7 +29,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      # Build Docker image first
+      # Build Docker image
       - name: Build development image
         uses: docker/build-push-action@v5
         with:
@@ -38,13 +37,18 @@ jobs:
           file: ./docker/dev/Dockerfile.backend
           load: true
           tags: radio-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
-      # Run tests in Docker
+      # Move cache
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      # Run tests
       - name: Run tests in Docker
         run: |
-          # Create venv directory first
           mkdir -p venv && chmod 777 venv
 
           docker compose -f docker/docker-compose.dev.yml run --rm \
@@ -55,7 +59,6 @@ jobs:
             -e DEV_MODE=true \
             -e PYTHONPATH=/home/radio/radio \
             backend bash -c "
-              # Create venv if it doesn't exist
               python3 -m venv /home/radio/radio/venv && \
               chown -R radio:radio /home/radio/radio && \
 
@@ -64,7 +67,6 @@ jobs:
                 cd /home/radio/radio && \
                 pip install -r install/requirements.txt -r install/requirements-dev.txt && \
 
-                # Run tests
                 python -m pytest \
                   tests/ \
                   --verbose \
@@ -77,7 +79,7 @@ jobs:
               '
             "
 
-      # Test reporting (only if tests run)
+      # Test reporting
       - name: Test Summary
         uses: test-summary/action@v2
         if: always() && !cancelled()
