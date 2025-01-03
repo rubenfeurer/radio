@@ -12,24 +12,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Set up Docker Buildx
+      # Optimized caching
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/piwheels
+          key: ${{ runner.os }}-pip-${{ hashFiles('install/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.backend', 'install/requirements*.txt', 'install/system-requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Set up BuildKit with optimizations
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: |
             image=moby/buildkit:latest
             network=host
+          buildkitd-flags: --debug
 
-      # Cache Docker layers
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.backend', 'install/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      # Build Docker image
+      # Optimized build
       - name: Build development image
         uses: docker/build-push-action@v5
         with:
@@ -39,6 +50,10 @@ jobs:
           tags: radio-backend:latest
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
+            PIP_ONLY_BINARY=:all:
 
       # Move cache
       - name: Move cache
@@ -46,10 +61,9 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
-      # Run tests
+      # Run tests with optimized venv
       - name: Run tests in Docker
         run: |
-          # Create venv directory
           mkdir -p venv && chmod 777 venv
 
           docker compose -f docker/docker-compose.dev.yml run --rm \
@@ -59,21 +73,24 @@ jobs:
             -e MOCK_GPIO=true \
             -e DEV_MODE=true \
             -e PYTHONPATH=/home/radio/radio \
+            -e PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple \
+            -e PIP_ONLY_BINARY=:all: \
             backend bash -c "
-              # Install python3-venv first
               apt-get update && \
               apt-get install -y python3-venv && \
 
-              # Create and setup venv
               python3 -m venv /home/radio/radio/venv && \
               chown -R radio:radio /home/radio/radio && \
 
               su radio -c '
                 source /home/radio/radio/venv/bin/activate && \
                 cd /home/radio/radio && \
-                pip install -r install/requirements.txt -r install/requirements-dev.txt && \
+                pip install --no-cache-dir \
+                  --only-binary :all: \
+                  --extra-index-url https://www.piwheels.org/simple \
+                  -r install/requirements.txt \
+                  -r install/requirements-dev.txt && \
 
-                # Run tests and ensure output file is created
                 python -m pytest \
                   tests/ \
                   --verbose \
