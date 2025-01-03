@@ -551,29 +551,37 @@ fi
 
 SKIP_PIGPIO=${SKIP_PIGPIO:-0}
 
-echo "Installing system dependencies..."
-while read -r line; do
-    [[ $line =~ ^#.*$ ]] && continue
-    [[ -z $line ]] && continue
+install_system_dependencies() {
+    echo "Installing system dependencies..."
+    while read -r line; do
+        # Skip comments and empty lines
+        [[ $line =~ ^#.*$ ]] && continue
+        [[ -z $line ]] && continue
 
-    # Skip pigpio installation if already installed or flag is set
-    if [ "$line" = "pigpio" ]; then
-        if [ "$SKIP_PIGPIO" = "1" ]; then
-            echo "Skipping pigpio installation (SKIP_PIGPIO=1)"
+        # Handle pigpio specially
+        if [ "$line" = "pigpio" ]; then
+            if [ "$SKIP_PIGPIO" = "1" ]; then
+                echo "Skipping pigpio installation (SKIP_PIGPIO=1)"
+                continue
+            fi
+            # Check if already installed from source
+            if command -v pigpiod >/dev/null 2>&1; then
+                echo "pigpio already installed, skipping..."
+                continue
+            fi
+            echo "pigpio package not available, skipping apt install..."
             continue
         fi
-        if command -v pigpiod >/dev/null 2>&1; then
-            echo "pigpio already installed, skipping..."
-            continue
-        fi
-    fi
 
-    echo "Installing $line..."
-    apt-get install -y $line || {
-        echo "Warning: Failed to install $line"
-        # Only exit for critical packages
-        if [ "$line" != "pigpio" ]; then
-            exit 1
-        fi
-    }
-done < install/system-requirements.txt
+        echo "Installing $line..."
+        apt-get install -y $line || {
+            echo "Warning: Failed to install $line"
+            if [ "$line" != "pigpio" ]; then
+                exit 1
+            fi
+        }
+    done < install/system-requirements.txt
+}
+
+# Call the function where appropriate
+install_system_dependencies

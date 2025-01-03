@@ -38,8 +38,9 @@ RUN wget https://github.com/joan2937/pigpio/archive/master.zip \
     && rm -rf master.zip pigpio-master \
     && ldconfig
 
-# Run install script with test flags and skip pigpio
-RUN bash -c 'SKIP_PIGPIO=1 ./install/install.sh --test'
+# Run install script with test flags
+ENV SKIP_PIGPIO=1
+RUN ./install/install.sh --test
 
 # Run tests
 CMD ["bash", "-c", "systemctl start radio && journalctl -u radio -f"]
