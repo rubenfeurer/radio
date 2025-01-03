@@ -49,6 +49,7 @@ jobs:
       # Run tests
       - name: Run tests in Docker
         run: |
+          # Create venv directory
           mkdir -p venv && chmod 777 venv
 
           docker compose -f docker/docker-compose.dev.yml run --rm \
@@ -59,6 +60,11 @@ jobs:
             -e DEV_MODE=true \
             -e PYTHONPATH=/home/radio/radio \
             backend bash -c "
+              # Install python3-venv first
+              apt-get update && \
+              apt-get install -y python3-venv && \
+
+              # Create and setup venv
               python3 -m venv /home/radio/radio/venv && \
               chown -R radio:radio /home/radio/radio && \
 
@@ -67,6 +73,7 @@ jobs:
                 cd /home/radio/radio && \
                 pip install -r install/requirements.txt -r install/requirements-dev.txt && \
 
+                # Run tests and ensure output file is created
                 python -m pytest \
                   tests/ \
                   --verbose \
@@ -75,16 +82,19 @@ jobs:
                   --cov=src/hardware \
                   --cov-report=term-missing \
                   --cov-fail-under=50 \
-                  --junitxml=/home/radio/radio/pytest-results.xml
+                  --junitxml=/home/radio/radio/pytest-results.xml && \
+                chmod 644 /home/radio/radio/pytest-results.xml
               '
             "
 
-      # Test reporting
+      # Test reporting with better error handling
       - name: Test Summary
         uses: test-summary/action@v2
-        if: always() && !cancelled()
+        if: always() && !cancelled() && (success() || failure())
+        continue-on-error: true
         with:
-          paths: pytest-results.xml
+          paths: |
+            pytest-results.xml
 
       # Error notification (only for PRs)
       - name: Notify on Failure
