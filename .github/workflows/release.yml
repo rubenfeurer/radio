@@ -187,6 +187,7 @@ jobs:
           cp -r install/ dist/
           cp -r config/ dist/
           cp manage_radio.sh dist/
+          cp install.sh dist/
           cp install/requirements*.txt dist/
 
           cd dist
@@ -254,6 +255,9 @@ jobs:
           mkdir -p dist
           docker cp $CONTAINER_ID:/home/radio/radio/. ./dist/
           docker rm $CONTAINER_ID
+
+          # Ensure install.sh is included and executable
+          chmod +x dist/install.sh
 
           VERSION="${GITHUB_REF#refs/tags/}"
           [ -z "$VERSION" ] && VERSION="main-$(date +'%Y%m%d')"
