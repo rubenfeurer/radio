@@ -103,16 +103,24 @@ jobs:
       # Export development package
       - name: Export development package
         run: |
+          # Create dist directory with proper permissions
+          sudo mkdir -p dist
+          sudo chown $USER:$USER dist
+
           VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
           PACKAGE="radio-${VERSION}"
 
-          mkdir -p dist
+          # Copy files with proper permissions
           cp -r src/ dist/
           cp -r web/build/ dist/web/
           cp -r install/ dist/
           cp -r config/ dist/
           cp -r scripts/ dist/
           cp manage_radio.sh dist/
+
+          # Ensure proper permissions
+          sudo chown -R $USER:$USER dist/
+          chmod -R 755 dist/
 
           cd dist
           tar -czf ${PACKAGE}.tar.gz ./*
