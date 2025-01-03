@@ -10,12 +10,13 @@ RUN apt-get update && apt-get install -y \
     git \
     systemd \
     dbus \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy all files
 COPY . .
 
-# Set execute permissions on scripts
+# Set execute permissions
 RUN chmod +x install/install.sh \
     && chmod +x scripts/*.sh \
     && chmod +x manage_radio.sh
@@ -25,17 +26,18 @@ ENV MOCK_SERVICES=true
 ENV SKIP_HARDWARE=1
 ENV SKIP_NETWORK_SETUP=1
 
-# Install pigpio from source for testing
+# Install pigpio from source before running install script
 RUN wget https://github.com/joan2937/pigpio/archive/master.zip \
     && unzip master.zip \
     && cd pigpio-master \
     && make \
     && make install \
     && cd .. \
-    && rm -rf master.zip pigpio-master
+    && rm -rf master.zip pigpio-master \
+    && ldconfig
 
 # Run install script with test flags
-RUN DEV_MODE=true ./install/install.sh --test
+RUN DEV_MODE=true SKIP_PIGPIO=1 ./install/install.sh --test
 
 # Run tests
 CMD ["bash", "-c", "systemctl start radio && journalctl -u radio -f"]

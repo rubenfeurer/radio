@@ -29,7 +29,41 @@ A web-controlled internet radio system for Raspberry Pi with physical controls a
 
 ## Development Setup
 
-### Using Docker (Recommended)
+### On Raspberry Pi
+
+1. Download development build:
+
+   ```bash
+   # From GitHub Actions:
+   # Go to: GitHub -> Actions -> Build and Release -> Latest develop branch run
+   # Download the "radio-dev-package" artifact
+
+   tar -xzf radio-develop-*.tar.gz
+   cd radio-*
+   ```
+
+2. Install and start development environment:
+
+   ```bash
+   # Install with development mode
+   sudo DEV_MODE=true ./install/install.sh --dev
+
+   # Start development environment
+   ./dev.sh start   # Sets up everything automatically
+   ```
+
+Available development commands:
+
+```bash
+./dev.sh logs      # View backend logs
+./dev.sh test      # Run tests
+./dev.sh lint      # Check code quality
+./dev.sh fix       # Auto-fix code issues
+./dev.sh stop      # Stop all services
+./dev.sh rebuild   # Rebuild environment
+```
+
+### Using Docker (Alternative)
 
 ```bash
 # Start development environment (backend + frontend)
