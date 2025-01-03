@@ -148,13 +148,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build for current platform only when using --load
+      # Build for current platform only
       - name: Build development image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.dev
-          platforms: linux/amd64 # Single platform when using --load
+          file: ./docker/dev/Dockerfile.backend
+          platforms: linux/amd64
           load: true
           tags: radio-dev:latest
           build-args: |
@@ -162,14 +162,14 @@ jobs:
           cache-from: type=gha,scope=dev
           cache-to: type=gha,scope=dev,mode=max
 
-      # For multi-platform build without --load
+      # Multi-platform build
       - name: Build multi-platform image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.dev
+          file: ./docker/dev/Dockerfile.backend
           platforms: linux/amd64,linux/arm/v7
-          push: false # Don't push, just build
+          push: false
           tags: radio-dev:latest
           build-args: |
             BUILD_TYPE=development
