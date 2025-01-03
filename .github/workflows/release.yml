@@ -12,12 +12,79 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cache pip dependencies
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Cache Docker layers
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.backend', 'install/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Run tests in Docker
       - name: Run tests in Docker
         run: |
           docker compose -f docker/docker-compose.dev.yml run --rm \
-            backend pytest tests/ \
-            --cov=src \
-            --cov-report=term-missing
+            --user root \
+            -v ${PWD}:/home/radio/radio \
+            -e MOCK_SERVICES=true \
+            -e MOCK_GPIO=true \
+            -e DEV_MODE=true \
+            -e PYTHONPATH=/home/radio/radio \
+            backend bash -c "
+              # Ensure correct permissions
+              chown -R radio:radio /home/radio/radio && \
+
+              # Create and setup venv if needed
+              su radio -c '
+                cd /home/radio/radio && \
+                source /home/radio/radio/venv/bin/activate && \
+
+                # Install dependencies
+                pip install -r install/requirements.txt -r install/requirements-dev.txt && \
+
+                # Run tests
+                PYTHONPATH=/home/radio/radio \
+                MOCK_SERVICES=true \
+                MOCK_GPIO=true \
+                python -m pytest \
+                  tests/ \
+                  --verbose \
+                  --cov=src/core \
+                  --cov=src/api \
+                  --cov=src/hardware \
+                  --cov-report=term-missing \
+                  --cov-fail-under=50 \
+                  --junitxml=/home/radio/radio/pytest-results.xml
+              '
+            "
+
+      # Test reporting
+      - name: Test Summary
+        uses: test-summary/action@v2
+        if: always()
+        with:
+          paths: pytest-results.xml
+
+      - name: Notify on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: '❌ Tests failed in release workflow'
+            })
 
   security-scan:
     needs: [test]
