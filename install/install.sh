@@ -19,7 +19,36 @@ fi
 # Near the top after environment variables
 if [ "$DOCKER_ENV" = "1" ]; then
     echo "Docker environment detected - running minimal installation"
-    # ... existing minimal installation code ...
+
+    # Create radio user and home directory
+    useradd -m ${RADIO_USER}
+    mkdir -p ${RADIO_HOME}
+    chown -R ${RADIO_USER}:${RADIO_USER} ${RADIO_HOME}
+
+    # Install only essential system packages
+    apt-get update
+    while read -r line; do
+        [[ $line =~ ^#.*$ ]] && continue
+        [[ -z $line ]] && continue
+        # Skip hardware-specific packages in Docker
+        [[ $line == "pigpio" ]] && continue
+        [[ $line == "alsa-utils" ]] && continue
+        [[ $line == "network-manager" ]] && continue
+        apt-get install -y $line
+    done < install/system-requirements.txt
+    rm -rf /var/lib/apt/lists/*
+
+    # Install core Python dependencies only
+    python3 -m venv ${VENV_PATH}
+    source ${VENV_PATH}/bin/activate
+    pip install --no-cache-dir -r install/requirements.txt
+
+    # Copy manage_radio.sh
+    cp manage_radio.sh ${RADIO_HOME}/
+    chmod +x ${RADIO_HOME}/manage_radio.sh
+    chown ${RADIO_USER}:${RADIO_USER} ${RADIO_HOME}/manage_radio.sh
+
+    echo "Minimal Docker installation completed"
     exit 0
 fi
 
