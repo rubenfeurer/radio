@@ -49,6 +49,8 @@ fi
 
 # Regular installation continues here...
 
+SKIP_PIGPIO=${SKIP_PIGPIO:-0}
+
 echo "1. Installing system dependencies..."
 apt-get update
 
@@ -59,13 +61,28 @@ while read -r line; do
     [[ -z $line ]] && continue
 
     echo "Installing $line..."
-    apt-get install -y $line
+    if [ "$line" = "pigpio" ]; then
+        if [ "$SKIP_PIGPIO" = "1" ]; then
+            echo "Skipping pigpio installation (SKIP_PIGPIO=1)"
+            continue
+        fi
+        # Try to install pigpio but don't fail if not available
+        apt-get install -y pigpio || {
+            echo "Warning: pigpio installation skipped (not available)"
+            continue
+        }
+    else
+        # Install other packages normally
+        apt-get install -y $line || exit 1
+    fi
 done < install/system-requirements.txt
 
-# Start and enable pigpiod
-echo "2. Setting up pigpiod service..."
-systemctl enable pigpiod
-systemctl start pigpiod
+# Skip pigpio service setup if flag is set or installation failed
+if [ "$SKIP_PIGPIO" != "1" ] && command -v pigpiod >/dev/null 2>&1; then
+    echo "2. Setting up pigpiod service..."
+    systemctl enable pigpiod || true
+    systemctl start pigpiod || true
+fi
 
 echo "3. Creating radio user..."
 # Create radio user if not exists

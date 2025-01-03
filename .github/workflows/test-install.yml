@@ -29,6 +29,18 @@ jobs:
         uses: docker/setup-buildx-action@v3
         with:
           buildkitd-flags: --debug
+          driver-opts: |
+            image=moby/buildkit:master
+            network=host
+
+      # Improved caching strategy
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-arm-buildx-${{ hashFiles('install/**', 'Dockerfile.test-install') }}
+          restore-keys: |
+            ${{ runner.os }}-arm-buildx-
 
       - name: Build and test installation
         uses: docker/build-push-action@v5
@@ -42,9 +54,17 @@ jobs:
             SKIP_DEV_DEPS=1
             SKIP_PIGPIO=1
           cache-from: |
+            type=local,src=/tmp/.buildx-cache
             type=gha,scope=test-install
           cache-to: |
+            type=local,dest=/tmp/.buildx-cache-new,mode=max
             type=gha,scope=test-install,mode=max
+
+      # Move cache to prevent cache growth
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: Run installation test
         run: |
