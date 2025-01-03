@@ -100,6 +100,21 @@ jobs:
               '
             "
 
+      # Set up Node.js for frontend build
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      # Build frontend
+      - name: Build frontend
+        working-directory: ./web
+        run: |
+          npm ci
+          npm run build
+
       # Export development package
       - name: Export development package
         run: |
