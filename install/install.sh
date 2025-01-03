@@ -50,6 +50,7 @@ fi
 # Regular installation continues here...
 
 SKIP_PIGPIO=${SKIP_PIGPIO:-0}
+TEST_MODE=${TEST_MODE:-0}
 
 echo "1. Installing system dependencies..."
 apt-get update
@@ -88,8 +89,17 @@ echo "3. Creating radio user..."
 # Create radio user if not exists
 if ! id "${RADIO_USER}" &>/dev/null; then
     useradd -m ${RADIO_USER}
-    # Add to all necessary groups for Raspberry Pi
-    usermod -a -G audio,gpio,dialout,pulse-access,netdev ${RADIO_USER}
+
+    # Add to groups based on environment
+    if [ "$TEST_MODE" = "1" ] || [ "$SKIP_PIGPIO" = "1" ]; then
+        # Minimal groups for test environment
+        usermod -a -G audio,dialout,pulse-access,netdev ${RADIO_USER}
+    else
+        # All groups for production environment
+        # Create gpio group if it doesn't exist
+        getent group gpio || groupadd gpio
+        usermod -a -G audio,gpio,dialout,pulse-access,netdev ${RADIO_USER}
+    fi
 fi
 
 echo "4. Setting up network permissions..."

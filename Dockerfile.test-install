@@ -27,10 +27,10 @@ ENV MOCK_SERVICES=true \
     SKIP_NETWORK_SETUP=1 \
     SKIP_PIGPIO=1 \
     DEV_MODE=true \
-    TEST_MODE=true
+    TEST_MODE=1
 
 # Run install script with test flags
-RUN SKIP_PIGPIO=1 ./install/install.sh --test
+RUN SKIP_PIGPIO=1 TEST_MODE=1 ./install/install.sh --test
 
 # Run tests
 CMD ["bash", "-c", "systemctl start radio && journalctl -u radio -f"]
