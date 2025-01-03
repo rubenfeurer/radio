@@ -15,6 +15,11 @@ RUN apt-get update && apt-get install -y \
 # Copy all files
 COPY . .
 
+# Set execute permissions on scripts
+RUN chmod +x install/install.sh \
+    && chmod +x scripts/*.sh \
+    && chmod +x manage_radio.sh
+
 # Mock systemd and hardware services for testing
 ENV MOCK_SERVICES=true
 ENV SKIP_HARDWARE=1
@@ -33,4 +38,4 @@ RUN wget https://github.com/joan2937/pigpio/archive/master.zip \
 RUN DEV_MODE=true ./install/install.sh --test
 
 # Run tests
-CMD ["bash", "scripts/test_install.sh"]
+CMD ["bash", "-c", "systemctl start radio && journalctl -u radio -f"]
