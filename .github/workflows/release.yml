@@ -30,9 +30,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
+      # Build Docker image first
+      - name: Build development image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/dev/Dockerfile.backend
+          load: true
+          tags: radio-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       # Run tests in Docker
       - name: Run tests in Docker
         run: |
+          # Create venv directory first
+          mkdir -p venv && chmod 777 venv
+
           docker compose -f docker/docker-compose.dev.yml run --rm \
             --user root \
             -v ${PWD}:/home/radio/radio \
@@ -41,21 +55,16 @@ jobs:
             -e DEV_MODE=true \
             -e PYTHONPATH=/home/radio/radio \
             backend bash -c "
-              # Ensure correct permissions
+              # Create venv if it doesn't exist
+              python3 -m venv /home/radio/radio/venv && \
               chown -R radio:radio /home/radio/radio && \
 
-              # Create and setup venv if needed
               su radio -c '
-                cd /home/radio/radio && \
                 source /home/radio/radio/venv/bin/activate && \
-
-                # Install dependencies
+                cd /home/radio/radio && \
                 pip install -r install/requirements.txt -r install/requirements-dev.txt && \
 
                 # Run tests
-                PYTHONPATH=/home/radio/radio \
-                MOCK_SERVICES=true \
-                MOCK_GPIO=true \
                 python -m pytest \
                   tests/ \
                   --verbose \
@@ -68,21 +77,22 @@ jobs:
               '
             "
 
-      # Test reporting
+      # Test reporting (only if tests run)
       - name: Test Summary
         uses: test-summary/action@v2
-        if: always()
+        if: always() && !cancelled()
         with:
           paths: pytest-results.xml
 
+      # Error notification (only for PRs)
       - name: Notify on Failure
-        if: failure()
+        if: failure() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.createComment({
               ...context.repo,
-              issue_number: context.issue.number,
+              issue_number: context.event.pull_request.number,
               body: '❌ Tests failed in release workflow'
             })
 
