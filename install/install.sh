@@ -330,8 +330,8 @@ echo "10. Setting up systemd service..."
 sudo tee /etc/systemd/system/radio.service <<EOF
 [Unit]
 Description=Internet Radio Service
-After=network-online.target NetworkManager.service pigpiod.service
-Wants=network-online.target NetworkManager.service pigpiod.service
+After=network.target pigpiod.service
+Wants=network.target pigpiod.service
 
 [Service]
 Type=simple
