@@ -40,6 +40,7 @@ jobs:
           tags: radio-test-install:latest
           build-args: |
             SKIP_DEV_DEPS=1
+            SKIP_PIGPIO=1
           cache-from: |
             type=gha,scope=test-install
           cache-to: |
