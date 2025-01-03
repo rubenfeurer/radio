@@ -241,7 +241,7 @@ MIT License - See LICENSE file for details
 
 ## Installation
 
-### Quick Install
+### Quick Install (Production)
 
 1. Download latest release:
 
@@ -259,14 +259,80 @@ MIT License - See LICENSE file for details
 
 3. Access your radio at `http://radiod.local`
 
-### Development Build
+### Development Installation
 
-Latest development build can be downloaded from GitHub Actions:
+1. Download development build:
 
-1. Go to Actions tab
-2. Select latest development workflow
-3. Download artifact from bottom of page
-4. Install as described above
+   ```bash
+   # Option 1: Direct download from GitHub Actions
+   # Go to: GitHub -> Actions -> Build and Release -> Latest develop branch run
+   # Download the "radio-dev-package" artifact
+
+   # Option 2: Using wget (replace URL with actual artifact URL)
+   wget https://github.com/rubenfeurer/radio/actions/artifacts/radio-dev-package.zip
+   unzip radio-dev-package.zip
+   ```
+
+2. Install with development flags:
+
+   ```bash
+   # Extract the package
+   tar -xzf radio-develop-*.tar.gz
+   cd radio-*
+
+   # Full development installation
+   sudo DEV_MODE=true ./install.sh --dev
+
+   # For testing without hardware
+   sudo DEV_MODE=true SKIP_HARDWARE=1 ./install.sh --dev
+   ```
+
+3. Verify installation:
+
+   ```bash
+   # Check service status
+   systemctl status radio
+
+   # Check version (should show development version)
+   radio --version
+
+   # View debug logs
+   journalctl -u radio -f
+   ```
+
+4. Development features:
+
+   - Debug logging enabled
+   - Pre-commit hooks installed
+   - Development dependencies available
+   - Test suite installed
+   - Source maps included
+
+5. Running tests:
+
+   ```bash
+   # Activate virtual environment
+   source /home/radio/radio/venv/bin/activate
+
+   # Run tests
+   pytest tests/
+
+   # Run with coverage
+   pytest --cov=src tests/
+   ```
+
+6. Development tools:
+
+   ```bash
+   # Format code
+   black src/
+
+   # Run linting
+   ruff check src/
+
+   # Type checking
+   mypy src/
+   ```
 
 ## Release Process
 

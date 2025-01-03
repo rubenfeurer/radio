@@ -2,16 +2,35 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install only minimal build essentials
+# Install essential build and test dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    wget \
+    unzip \
+    git \
+    systemd \
+    dbus \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy all files
 COPY . .
 
-# Run install script (which handles dependencies)
-RUN bash install/install.sh
+# Mock systemd and hardware services for testing
+ENV MOCK_SERVICES=true
+ENV SKIP_HARDWARE=1
+ENV SKIP_NETWORK_SETUP=1
+
+# Install pigpio from source for testing
+RUN wget https://github.com/joan2937/pigpio/archive/master.zip \
+    && unzip master.zip \
+    && cd pigpio-master \
+    && make \
+    && make install \
+    && cd .. \
+    && rm -rf master.zip pigpio-master
+
+# Run install script with test flags
+RUN DEV_MODE=true ./install/install.sh --test
 
 # Run tests
 CMD ["bash", "scripts/test_install.sh"]
