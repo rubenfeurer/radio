@@ -8,9 +8,19 @@ on:
 
 jobs:
   test:
-    uses: ./.github/workflows/tests.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests in Docker
+        run: |
+          docker compose -f docker/docker-compose.dev.yml run --rm \
+            backend pytest tests/ \
+            --cov=src \
+            --cov-report=term-missing
 
   security-scan:
+    needs: [test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
