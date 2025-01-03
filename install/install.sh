@@ -10,58 +10,39 @@ RADIO_USER="radio"
 RADIO_HOME="/home/${RADIO_USER}/radio"
 VENV_PATH="${RADIO_HOME}/venv"
 
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-    echo "Please run as root"
-    exit 1
-fi
-
 # Docker environment check
 if [ -f /.dockerenv ]; then
     echo "Docker environment detected - configuring for container use..."
-    # Skip network service management and hardware setup
+
+    # Skip hardware and network setup in Docker
     export SKIP_HARDWARE=1
     export SKIP_NETWORK_SETUP=1
 
-    # Only run essential setup in Docker
-    echo "Running minimal Docker setup..."
+    # Create minimal environment
+    echo "Setting up minimal Docker environment..."
+
+    # Create radio user and home directory
+    useradd -m ${RADIO_USER}
+    mkdir -p ${RADIO_HOME}
+    chown -R ${RADIO_USER}:${RADIO_USER} ${RADIO_HOME}
+
+    # Install only essential system packages
     apt-get update
-    # Install core dependencies only
     while read -r line; do
         [[ $line =~ ^#.*$ ]] && continue
         [[ -z $line ]] && continue
-        # Skip hardware-specific packages
+        # Skip hardware-specific packages in Docker
         [[ $line == "pigpio" ]] && continue
         [[ $line == "alsa-utils" ]] && continue
+        [[ $line == "network-manager" ]] && continue
         apt-get install -y $line
     done < install/system-requirements.txt
-    exit 0
-fi
+    rm -rf /var/lib/apt/lists/*
 
-# Skip if running in Docker
-if [ -f /.dockerenv ]; then
-    # Only run dependency installation in Docker
-    echo "Running in Docker environment..."
-
-    # Install system dependencies
-    apt-get update
-    while read -r line; do
-        [[ $line =~ ^#.*$ ]] && continue
-        [[ -z $line ]] && continue
-        # Skip pigpio as it's already installed from source
-        [[ $line == "pigpio" ]] && continue
-        apt-get install -y $line
-    done < install/system-requirements.txt
-
-    # Start pigpiod service in Docker
-    echo "Starting pigpiod service..."
-    pigpiod
-
-    # Install Python dependencies
+    # Install core Python dependencies only
     python3 -m venv ${VENV_PATH}
     source ${VENV_PATH}/bin/activate
-    pip install --upgrade pip
-    pip install -r install/requirements.txt
+    pip install --no-cache-dir -r install/requirements.txt
 
     exit 0
 fi

@@ -1,64 +1,17 @@
-# Build stage for wheels
-FROM debian:bullseye as builder
+FROM python:3.9-slim
 
-# Install build dependencies
-RUN apt-get update && \
-    apt-get install -y \
-    python3-dev \
-    python3-pip \
-    python3-venv \
+WORKDIR /app
+
+# Install only minimal build essentials
+RUN apt-get update && apt-get install -y \
     build-essential \
-    curl \
-    libffi-dev \
-    libssl-dev \
-    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust for cryptography build
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
+# Copy all files
+COPY . .
 
-# Create and activate virtual environment
-RUN python3 -m venv /venv
-ENV PATH="/venv/bin:$PATH"
+# Run install script (which handles dependencies)
+RUN bash install/install.sh
 
-# Pre-build wheels
-COPY install/requirements.txt install/requirements-dev.txt ./
-RUN pip wheel --no-cache-dir -r requirements.txt -r requirements-dev.txt
-
-# Final stage
-FROM debian:bullseye
-
-# Install runtime dependencies
-RUN apt-get update && \
-    apt-get install -y \
-    python3-dev \
-    python3-pip \
-    python3-venv \
-    sudo \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create radio user and group
-RUN useradd -m -s /bin/bash radio && \
-    usermod -aG sudo,audio radio && \
-    echo "radio ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-# Copy pre-built wheels and installation files
-WORKDIR /home/radio/radio
-COPY --from=builder /*.whl ./wheels/
-COPY --chown=radio:radio . .
-
-# Create venv and install wheels
-RUN python3 -m venv /home/radio/radio/venv && \
-    chown -R radio:radio /home/radio/radio && \
-    /home/radio/radio/venv/bin/pip install --no-index --find-links=./wheels/ -r install/requirements.txt -r install/requirements-dev.txt && \
-    rm -rf ./wheels
-
-# Set environment variables
-ENV PYTHONPATH=/home/radio/radio
-ENV MOCK_SERVICES=true
-ENV DEV_MODE=true
-ENV MOCK_GPIO=true
-
-# Run installation test
-CMD ["./install/test_install.sh"]
+# Run tests
+CMD ["bash", "scripts/test_install.sh"]

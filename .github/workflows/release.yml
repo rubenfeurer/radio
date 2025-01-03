@@ -14,21 +14,67 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Run Snyk
-        uses: snyk/actions/python@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-      - name: Run Bandit
+      - name: Run security checks
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         run: |
-          pip install bandit
+          pip install bandit snyk-sdk
           bandit -r src/
+          snyk test
 
-  build:
+  build-dev:
+    if: github.ref == 'refs/heads/develop'
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build development image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.dev
+          platforms: linux/amd64,linux/arm/v7 # Limited platforms for dev
+          load: true
+          tags: radio-dev:latest
+          build-args: |
+            BUILD_TYPE=development
+          cache-from: type=gha,scope=dev
+          cache-to: type=gha,scope=dev,mode=max
+
+      - name: Export development package
+        run: |
+          CONTAINER_ID=$(docker create radio-dev:latest)
+          mkdir -p dist
+          docker cp $CONTAINER_ID:/home/radio/radio/. ./dist/
+          docker rm $CONTAINER_ID
+
+          VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
+          PACKAGE="radio-${VERSION}"
+          cd dist
+          tar -czf ${PACKAGE}.tar.gz ./*
+          echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload development artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-dev-package
+          path: dist/${{ env.PACKAGE_NAME }}
+          retention-days: 7 # Keep dev builds for 1 week
+
+  build-prod:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     needs: [test, security-scan]
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
       packages: write
@@ -43,6 +89,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
+        if: startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -59,45 +106,11 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ${{ startsWith(github.ref, 'refs/tags/') && format('ghcr.io/{0}:{1}', github.repository, github.ref_name) || '' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_TYPE=production
+          cache-from: type=gha,scope=prod
+          cache-to: type=gha,scope=prod,mode=max
 
-      - name: Export built files
-        run: |
-          CONTAINER_ID=$(docker create ghcr.io/${{ github.repository }}:latest)
-          mkdir -p dist
-          docker cp $CONTAINER_ID:/home/radio/radio/. ./dist/
-          docker rm $CONTAINER_ID
-
-          # Create package name
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
-          else
-            VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
-          fi
-          PACKAGE="radio-${VERSION}"
-
-          # Create archive
-          cd dist
-          tar -czf ${PACKAGE}.tar.gz ./*
-          echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: radio-package
-          path: dist/${{ env.PACKAGE_NAME }}
-
-      # Add build caching
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      # Add image scanning
       - name: Scan Docker image
         uses: aquasecurity/trivy-action@master
         with:
@@ -106,8 +119,29 @@ jobs:
           exit-code: "1"
           severity: "CRITICAL,HIGH"
 
+      - name: Export production package
+        run: |
+          CONTAINER_ID=$(docker create ghcr.io/${{ github.repository }}:latest)
+          mkdir -p dist
+          docker cp $CONTAINER_ID:/home/radio/radio/. ./dist/
+          docker rm $CONTAINER_ID
+
+          VERSION="${GITHUB_REF#refs/tags/}"
+          [ -z "$VERSION" ] && VERSION="main-$(date +'%Y%m%d')"
+          PACKAGE="radio-${VERSION}"
+          cd dist
+          tar -czf ${PACKAGE}.tar.gz ./*
+          echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload production artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-prod-package
+          path: dist/${{ env.PACKAGE_NAME }}
+
   test-package:
-    needs: build
+    needs: [build-dev, build-prod]
+    if: always() && !failure() && !cancelled()
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -115,16 +149,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: radio-package
+          name: ${{ github.ref == 'refs/heads/develop' && 'radio-dev-package' || 'radio-prod-package' }}
 
       - name: Test package
         run: |
           tar -xzf *.tar.gz
-          # Add package validation tests here
-
-      # Add more thorough package testing
-      - name: Test installation
-        run: |
           ./install.sh --test
           ./radio --version
           ./radio status
@@ -133,14 +162,12 @@ jobs:
     needs: test-package
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
-
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: radio-package
+          name: radio-prod-package
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

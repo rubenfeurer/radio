@@ -38,12 +38,12 @@ jobs:
           platforms: linux/arm/v7
           load: true
           tags: radio-test-install:latest
+          build-args: |
+            SKIP_DEV_DEPS=1
           cache-from: |
             type=gha,scope=test-install
-            type=registry,ref=ghcr.io/${{ github.repository }}/test-install:cache
           cache-to: |
             type=gha,scope=test-install,mode=max
-            type=registry,ref=ghcr.io/${{ github.repository }}/test-install:cache,mode=max
 
       - name: Run installation test
         run: |
