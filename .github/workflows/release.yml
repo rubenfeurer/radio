@@ -187,7 +187,7 @@ jobs:
           cp -r install/ dist/
           cp -r config/ dist/
           cp manage_radio.sh dist/
-          cp requirements*.txt dist/
+          cp install/requirements*.txt dist/
 
           cd dist
           tar -czf ${PACKAGE}.tar.gz ./*
