@@ -548,3 +548,20 @@ if ! validate_installation; then
     echo "! Installation validation failed"
     exit 1
 fi
+
+SKIP_PIGPIO=${SKIP_PIGPIO:-0}
+
+echo "Installing system dependencies..."
+while read -r line; do
+    [[ $line =~ ^#.*$ ]] && continue
+    [[ -z $line ]] && continue
+
+    # Skip pigpio if flag is set
+    if [ "$SKIP_PIGPIO" = "1" ] && [ "$line" = "pigpio" ]; then
+        echo "Skipping pigpio installation (SKIP_PIGPIO=1)"
+        continue
+    fi
+
+    echo "Installing $line..."
+    apt-get install -y $line
+done < install/system-requirements.txt

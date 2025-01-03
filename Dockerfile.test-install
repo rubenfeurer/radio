@@ -18,13 +18,14 @@ COPY . .
 
 # Set execute permissions
 RUN chmod +x install/install.sh \
-    && chmod +x scripts/*.sh \
-    && chmod +x manage_radio.sh
+    && chmod +x scripts/*.sh 2>/dev/null || true \
+    && chmod +x manage_radio.sh 2>/dev/null || true
 
 # Mock systemd and hardware services for testing
 ENV MOCK_SERVICES=true
 ENV SKIP_HARDWARE=1
 ENV SKIP_NETWORK_SETUP=1
+ENV SKIP_PIGPIO=1
 
 # Install pigpio from source before running install script
 RUN wget https://github.com/joan2937/pigpio/archive/master.zip \
@@ -37,7 +38,7 @@ RUN wget https://github.com/joan2937/pigpio/archive/master.zip \
     && ldconfig
 
 # Run install script with test flags
-RUN DEV_MODE=true SKIP_PIGPIO=1 ./install/install.sh --test
+RUN DEV_MODE=true ./install/install.sh --test
 
 # Run tests
 CMD ["bash", "-c", "systemctl start radio && journalctl -u radio -f"]
