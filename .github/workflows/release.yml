@@ -12,6 +12,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cache pip dependencies
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Cache Docker layers
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.backend', 'install/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Run tests in Docker
       - name: Run tests in Docker
         run: |
           docker compose -f docker/docker-compose.dev.yml run --rm \
@@ -49,6 +68,7 @@ jobs:
               '
             "
 
+      # Test reporting
       - name: Test Summary
         uses: test-summary/action@v2
         if: always()
@@ -142,24 +162,6 @@ jobs:
           name: radio-dev-package
           path: dist/${{ env.PACKAGE_NAME }}
           retention-days: 7
-
-      # Cache pip dependencies
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      # Cache Docker layers
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.backend', 'install/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
 
   build-prod:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
