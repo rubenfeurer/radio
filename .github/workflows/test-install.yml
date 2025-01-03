@@ -41,6 +41,12 @@ jobs:
           key: ${{ runner.os }}-arm-buildx-${{ hashFiles('install/**', 'Dockerfile.test-install') }}
           restore-keys: |
             ${{ runner.os }}-arm-buildx-
+            ${{ runner.os }}-arm-
+            ${{ runner.os }}-
+
+      - name: Create cache directory
+        run: |
+          mkdir -p /tmp/.buildx-cache
 
       - name: Build and test installation
         uses: docker/build-push-action@v5
@@ -67,10 +73,21 @@ jobs:
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: Run installation test
+        timeout-minutes: 10
         run: |
           docker run --privileged \
             -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
             radio-test-install:latest
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Installation Test Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Installation tests passed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Installation tests failed" >> $GITHUB_STEP_SUMMARY
+          fi
 
   notify:
     needs: test-install
