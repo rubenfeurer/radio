@@ -556,12 +556,24 @@ while read -r line; do
     [[ $line =~ ^#.*$ ]] && continue
     [[ -z $line ]] && continue
 
-    # Skip pigpio if flag is set
-    if [ "$SKIP_PIGPIO" = "1" ] && [ "$line" = "pigpio" ]; then
-        echo "Skipping pigpio installation (SKIP_PIGPIO=1)"
-        continue
+    # Skip pigpio installation if already installed or flag is set
+    if [ "$line" = "pigpio" ]; then
+        if [ "$SKIP_PIGPIO" = "1" ]; then
+            echo "Skipping pigpio installation (SKIP_PIGPIO=1)"
+            continue
+        fi
+        if command -v pigpiod >/dev/null 2>&1; then
+            echo "pigpio already installed, skipping..."
+            continue
+        fi
     fi
 
     echo "Installing $line..."
-    apt-get install -y $line
+    apt-get install -y $line || {
+        echo "Warning: Failed to install $line"
+        # Only exit for critical packages
+        if [ "$line" != "pigpio" ]; then
+            exit 1
+        fi
+    }
 done < install/system-requirements.txt
