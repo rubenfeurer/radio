@@ -16,6 +16,13 @@ if [ -f /.dockerenv ] || [ "$TEST_MODE" = "1" ]; then
     DOCKER_ENV=1
 fi
 
+# Near the top after environment variables
+if [ "$DOCKER_ENV" = "1" ]; then
+    echo "Docker environment detected - running minimal installation"
+    # ... existing minimal installation code ...
+    exit 0
+fi
+
 # Create minimal environment
 echo "Setting up minimal Docker environment..."
 

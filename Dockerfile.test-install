@@ -34,5 +34,11 @@ ENV MOCK_SERVICES=true \
 # Run install script with test flags and skip systemd operations
 RUN SKIP_PIGPIO=1 TEST_MODE=1 DOCKER_ENV=1 ./install/install.sh --test || exit 0
 
-# Skip systemd in test environment
-CMD ["bash", "-c", "echo 'Test environment ready' && sleep infinity"]
+# Run a quick validation and exit
+CMD ["bash", "-c", "\
+    echo 'Running installation validation...' && \
+    if [ -d '/home/radio/radio' ] && [ -f '/home/radio/radio/manage_radio.sh' ]; then \
+    echo '✅ Installation test passed' && exit 0; \
+    else \
+    echo '❌ Installation test failed' && exit 1; \
+    fi"]

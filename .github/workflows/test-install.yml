@@ -34,15 +34,18 @@ jobs:
             network=host
 
       # Improved caching strategy
+      - name: Set up Docker Buildx cache
+        run: |
+          mkdir -p /tmp/.buildx-cache
+          touch /tmp/.buildx-cache/index.json
+
       - name: Cache Docker layers
         uses: actions/cache@v3
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-arm-buildx-${{ hashFiles('install/**', 'Dockerfile.test-install') }}
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-arm-buildx-
-            ${{ runner.os }}-arm-
-            ${{ runner.os }}-
+            ${{ runner.os }}-buildx-
 
       - name: Create cache directory
         run: |
@@ -83,6 +86,7 @@ jobs:
         if: always()
         run: |
           echo "## Installation Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "Platform: linux/arm/v7" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
             echo "✅ Installation tests passed successfully" >> $GITHUB_STEP_SUMMARY
           else
