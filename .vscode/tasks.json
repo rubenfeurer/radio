@@ -1,0 +1,24 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Dev: Start Environment",
+            "type": "shell",
+            "command": "./dev.sh start",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Dev: View Logs",
+            "type": "shell",
+            "command": "./dev.sh logs"
+        },
+        {
+            "label": "Dev: Stop Environment",
+            "type": "shell",
+            "command": "./dev.sh stop"
+        }
+    ]
+}

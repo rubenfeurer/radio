@@ -1,118 +1,109 @@
 name: Radio Tests
 
 on:
-  push:
-    branches: [ main, develop ]
   pull_request:
-    branches: [ main, develop ]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [main, develop]
+  push:
+    branches:
+      - "*"
+      - "!main"
+      - "!develop"
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          python3-dev python3-setuptools gcc make \
-          mpv libmpv-dev \
-          python3-pip python3-venv \
-          libasound2-dev \
-          network-manager \
-          alsa-utils
-        
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install httpx pytest pytest-asyncio pytest-cov pytest-mock pytest-timeout
-        
-    - name: Create logs directory
-      run: mkdir -p logs
-        
-    - name: Create mock pigpio module
-      run: |
-        echo 'class Callback:
-            def cancel(self):
-                pass
-                
-        class pi:
-            def __init__(self, *args, **kwargs):
-                self.connected = True
-            def stop(self):
-                pass
-            def set_mode(self, *args, **kwargs):
-                pass
-            def set_pull_up_down(self, *args, **kwargs):
-                pass
-            def callback(self, *args, **kwargs):
-                return Callback()  # Return cancellable callback object
-            def get_pigpio_version(self, *args, **kwargs):
-                return 1
-            def set_glitch_filter(self, *args, **kwargs):
-                pass
-            def read(self, *args, **kwargs):
-                return 0
-            def write(self, *args, **kwargs):
-                pass
+    strategy:
+      fail-fast: true
 
-        # GPIO constants
-        INPUT = 0
-        OUTPUT = 1
-        PUD_UP = 2
-        PUD_DOWN = 1
-        EITHER_EDGE = 2
-        RISING_EDGE = 1
-        FALLING_EDGE = 0' > pigpio.py
-        export PYTHONPATH=$PYTHONPATH:$(pwd)
-        
-    - name: Run tests with mocked hardware
-      env:
-        MOCK_HARDWARE: "true"
-        PYTHONPATH: .
-        TEST_MODE: "CI"
-        DISABLE_HARDWARE: "true"
-        SKIP_NM_CHECK: "true"
-        SKIP_PIGPIO: "true"
-        PIGPIO_MOCK: "true"
-        PYTEST_TIMEOUT: "30"
-        PYTEST_ASYNCIO_MODE: "auto"
-        LOG_DIR: "logs"
-      run: |
-        # Create mock pigpio environment
-        sudo mkdir -p /run/pigpio
-        sudo touch /run/pigpio/pigpio.pid
-        
-        PYTHONPATH=. pytest -v tests/ \
-          --cov=src \
-          --capture=no \
-          --log-cli-level=DEBUG \
-          --asyncio-mode=auto \
-          -p no:warnings \
-          --ignore=tests/hardware \
-          --ignore=tests/integration \
-          -k "not test_gpio and not test_hardware"
-        
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-  check:
-    needs: test
-    runs-on: ubuntu-latest
     steps:
-      - name: Tests passed
-        run: echo "All tests passed successfully!"
+      - uses: actions/checkout@v4
+
+      # Cache pip dependencies
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Set up BuildKit
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      # Cache Docker layers
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.backend', 'install/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Build with optimized caching
+      - name: Build development image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/dev/Dockerfile.backend
+          load: true
+          tags: radio-dev:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            DOCKER_BUILDKIT=1
+
+      # Run tests in container with root permissions
+      - name: Run tests
+        if: success()
+        run: |
+          docker compose -f docker/docker-compose.dev.yml run --rm \
+            --user root \
+            -v ${PWD}:/home/radio/radio \
+            backend bash -c "
+              # Install system dependencies
+              apt-get update && \
+              apt-get install -y python3 python3-venv python3-pip && \
+
+              # Create logs directory with correct permissions
+              mkdir -p /home/radio/radio/logs && \
+              chown -R radio:radio /home/radio/radio && \
+
+              # Create and activate venv
+              python3 -m venv /home/radio/radio/venv && \
+              chown -R radio:radio /home/radio/radio/venv && \
+
+              # Run tests as radio user
+              su radio -c '
+                source /home/radio/radio/venv/bin/activate && \
+                cd /home/radio/radio && \
+                pip install -r install/requirements.txt -r install/requirements-dev.txt && \
+
+                # Run tests with explicit output path
+                PYTHONPATH=/home/radio/radio \
+                python -m pytest \
+                  --verbose \
+                  --cov=src/core \
+                  --cov=src/api \
+                  --cov=src/hardware \
+                  --cov-report=term-missing \
+                  --cov-fail-under=50 \
+                  --junitxml=/home/radio/radio/pytest-results.xml \
+                  tests/ && \
+                chmod 644 /home/radio/radio/pytest-results.xml
+              '
+            "
+
+      # Add test summary
+      - name: Test Summary
+        uses: test-summary/action@v2
+        if: always()
+        with:
+          paths: |
+            pytest-results.xml

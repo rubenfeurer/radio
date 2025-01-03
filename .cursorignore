@@ -1,9 +1,39 @@
+# Python
 venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Project specific
 config/
 install/
 tests/
-*.md
-.DS_Store
+sounds/
+
+# Development
+.vscode/
+.idea/
+*.log
 .env
+.env.*
+
+# System
+.DS_Store
+*.swp
+*.swo
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Docker
+.docker/
+docker/**/data/
+
+# Frontend
+web/node_modules/
+web/.svelte-kit/
+web/build/

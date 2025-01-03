@@ -1,19 +1,23 @@
-from typing import List, Optional, Tuple
-import logging
 import asyncio
-from .wifi_manager import WiFiManager
+import json
+import logging
+from pathlib import Path
+from typing import Optional
+
 from .mode_manager import ModeManagerSingleton, NetworkMode
 from .models import WiFiNetwork, WiFiStatus
-from pathlib import Path
-import json
-from datetime import datetime
+from .services.network_service import get_network_service
+from .wifi_manager import WiFiManager
+
 
 class ConnectionError(Exception):
     """Custom exception for connection errors"""
+
     def __init__(self, message: str, error_type: str):
         self.message = message
         self.error_type = error_type
         super().__init__(message)
+
 
 class APManager:
     def __init__(self):
@@ -21,7 +25,8 @@ class APManager:
         self.wifi_manager = WiFiManager()
         self.mode_manager = ModeManagerSingleton.get_instance()
         self.interface_stabilize_delay = 2  # seconds
-        self.required_services = ['dnsmasq', 'avahi-daemon']
+        self.required_services = ["dnsmasq", "avahi-daemon"]
+        self.network_service = get_network_service()
 
     async def verify_ap_mode(self) -> bool:
         """Verify that we're in AP mode"""
@@ -36,9 +41,11 @@ class APManager:
         """Ensure mDNS service is running after mode switch"""
         try:
             # Restart avahi-daemon to ensure mDNS works in new mode
-            result = self.wifi_manager._run_command([
-                'sudo', 'systemctl', 'restart', 'avahi-daemon'
-            ], capture_output=True, text=True)
+            result = self.wifi_manager._run_command(
+                ["sudo", "systemctl", "restart", "avahi-daemon"],
+                capture_output=True,
+                text=True,
+            )
             if result.returncode != 0:
                 self.logger.error(f"Failed to restart avahi-daemon: {result.stderr}")
         except Exception as e:
@@ -47,11 +54,13 @@ class APManager:
     async def _manage_ap_services(self, enable: bool) -> None:
         """Manage AP-related services when switching modes"""
         try:
-            action = 'start' if enable else 'stop'
+            action = "start" if enable else "stop"
             for service in self.required_services:
-                result = self.wifi_manager._run_command([
-                    'sudo', 'systemctl', action, service
-                ], capture_output=True, text=True)
+                result = self.wifi_manager._run_command(
+                    ["sudo", "systemctl", action, service],
+                    capture_output=True,
+                    text=True,
+                )
                 if result.returncode != 0:
                     self.logger.error(f"Failed to {action} {service}: {result.stderr}")
                 await asyncio.sleep(0.5)  # Brief delay between service operations
@@ -74,9 +83,11 @@ class APManager:
                 await asyncio.sleep(self.interface_stabilize_delay)
                 await self._ensure_mdns_service()
                 # Verify network interface is up
-                result = self.wifi_manager._run_command([
-                    'sudo', 'ip', 'link', 'set', 'wlan0', 'up'
-                ], capture_output=True, text=True)
+                result = self.wifi_manager._run_command(
+                    ["sudo", "ip", "link", "set", "wlan0", "up"],
+                    capture_output=True,
+                    text=True,
+                )
                 if result.returncode != 0:
                     self.logger.error(f"Failed to bring up wlan0: {result.stderr}")
 
@@ -109,57 +120,92 @@ class APManager:
                         signal_strength=net["signal_strength"],
                         security=net.get("security"),
                         in_use=net.get("in_use", False),
-                        saved=net.get("saved", False)
-                    ) for net in data.get("available_networks", [])
-                ]
+                        saved=net.get("saved", False),
+                    )
+                    for net in data.get("available_networks", [])
+                ],
             )
 
         except Exception as e:
             self.logger.error(f"Error reading saved WiFi status: {e}")
             return None
 
-    async def add_network_connection(self, ssid: str, password: str, priority: int = 1) -> dict:
+    async def add_network_connection(
+        self,
+        ssid: str,
+        password: str,
+        priority: int = 1,
+    ) -> dict:
         """Add a new network connection with specified priority"""
         try:
             if not await self.verify_ap_mode():
-                raise ConnectionError("Must be in AP mode to add connection", "mode_error")
+                raise ConnectionError(
+                    "Must be in AP mode to add connection",
+                    "mode_error",
+                )
 
             # Check if connection already exists and remove it
-            result = self.wifi_manager._run_command([
-                'sudo', 'nmcli', 'connection', 'show'
-            ], capture_output=True, text=True)
-            
+            result = self.wifi_manager._run_command(
+                ["sudo", "nmcli", "connection", "show"],
+                capture_output=True,
+                text=True,
+            )
+
             if result.returncode == 0 and ssid in result.stdout:
                 self.logger.info(f"Removing existing connection for {ssid}")
-                self.wifi_manager._run_command([
-                    'sudo', 'nmcli', 'connection', 'delete', ssid
-                ], capture_output=True, text=True)
+                self.wifi_manager._run_command(
+                    ["sudo", "nmcli", "connection", "delete", ssid],
+                    capture_output=True,
+                    text=True,
+                )
 
             # Add the new connection
-            result = self.wifi_manager._run_command([
-                'sudo', 'nmcli', 'connection', 'add',
-                'type', 'wifi',
-                'con-name', ssid,
-                'ifname', 'wlan0',
-                'ssid', ssid,
-                'wifi-sec.key-mgmt', 'wpa-psk',
-                'wifi-sec.psk', password,
-                'autoconnect', 'yes'
-            ], capture_output=True, text=True)
+            result = self.wifi_manager._run_command(
+                [
+                    "sudo",
+                    "nmcli",
+                    "connection",
+                    "add",
+                    "type",
+                    "wifi",
+                    "con-name",
+                    ssid,
+                    "ifname",
+                    "wlan0",
+                    "ssid",
+                    ssid,
+                    "wifi-sec.key-mgmt",
+                    "wpa-psk",
+                    "wifi-sec.psk",
+                    password,
+                    "autoconnect",
+                    "yes",
+                ],
+                capture_output=True,
+                text=True,
+            )
 
             if result.returncode != 0:
                 self.logger.error(f"Failed to add connection: {result.stderr}")
                 raise ConnectionError(
                     f"Failed to add connection: {result.stderr}",
-                    "connection_error"
+                    "connection_error",
                 )
 
             # Set the connection priority
-            priority_result = self.wifi_manager._run_command([
-                'sudo', 'nmcli', 'connection', 'modify',
-                ssid,
-                'connection.autoconnect-priority', str(priority)
-            ], capture_output=True, text=True)
+            priority_result = self.wifi_manager._run_command(
+                [
+                    "sudo",
+                    "nmcli",
+                    "connection",
+                    "modify",
+                    ssid,
+                    "connection.autoconnect-priority",
+                    str(priority),
+                ],
+                capture_output=True,
+                text=True,
+            )
 
             if priority_result.returncode != 0:
                 self.logger.warning(f"Failed to set priority: {priority_result.stderr}")
@@ -168,57 +214,79 @@ class APManager:
                 "status": "success",
                 "message": f"Successfully added connection for {ssid} with priority {priority}",
                 "ssid": ssid,
-                "priority": priority
+                "priority": priority,
             }
 
-        except ConnectionError as e:
+        except ConnectionError:
             raise
         except Exception as e:
             self.logger.error(f"Error adding network connection: {e}")
             raise ConnectionError(str(e), "unknown_error")
 
-    async def modify_network_connection(self, ssid: str, password: str, priority: int = 1) -> dict:
+    async def modify_network_connection(
+        self,
+        ssid: str,
+        password: str,
+        priority: int = 1,
+    ) -> dict:
         """Modify an existing network connection with new password and priority"""
         try:
             if not await self.verify_ap_mode():
-                raise ConnectionError("Must be in AP mode to modify connection", "mode_error")
+                raise ConnectionError(
+                    "Must be in AP mode to modify connection",
+                    "mode_error",
+                )
 
             # Check if connection exists
-            result = self.wifi_manager._run_command([
-                'sudo', 'nmcli', 'connection', 'show'
-            ], capture_output=True, text=True)
-            
+            result = self.wifi_manager._run_command(
+                ["sudo", "nmcli", "connection", "show"],
+                capture_output=True,
+                text=True,
+            )
+
             if result.returncode == 0 and ssid not in result.stdout:
                 self.logger.error(f"Connection {ssid} does not exist")
                 raise ConnectionError(
                     f"Connection {ssid} does not exist",
-                    "not_found_error"
+                    "not_found_error",
                 )
 
             # Modify the existing connection
-            modify_result = self.wifi_manager._run_command([
-                'sudo', 'nmcli', 'connection', 'modify',
-                ssid,
-                'wifi-sec.psk', password,
-                'connection.autoconnect', 'yes',
-                'connection.autoconnect-priority', str(priority)
-            ], capture_output=True, text=True)
+            modify_result = self.wifi_manager._run_command(
+                [
+                    "sudo",
+                    "nmcli",
+                    "connection",
+                    "modify",
+                    ssid,
+                    "wifi-sec.psk",
+                    password,
+                    "connection.autoconnect",
+                    "yes",
+                    "connection.autoconnect-priority",
+                    str(priority),
+                ],
+                capture_output=True,
+                text=True,
+            )
 
             if modify_result.returncode != 0:
-                self.logger.error(f"Failed to modify connection: {modify_result.stderr}")
+                self.logger.error(
+                    f"Failed to modify connection: {modify_result.stderr}",
+                )
                 raise ConnectionError(
                     f"Failed to modify connection: {modify_result.stderr}",
-                    "connection_error"
+                    "connection_error",
                 )
 
             return {
                 "status": "success",
                 "message": f"Successfully modified connection for {ssid} with priority {priority}",
                 "ssid": ssid,
-                "priority": priority
+                "priority": priority,
             }
 
-        except ConnectionError as e:
+        except ConnectionError:
             raise
         except Exception as e:
             self.logger.error(f"Error modifying network connection: {e}")

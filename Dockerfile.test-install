@@ -1,0 +1,60 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install essential build and test dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    wget \
+    unzip \
+    git \
+    systemd \
+    dbus \
+    python3-dev \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy all files
+COPY . .
+
+# Set execute permissions
+RUN chmod +x install/install.sh \
+    && chmod +x scripts/*.sh 2>/dev/null || true \
+    && chmod +x manage_radio.sh 2>/dev/null || true
+
+# Set environment variables for testing
+ENV MOCK_SERVICES=true \
+    SKIP_HARDWARE=1 \
+    SKIP_NETWORK_SETUP=1 \
+    SKIP_PIGPIO=1 \
+    DEV_MODE=true \
+    TEST_MODE=1 \
+    DOCKER_ENV=1
+
+# Run install script with test flags and skip systemd operations
+RUN SKIP_PIGPIO=1 TEST_MODE=1 DOCKER_ENV=1 ./install/install.sh --test || exit 0
+
+# Run a detailed validation and exit
+CMD ["bash", "-c", "\
+    echo 'Running installation validation...' && \
+    RADIO_HOME='/home/radio/radio' && \
+    echo 'Checking directories...' && \
+    for dir in \"$RADIO_HOME\" \"$RADIO_HOME/venv\"; do \
+    if [ ! -d \"$dir\" ]; then \
+    echo \"❌ Directory not found: $dir\" && exit 1; \
+    fi; \
+    echo \"✓ Found directory: $dir\"; \
+    done && \
+    echo 'Checking files...' && \
+    for file in \"$RADIO_HOME/manage_radio.sh\"; do \
+    if [ ! -f \"$file\" ]; then \
+    echo \"❌ File not found: $file\" && exit 1; \
+    fi; \
+    echo \"✓ Found file: $file\"; \
+    done && \
+    echo 'Checking Python environment...' && \
+    if [ ! -f \"$RADIO_HOME/venv/bin/python\" ]; then \
+    echo \"❌ Python virtual environment not found\" && exit 1; \
+    fi && \
+    echo \"✓ Python virtual environment exists\" && \
+    echo '✅ Installation test passed' && exit 0"]

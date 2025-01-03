@@ -1,21 +1,28 @@
-# Core system dependencies
-python3-venv
-python3-pip
-python3-dev
+alsa-utils
+avahi-daemon
+avahi-discover
+avahi-utils
 build-essential
-libssl-dev
+curl
+dnsmasq
+git
 libffi-dev
+libmpv-dev
+libnss-mdns
+libssl-dev
 
 # Audio dependencies
 mpv
-libmpv-dev
-pulseaudio
 
 # Network dependencies
 network-manager
-avahi-daemon
-dnsmasq
-hostapd
 
 # Hardware dependencies
-pigpio 
+pigpio
+pulseaudio
+# Core system dependencies
+python3-dev
+python3-pip
+python3-venv
+wireless-tools
+wpasupplicant
