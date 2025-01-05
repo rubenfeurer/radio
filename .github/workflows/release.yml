@@ -154,7 +154,7 @@ jobs:
         run: |
           cd dist
           tar -xzf ${PACKAGE_NAME}
-          bash scripts/test_installation.sh
+          sudo bash scripts/test_installation.sh
 
       # Test reporting
       - name: Test Summary
