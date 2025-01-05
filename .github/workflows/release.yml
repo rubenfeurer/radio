@@ -154,6 +154,31 @@ jobs:
         run: |
           cd dist
           tar -xzf ${PACKAGE_NAME}
+
+          # Create radio home directory with proper permissions
+          sudo mkdir -p /home/radio/radio
+          sudo chown -R $USER:$USER /home/radio/radio
+
+          # Copy files to the correct location
+          cp -r src /home/radio/radio/
+          cp -r web /home/radio/radio/
+          cp -r install /home/radio/radio/
+          cp -r config /home/radio/radio/
+          cp -r scripts /home/radio/radio/
+          cp manage_radio.sh /home/radio/radio/
+
+          # Create required directories
+          sudo mkdir -p /home/radio/radio/sounds
+          sudo mkdir -p /home/radio/radio/data
+          sudo mkdir -p /home/radio/radio/logs
+          sudo mkdir -p /tmp/mpv-socket
+
+          # Set proper permissions
+          sudo chown -R $USER:$USER /home/radio/radio
+          sudo chmod -R 755 /home/radio/radio
+          sudo chmod 777 /tmp/mpv-socket
+
+          # Run installation test with sudo
           sudo bash scripts/test_installation.sh
 
       # Test reporting
