@@ -178,6 +178,9 @@ jobs:
           sudo chmod -R 755 /home/radio/radio
           sudo chmod 777 /tmp/mpv-socket
 
+          # Add radio user to audio group
+          sudo usermod -a -G audio radio || sudo addgroup --system audio && sudo usermod -a -G audio radio
+
           # Run installation test with sudo
           sudo bash scripts/test_installation.sh
 
