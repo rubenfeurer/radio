@@ -108,10 +108,18 @@ jobs:
           cache: "npm"
           cache-dependency-path: web/package-lock.json
 
-      # Build frontend
+      # Build frontend with proper permissions
       - name: Build frontend
         working-directory: ./web
         run: |
+          # Fix permissions for npm
+          sudo chown -R $USER:$USER .
+
+          # Create node_modules with proper permissions
+          mkdir -p node_modules
+          sudo chown -R $USER:$USER node_modules
+
+          # Install and build
           npm ci
           npm run build
 
