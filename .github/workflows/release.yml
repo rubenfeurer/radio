@@ -173,18 +173,15 @@ jobs:
           sudo mkdir -p /home/radio/radio/logs
           sudo mkdir -p /tmp/mpv-socket
 
-          # Set proper permissions
-          sudo chown -R $USER:$USER /home/radio/radio
-          sudo chmod -R 755 /home/radio/radio
-          sudo chmod 777 /tmp/mpv-socket
-
           # Create audio group and add radio user
           sudo groupadd -f audio
-          sudo useradd -m radio || true  # Create user if doesn't exist
+          id -u radio &>/dev/null || sudo useradd -m radio  # Only create if doesn't exist
           sudo usermod -a -G audio radio
 
-          # Set proper permissions for radio user
+          # Set proper permissions
           sudo chown -R radio:radio /home/radio/radio
+          sudo chmod -R 755 /home/radio/radio
+          sudo chmod 777 /tmp/mpv-socket
 
           # Run installation test with sudo
           sudo -E TEST_MODE=1 bash scripts/test_installation.sh
