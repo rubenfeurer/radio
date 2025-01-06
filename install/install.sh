@@ -72,10 +72,27 @@ if [ "$DOCKER_ENV" = "1" ]; then
     # Add to audio group
     usermod -a -G audio ${RADIO_USER}
 
+    # Create required directories
+    mkdir -p ${RADIO_HOME}
+    mkdir -p ${RADIO_HOME}/venv
+    mkdir -p ${RADIO_HOME}/sounds
+    mkdir -p ${RADIO_HOME}/data
+    mkdir -p ${RADIO_HOME}/logs
+    mkdir -p /tmp/mpv-socket
+
+    # Set proper permissions
+    chown -R ${RADIO_USER}:${RADIO_USER} ${RADIO_HOME}
+    chmod -R 755 ${RADIO_HOME}
+    chmod 777 /tmp/mpv-socket
+
     # Install dependencies and set up environment
     install_system_dependencies
 
-    # Rest of Docker installation...
+    # Set up Python virtual environment
+    python3 -m venv ${VENV_PATH}
+    source ${VENV_PATH}/bin/activate
+    pip install --no-cache-dir -r install/requirements.txt
+
     exit 0
 fi
 
