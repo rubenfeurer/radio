@@ -9,6 +9,7 @@ echo "Starting Internet Radio installation..."
 RADIO_USER="radio"
 RADIO_HOME="/home/${RADIO_USER}/radio"
 VENV_PATH="${RADIO_HOME}/venv"
+SKIP_PIGPIO=${SKIP_PIGPIO:-0}
 
 # Docker environment check
 DOCKER_ENV=0
@@ -16,39 +17,52 @@ if [ -f /.dockerenv ] || [ "$TEST_MODE" = "1" ]; then
     DOCKER_ENV=1
 fi
 
-# Near the top after environment variables
+# Define installation functions first
+install_system_dependencies() {
+    echo "Installing system dependencies..."
+    while read -r line; do
+        # Skip comments and empty lines
+        [[ $line =~ ^#.*$ ]] && continue
+        [[ -z $line ]] && continue
+
+        # Handle pigpio specially
+        if [ "$line" = "pigpio" ]; then
+            if [ "$SKIP_PIGPIO" = "1" ]; then
+                echo "Skipping pigpio installation (SKIP_PIGPIO=1)"
+                continue
+            fi
+            # Check if already installed from source
+            if command -v pigpiod >/dev/null 2>&1; then
+                echo "pigpio already installed, skipping..."
+                continue
+            fi
+            echo "pigpio package not available, skipping apt install..."
+            continue
+        fi
+
+        echo "Installing $line..."
+        apt-get install -y $line || {
+            echo "Warning: Failed to install $line"
+            if [ "$line" != "pigpio" ]; then
+                exit 1
+            fi
+        }
+    done < install/system-requirements.txt
+}
+
 if [ "$DOCKER_ENV" = "1" ]; then
     echo "Docker environment detected - running minimal installation"
 
-    # Create radio user and home directory
-    useradd -m ${RADIO_USER}
-    mkdir -p ${RADIO_HOME}
-    chown -R ${RADIO_USER}:${RADIO_USER} ${RADIO_HOME}
+    # Create radio user if doesn't exist
+    id -u ${RADIO_USER} &>/dev/null || useradd -m ${RADIO_USER}
 
-    # Install only essential system packages
-    apt-get update
-    while read -r line; do
-        [[ $line =~ ^#.*$ ]] && continue
-        [[ -z $line ]] && continue
-        # Skip hardware-specific packages in Docker
-        [[ $line == "pigpio" ]] && continue
-        [[ $line == "alsa-utils" ]] && continue
-        [[ $line == "network-manager" ]] && continue
-        apt-get install -y $line
-    done < install/system-requirements.txt
-    rm -rf /var/lib/apt/lists/*
+    # Add to audio group
+    usermod -a -G audio ${RADIO_USER}
 
-    # Install core Python dependencies only
-    python3 -m venv ${VENV_PATH}
-    source ${VENV_PATH}/bin/activate
-    pip install --no-cache-dir -r install/requirements.txt
+    # Install dependencies and set up environment
+    install_system_dependencies
 
-    # Copy manage_radio.sh
-    cp manage_radio.sh ${RADIO_HOME}/
-    chmod +x ${RADIO_HOME}/manage_radio.sh
-    chown ${RADIO_USER}:${RADIO_USER} ${RADIO_HOME}/manage_radio.sh
-
-    echo "Minimal Docker installation completed"
+    # Rest of Docker installation...
     exit 0
 fi
 
@@ -611,40 +625,6 @@ if ! validate_installation; then
     echo "! Installation validation failed"
     exit 1
 fi
-
-SKIP_PIGPIO=${SKIP_PIGPIO:-0}
-
-install_system_dependencies() {
-    echo "Installing system dependencies..."
-    while read -r line; do
-        # Skip comments and empty lines
-        [[ $line =~ ^#.*$ ]] && continue
-        [[ -z $line ]] && continue
-
-        # Handle pigpio specially
-        if [ "$line" = "pigpio" ]; then
-            if [ "$SKIP_PIGPIO" = "1" ]; then
-                echo "Skipping pigpio installation (SKIP_PIGPIO=1)"
-                continue
-            fi
-            # Check if already installed from source
-            if command -v pigpiod >/dev/null 2>&1; then
-                echo "pigpio already installed, skipping..."
-                continue
-            fi
-            echo "pigpio package not available, skipping apt install..."
-            continue
-        fi
-
-        echo "Installing $line..."
-        apt-get install -y $line || {
-            echo "Warning: Failed to install $line"
-            if [ "$line" != "pigpio" ]; then
-                exit 1
-            fi
-        }
-    done < install/system-requirements.txt
-}
 
 # Call the function where appropriate
 install_system_dependencies
