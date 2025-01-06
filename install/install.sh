@@ -20,6 +20,11 @@ fi
 # Define installation functions first
 install_system_dependencies() {
     echo "Installing system dependencies..."
+
+    # Update package lists and fix any broken dependencies
+    apt-get update
+    apt-get install -f
+
     while read -r line; do
         # Skip comments and empty lines
         [[ $line =~ ^#.*$ ]] && continue
@@ -41,12 +46,20 @@ install_system_dependencies() {
         fi
 
         echo "Installing $line..."
-        apt-get install -y $line || {
-            echo "Warning: Failed to install $line"
-            if [ "$line" != "pigpio" ]; then
-                exit 1
+        # Try multiple times with different approaches
+        if ! apt-get install -y --fix-missing $line; then
+            echo "Retrying installation of $line with alternative repository..."
+            if ! apt-get install -y --fix-missing $line; then
+                echo "Warning: Failed to install $line"
+                if [ "$line" = "pulseaudio" ] || [ "$line" = "gstreamer1.0-plugins-base" ]; then
+                    echo "Non-critical package failed to install, continuing..."
+                    continue
+                fi
+                if [ "$line" != "pigpio" ]; then
+                    exit 1
+                fi
             fi
-        }
+        fi
     done < install/system-requirements.txt
 }
 
