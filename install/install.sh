@@ -44,6 +44,22 @@ validate_installation() {
     return 0
 }
 
+# Define system dependencies installation function
+install_system_dependencies() {
+    echo "Installing system dependencies..."
+    apt-get update
+    while read -r line; do
+        [[ $line =~ ^#.*$ ]] && continue
+        [[ -z $line ]] && continue
+        # Skip hardware-specific packages in Docker
+        [[ $line == "pigpio" ]] && continue
+        [[ $line == "alsa-utils" ]] && continue
+        [[ $line == "network-manager" ]] && continue
+        apt-get install -y $line
+    done < install/system-requirements.txt
+    rm -rf /var/lib/apt/lists/*
+}
+
 # Configuration
 RADIO_USER="radio"
 RADIO_HOME="/home/${RADIO_USER}/radio"
