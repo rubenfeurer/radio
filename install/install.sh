@@ -3,81 +3,70 @@
 # Exit on error
 set -e
 
-echo "Starting Internet Radio installation..."
+# Move validation function to top
+validate_installation() {
+    echo "Validating installation..."
+
+    # Check critical services only if not in Docker/Test
+    if [ "$DOCKER_ENV" != "1" ]; then
+        for service in "NetworkManager" "radio"; do
+            if [ "$SKIP_PIGPIO" != "1" ] && [ "$service" = "pigpiod" ]; then
+                continue
+            fi
+            if ! systemctl is-active --quiet $service; then
+                echo "Error: $service is not running"
+                return 1
+            fi
+        done
+    fi
+
+    # Check radio user and permissions
+    if ! id "radio" >/dev/null 2>&1; then
+        echo "Error: radio user not found"
+        return 1
+    fi
+
+    # Verify critical directories
+    for dir in "/home/radio/radio"; do
+        if [ ! -d "$dir" ]; then
+            echo "Error: Directory $dir not found"
+            return 1
+        fi
+    done
+
+    # Skip NetworkManager directory check in Docker/Test
+    if [ "$DOCKER_ENV" != "1" ] && [ ! -d "/etc/NetworkManager/system-connections" ]; then
+        echo "Error: Directory /etc/NetworkManager/system-connections not found"
+        return 1
+    fi
+
+    echo "✓ Installation validation successful"
+    return 0
+}
 
 # Configuration
 RADIO_USER="radio"
 RADIO_HOME="/home/${RADIO_USER}/radio"
 VENV_PATH="${RADIO_HOME}/venv"
 SKIP_PIGPIO=${SKIP_PIGPIO:-0}
+TEST_MODE=${TEST_MODE:-0}
 
-# Docker environment check
+# Docker environment check (unified)
 DOCKER_ENV=0
 if [ -f /.dockerenv ] || [ "$TEST_MODE" = "1" ]; then
     DOCKER_ENV=1
 fi
 
-# Define installation functions first
-install_system_dependencies() {
-    echo "Installing system dependencies..."
-
-    # Update package lists and fix any broken dependencies
-    apt-get update
-    apt-get install -f
-
-    while read -r line; do
-        # Skip comments and empty lines
-        [[ $line =~ ^#.*$ ]] && continue
-        [[ -z $line ]] && continue
-
-        # Handle pigpio specially
-        if [ "$line" = "pigpio" ]; then
-            if [ "$SKIP_PIGPIO" = "1" ]; then
-                echo "Skipping pigpio installation (SKIP_PIGPIO=1)"
-                continue
-            fi
-            # Check if already installed from source
-            if command -v pigpiod >/dev/null 2>&1; then
-                echo "pigpio already installed, skipping..."
-                continue
-            fi
-            echo "pigpio package not available, skipping apt install..."
-            continue
-        fi
-
-        echo "Installing $line..."
-        # Try multiple times with different approaches
-        if ! apt-get install -y --fix-missing $line; then
-            echo "Retrying installation of $line with alternative repository..."
-            if ! apt-get install -y --fix-missing $line; then
-                echo "Warning: Failed to install $line"
-                if [ "$line" = "pulseaudio" ] || [ "$line" = "gstreamer1.0-plugins-base" ]; then
-                    echo "Non-critical package failed to install, continuing..."
-                    continue
-                fi
-                if [ "$line" != "pigpio" ]; then
-                    exit 1
-                fi
-            fi
-        fi
-    done < install/system-requirements.txt
-}
-
+# Remove second Docker check and keep first Docker block
 if [ "$DOCKER_ENV" = "1" ]; then
-    echo "Docker environment detected - running minimal installation"
+    echo "Docker/Test environment detected - running minimal installation"
 
     # Create radio user if doesn't exist
     id -u ${RADIO_USER} &>/dev/null || useradd -m ${RADIO_USER}
-
-    # Add to audio group
     usermod -a -G audio ${RADIO_USER}
 
     # Create required directories
-    mkdir -p ${RADIO_HOME}
-    mkdir -p ${RADIO_HOME}/venv
-    mkdir -p ${RADIO_HOME}/sounds
-    mkdir -p ${RADIO_HOME}/data
-    mkdir -p ${RADIO_HOME}/logs
+    mkdir -p ${RADIO_HOME}/{src,config,web,install,sounds,data,logs,venv}
     mkdir -p /tmp/mpv-socket
 
     # Set proper permissions
@@ -93,6 +82,13 @@ if [ "$DOCKER_ENV" = "1" ]; then
     source ${VENV_PATH}/bin/activate
     pip install --no-cache-dir -r install/requirements.txt
 
+    # Validate before exit
+    if ! validate_installation; then
+        echo "! Installation validation failed"
+        exit 1
+    fi
+
+    echo "✓ Docker/Test installation completed successfully"
     exit 0
 fi
 
@@ -607,53 +603,6 @@ if ! ip link show wlan0 >/dev/null 2>&1; then
         fi
         sleep 1
     done
-fi
-
-# Add installation validation function
-validate_installation() {
-    echo "Validating installation..."
-
-    # Check critical services only if not in Docker/Test
-    if [ "$DOCKER_ENV" != "1" ]; then
-        for service in "NetworkManager" "radio"; do
-            if [ "$SKIP_PIGPIO" != "1" ] && [ "$service" = "pigpiod" ]; then
-                continue
-            fi
-            if ! systemctl is-active --quiet $service; then
-                echo "Error: $service is not running"
-                return 1
-            fi
-        done
-    fi
-
-    # Check radio user and permissions
-    if ! id "radio" >/dev/null 2>&1; then
-        echo "Error: radio user not found"
-        return 1
-    fi
-
-    # Verify critical directories
-    for dir in "/home/radio/radio"; do
-        if [ ! -d "$dir" ]; then
-            echo "Error: Directory $dir not found"
-            return 1
-        fi
-    done
-
-    # Skip NetworkManager directory check in Docker/Test
-    if [ "$DOCKER_ENV" != "1" ] && [ ! -d "/etc/NetworkManager/system-connections" ]; then
-        echo "Error: Directory /etc/NetworkManager/system-connections not found"
-        return 1
-    fi
-
-    echo "✓ Installation validation successful"
-    return 0
-}
-
-# Run validation at the end of installation
-if ! validate_installation; then
-    echo "! Installation validation failed"
-    exit 1
 fi
 
 # Call the function where appropriate

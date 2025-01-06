@@ -126,14 +126,10 @@ jobs:
       # Export development package
       - name: Export development package
         run: |
-          # Create dist directory with proper permissions
-          sudo mkdir -p dist
-          sudo chown $USER:$USER dist
-
           VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
           PACKAGE="radio-${VERSION}"
 
-          # Copy files with proper permissions
+          mkdir -p dist
           cp -r src/ dist/
           cp -r web/build/ dist/web/
           cp -r install/ dist/
@@ -141,9 +137,12 @@ jobs:
           cp -r scripts/ dist/
           cp manage_radio.sh dist/
 
-          # Ensure proper permissions
-          sudo chown -R $USER:$USER dist/
-          chmod -R 755 dist/
+          # Copy install.sh from install directory
+          cp install/install.sh dist/
+          cp install/requirements*.txt dist/
+
+          # Ensure install.sh is executable
+          chmod +x dist/install.sh
 
           cd dist
           tar -czf ${PACKAGE}.tar.gz ./*
@@ -154,36 +153,6 @@ jobs:
         run: |
           cd dist
           tar -xzf ${PACKAGE_NAME}
-
-          # Create radio home directory with proper permissions
-          sudo mkdir -p /home/radio/radio
-          sudo chown -R $USER:$USER /home/radio/radio
-
-          # Copy files to the correct location
-          cp -r src /home/radio/radio/
-          cp -r web /home/radio/radio/
-          cp -r install /home/radio/radio/
-          cp -r config /home/radio/radio/
-          cp -r scripts /home/radio/radio/
-          cp manage_radio.sh /home/radio/radio/
-
-          # Create required directories
-          sudo mkdir -p /home/radio/radio/sounds
-          sudo mkdir -p /home/radio/radio/data
-          sudo mkdir -p /home/radio/radio/logs
-          sudo mkdir -p /tmp/mpv-socket
-
-          # Create audio group and add radio user
-          sudo groupadd -f audio
-          id -u radio &>/dev/null || sudo useradd -m radio  # Only create if doesn't exist
-          sudo usermod -a -G audio radio
-
-          # Set proper permissions
-          sudo chown -R radio:radio /home/radio/radio
-          sudo chmod -R 755 /home/radio/radio
-          sudo chmod 777 /tmp/mpv-socket
-
-          # Run installation test with sudo
           sudo -E TEST_MODE=1 bash scripts/test_installation.sh
 
       # Test reporting
@@ -286,8 +255,13 @@ jobs:
           cp -r config/ dist/
           cp -r scripts/ dist/
           cp manage_radio.sh dist/
-          cp install.sh dist/
+
+          # Copy install.sh from install directory
+          cp install/install.sh dist/
           cp install/requirements*.txt dist/
+
+          # Ensure install.sh is executable
+          chmod +x dist/install.sh
 
           cd dist
           tar -czf ${PACKAGE}.tar.gz ./*
