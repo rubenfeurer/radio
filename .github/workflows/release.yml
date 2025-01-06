@@ -183,8 +183,11 @@ jobs:
           sudo useradd -m radio || true  # Create user if doesn't exist
           sudo usermod -a -G audio radio
 
+          # Set proper permissions for radio user
+          sudo chown -R radio:radio /home/radio/radio
+
           # Run installation test with sudo
-          sudo bash scripts/test_installation.sh
+          sudo -E TEST_MODE=1 bash scripts/test_installation.sh
 
       # Test reporting
       - name: Test Summary
