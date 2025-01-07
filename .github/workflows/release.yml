@@ -133,19 +133,16 @@ jobs:
           sudo mkdir -p dist
           sudo chown $USER:$USER dist
 
-          # Copy files
+          # Copy files with verification
+          cp -rv manage_radio.sh dist/
           cp -r src/ dist/
           cp -r web/build/ dist/web/
           cp -r install/ dist/
           cp -r config/ dist/
           cp -r scripts/ dist/
-          cp manage_radio.sh dist/
 
-          # Copy install.sh from install directory
-          cp install/install.sh dist/
-          cp install/requirements*.txt dist/
-
-          # Ensure install.sh is executable
+          # Ensure manage_radio.sh is executable
+          chmod +x dist/manage_radio.sh
           chmod +x dist/install.sh
 
           cd dist

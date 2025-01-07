@@ -11,6 +11,7 @@ services:
       - ../src:/home/radio/radio/src
       - ../config:/home/radio/radio/config
       - ../tests:/home/radio/radio/tests
+      - ../manage_radio.sh:/home/radio/radio/manage_radio.sh
       - ../install/requirements.txt:/home/radio/radio/requirements.txt
       - ../.git:/home/radio/radio/.git
     ports:

@@ -84,3 +84,7 @@ ENV MOCK_GPIO=true
 
 # Start command
 CMD ["/home/radio/radio/venv/bin/python", "-m", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
+
+# Add after creating directories
+COPY --chown=radio:radio manage_radio.sh /home/radio/radio/
+RUN chmod +x /home/radio/radio/manage_radio.sh
