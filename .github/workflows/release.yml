@@ -27,7 +27,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.backend', 'install/requirements*.txt', 'install/system-requirements.txt') }}
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/dev/Dockerfile.dev', 'install/requirements*.txt', 'install/system-requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-buildx-
 
@@ -45,7 +45,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/dev/Dockerfile.backend
+          file: ./docker/dev/Dockerfile.dev
           platforms: linux/amd64
           load: true
           tags: radio-backend:latest
@@ -66,7 +66,7 @@ jobs:
       - name: Run tests in Docker
         run: |
           mkdir -p venv && chmod 777 venv
-          docker compose -f docker/docker-compose.dev.yml run --rm \
+          docker compose -f docker/compose/docker-compose.dev.yml run --rm \
             --user root \
             -v ${PWD}:/home/radio/radio \
             -e MOCK_SERVICES=true \
@@ -154,7 +154,8 @@ jobs:
         run: |
           cd dist
           tar -xzf ${PACKAGE_NAME}
-          sudo -E TEST_MODE=1 bash scripts/test_installation.sh
+          docker build -f ../docker/test/Dockerfile.test-install -t radio-test-install .
+          docker run --rm radio-test-install
 
       # Test reporting
       - name: Test Summary
@@ -221,7 +222,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/dev/Dockerfile.backend
+          file: ./docker/dev/Dockerfile.dev
           platforms: linux/amd64
           load: true
           tags: radio-dev:latest
@@ -235,7 +236,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/dev/Dockerfile.backend
+          file: ./docker/dev/Dockerfile.dev
           platforms: linux/amd64,linux/arm/v7
           push: false
           tags: radio-dev:latest
@@ -308,7 +309,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.prod
+          file: ./docker/prod/Dockerfile.prod
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: ${{ startsWith(github.ref, 'refs/tags/') }}
           tags: |
