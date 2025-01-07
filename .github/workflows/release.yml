@@ -330,16 +330,39 @@ jobs:
 
       - name: Export production package
         run: |
+          # Ensure source files exist
+          if [ ! -f "install/install.sh" ]; then
+            echo "Error: install/install.sh not found"
+            exit 1
+          fi
+
+          if [ ! -f "manage_radio.sh" ]; then
+            echo "Error: manage_radio.sh not found"
+            exit 1
+          fi
+
           # Create container and copy files
           CONTAINER_ID=$(docker create ghcr.io/${{ github.repository }}:latest)
           mkdir -p dist
           docker cp $CONTAINER_ID:/home/radio/radio/. ./dist/
           docker rm $CONTAINER_ID
 
-          # Copy install script to dist
-          cp install/install.sh dist/install.sh
-          chmod +x dist/install.sh
-          chmod +x dist/manage_radio.sh
+          # Copy install script with error checking
+          cp install/install.sh dist/install.sh || {
+            echo "Error copying install.sh"
+            exit 1
+          }
+
+          # Set permissions with error checking
+          chmod +x dist/install.sh || {
+            echo "Error setting permissions for install.sh"
+            exit 1
+          }
+
+          chmod +x dist/manage_radio.sh || {
+            echo "Error setting permissions for manage_radio.sh"
+            exit 1
+          }
 
           # Set version
           VERSION="${GITHUB_REF#refs/tags/}"
