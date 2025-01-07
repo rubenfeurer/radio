@@ -48,13 +48,12 @@ jobs:
           file: ./docker/dev/Dockerfile.dev
           platforms: linux/amd64
           load: true
-          tags: radio-backend:latest
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          tags: radio-dev:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
-            PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple
-            PIP_ONLY_BINARY=:all:
+            DOCKER_BUILDKIT=1
 
       # Move cache
       - name: Move cache
@@ -73,8 +72,6 @@ jobs:
             -e MOCK_GPIO=true \
             -e DEV_MODE=true \
             -e PYTHONPATH=/home/radio/radio \
-            -e PIP_EXTRA_INDEX_URL=https://www.piwheels.org/simple \
-            -e PIP_ONLY_BINARY=:all: \
             backend bash -c "
               apt-get update && \
               apt-get install -y python3-venv && \
@@ -95,8 +92,7 @@ jobs:
                   --cov=src/hardware \
                   --cov-report=term-missing \
                   --cov-fail-under=50 \
-                  --junitxml=/home/radio/radio/pytest-results.xml && \
-                chmod 644 /home/radio/radio/pytest-results.xml
+                  --junitxml=pytest-results.xml
               '
             "
 
@@ -160,10 +156,9 @@ jobs:
       # Test reporting
       - name: Test Summary
         uses: test-summary/action@v2
-        if: always()
         with:
-          paths: |
-            pytest-results.xml
+          paths: pytest-results.xml
+        if: always()
 
       # Error notification
       - name: Notify on Failure
