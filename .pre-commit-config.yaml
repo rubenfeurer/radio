@@ -1,4 +1,25 @@
 repos:
+  # 1. Code Formatting (fixes code)
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        language_version: python3
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  # 2. Linting & Auto-fixes
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.2.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  # 3. Code Quality Checks (after formatting)
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
@@ -10,18 +31,7 @@ repos:
       - id: debug-statements
       - id: requirements-txt-fixer
 
-  - repo: https://github.com/psf/black
-    rev: 24.1.1
-    hooks:
-      - id: black
-        language_version: python3
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.2.0
-    hooks:
-      - id: ruff
-        args: [--fix]
-
+  # 4. Static Type Checking
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
     hooks:
@@ -34,6 +44,7 @@ repos:
           - types-aiofiles
         exclude: ^tests/
 
+  # 5. Additional Linting (for unused imports/vars)
   - repo: https://github.com/pycqa/pylint
     rev: v3.0.3
     hooks:
@@ -43,12 +54,7 @@ repos:
           - --enable=unused-import,unused-variable
         exclude: ^tests/
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        args: ["--profile", "black"]
-
+  # 6. Fast Tests (after all code quality checks)
   - repo: local
     hooks:
       - id: fast-tests

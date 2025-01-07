@@ -1,0 +1,31 @@
+name: radio
+
+services:
+  backend:
+    container_name: radio-backend-prod
+    image: ghcr.io/${GITHUB_REPOSITORY:-user/radio}:${TAG:-latest}
+    restart: unless-stopped
+    volumes:
+      # Persistent data and config
+      - ../../config:/home/radio/radio/config:ro  # Read-only config
+      - ../../data:/home/radio/radio/data
+      - ../../logs:/home/radio/radio/logs
+      - /tmp/mpv-socket:/tmp/mpv-socket
+    ports:
+      - "80:80"
+    environment:
+      - PYTHONPATH=/home/radio/radio
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - XDG_RUNTIME_DIR=/run/user/1000
+    devices:
+      - "/dev/snd:/dev/snd"
+      - "/dev/gpiomem:/dev/gpiomem"
+    group_add:
+      - audio
+    privileged: true  # For hardware access
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
