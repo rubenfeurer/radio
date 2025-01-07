@@ -330,16 +330,22 @@ jobs:
 
       - name: Export production package
         run: |
+          # Create container and copy files
           CONTAINER_ID=$(docker create ghcr.io/${{ github.repository }}:latest)
           mkdir -p dist
           docker cp $CONTAINER_ID:/home/radio/radio/. ./dist/
           docker rm $CONTAINER_ID
 
-          # Ensure install.sh is included and executable
+          # Copy install script to dist
+          cp install/install.sh dist/install.sh
           chmod +x dist/install.sh
+          chmod +x dist/manage_radio.sh
 
+          # Set version
           VERSION="${GITHUB_REF#refs/tags/}"
-          [ -z "$VERSION" ] && VERSION="main-$(date +'%Y%m%d')"
+          [ -z "$VERSION" ] && VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
+
+          # Create package
           PACKAGE="radio-${VERSION}"
           cd dist
           tar -czf ${PACKAGE}.tar.gz ./*
