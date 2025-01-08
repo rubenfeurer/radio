@@ -63,7 +63,7 @@ jobs:
       - name: Run tests
         if: success()
         run: |
-          docker compose -f docker/docker-compose.dev.yml run --rm \
+          docker compose -f docker/compose/docker-compose.dev.yml run --rm \
             --user root \
             -v ${PWD}:/home/radio/radio \
             backend bash -c "
