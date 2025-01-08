@@ -121,59 +121,98 @@ jobs:
           npm ci
           npm run build
 
-      # Export development package
+      # Export development package with proper file structure
       - name: Export development package
         run: |
           VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
           PACKAGE="radio-${VERSION}"
 
-          # Create dist directory
-          mkdir -p dist
+          # Create dist directory with proper structure
+          mkdir -p dist/radio
+
+          # Debug current directory
+          echo "Current directory contents:"
+          ls -la
 
           # Copy files with verification
-          cp -v manage_radio.sh dist/ || {
-            echo "Error: manage_radio.sh not found in root"
-            ls -la
+          cp -v manage_radio.sh dist/radio/ || {
+            echo "Error: manage_radio.sh not found"
             exit 1
           }
 
-          # Copy install script
-          cp -v install/install.sh dist/ || {
-            echo "Error: install.sh not found in install directory"
-            ls -la install/
-            exit 1
-          }
-
-          # Copy requirements
-          cp -v install/requirements*.txt dist/ || {
-            echo "Error: requirements files not found"
-            ls -la install/
-            exit 1
-          }
-
-          # Copy directories
-          for dir in src web/build install config scripts; do
+          # Copy directories maintaining structure
+          for dir in src config install scripts web/build; do
             if [ -d "$dir" ]; then
-              cp -r $dir dist/
+              mkdir -p dist/radio/$(dirname $dir)
+              cp -rv $dir dist/radio/$(dirname $dir)/
             else
-              echo "Warning: $dir directory not found"
+              echo "Warning: $dir not found"
             fi
           done
 
           # Set permissions
-          chmod +x dist/install.sh dist/manage_radio.sh
+          chmod +x dist/radio/manage_radio.sh
+          chmod +x dist/radio/install/install.sh
 
+          # Create package from radio directory
           cd dist
-          tar -czf ${PACKAGE}.tar.gz ./*
+          tar -czf ${PACKAGE}.tar.gz radio/
           echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
 
-      # Test installation
+      # Test installation with proper directory structure
       - name: Test installation
         run: |
-          cd dist
-          tar -xzf ${PACKAGE_NAME}
-          docker build -f ../docker/test/Dockerfile.test-install -t radio-test-install .
-          docker run --rm radio-test-install
+          # Create test directory
+          mkdir -p test-install
+          cd test-install
+
+          # Extract package
+          tar -xzf ../*.tar.gz
+
+          # Debug extracted contents
+          echo "Extracted contents:"
+          ls -la
+
+          # Create Dockerfile for testing
+          cat > Dockerfile.test <<EOF
+          FROM debian:bullseye-slim
+
+          # Create radio user and directory
+          RUN useradd -m -s /bin/bash radio && \
+              mkdir -p /home/radio/radio
+
+          # Copy files
+          COPY radio /home/radio/radio/
+
+          # Set ownership
+          RUN chown -R radio:radio /home/radio/radio && \
+              chmod +x /home/radio/radio/manage_radio.sh /home/radio/radio/install/install.sh
+
+          # Install minimal dependencies
+          RUN apt-get update && \
+              apt-get install -y python3 python3-venv && \
+              rm -rf /var/lib/apt/lists/*
+
+          # Set environment variables
+          ENV MOCK_SERVICES=true \
+              SKIP_HARDWARE=1 \
+              SKIP_NETWORK_SETUP=1 \
+              SKIP_PIGPIO=1 \
+              DEV_MODE=true \
+              TEST_MODE=1 \
+              DOCKER_ENV=1
+
+          # Switch to radio user
+          USER radio
+          WORKDIR /home/radio/radio
+
+          # Run installation test
+          CMD ["./install/install.sh", "--test"]
+          EOF
+
+          # Build and test
+          docker build -t radio-test -f Dockerfile.test .
+          docker run --rm radio-test
 
       # Test reporting
       - name: Test Summary
