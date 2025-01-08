@@ -40,7 +40,7 @@ jobs:
             network=host
           buildkitd-flags: --debug
 
-      # Build development image with proper cache handling
+      # Optimized build for AMD64
       - name: Build development image
         uses: docker/build-push-action@v5
         with:
@@ -55,13 +55,11 @@ jobs:
             BUILDKIT_INLINE_CACHE=1
             DOCKER_BUILDKIT=1
 
-      # Only move cache if it exists
+      # Move cache
       - name: Move cache
         run: |
-          if [ -d "/tmp/.buildx-cache-new" ]; then
-            rm -rf /tmp/.buildx-cache
-            mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-          fi
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       # Run tests with optimized venv
       - name: Run tests in Docker
@@ -76,7 +74,8 @@ jobs:
             -e PYTHONPATH=/home/radio/radio \
             backend bash -c "
               cd /home/radio/radio && \
-              python3 -m pytest tests/ \
+              /home/radio/radio/venv/bin/pip install pytest pytest-cov pytest-timeout && \
+              /home/radio/radio/venv/bin/python -m pytest tests/ \
                 --verbose \
                 --cov=src/core \
                 --cov=src/api \
