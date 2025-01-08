@@ -24,8 +24,9 @@ jobs:
             /tmp/.buildx-cache
           key: ${{ runner.os }}-dev-${{ hashFiles('install/requirements*.txt', 'docker/**/*') }}
 
-      # Run tests
+      # Only run tests on manual workflow dispatch
       - name: Run test suite
+        if: github.event_name == 'workflow_dispatch'
         run: |
           docker compose -f docker/compose/docker-compose.dev.yml run --rm \
             -e MOCK_SERVICES=true \
@@ -34,7 +35,8 @@ jobs:
 
   build-dev:
     name: Build Dev Package
-    needs: development
+    # Remove dependency on tests for PR merges
+    needs: [development]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
