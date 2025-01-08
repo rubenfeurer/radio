@@ -14,13 +14,19 @@ RUN apt-get update && apt-get install -y \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy all files
+# Create radio user and directory structure first
+RUN useradd -m -s /bin/bash radio && \
+    mkdir -p /home/radio/radio && \
+    chown -R radio:radio /home/radio/radio
+
+# Copy all files to temporary location
 COPY . .
 
-# Set execute permissions
-RUN chmod +x install/install.sh \
-    && chmod +x scripts/*.sh 2>/dev/null || true \
-    && chmod +x manage_radio.sh 2>/dev/null || true
+# Copy files to radio home directory
+RUN cp -r * /home/radio/radio/ && \
+    chown -R radio:radio /home/radio/radio && \
+    chmod +x /home/radio/radio/install/install.sh && \
+    chmod +x /home/radio/radio/manage_radio.sh
 
 # Set environment variables for testing
 ENV MOCK_SERVICES=true \
@@ -31,10 +37,11 @@ ENV MOCK_SERVICES=true \
     TEST_MODE=1 \
     DOCKER_ENV=1
 
-# Run install script with test flags and skip systemd operations
-RUN SKIP_PIGPIO=1 TEST_MODE=1 DOCKER_ENV=1 ./install/install.sh --test || exit 0
+# Run install script with test flags
+RUN cd /home/radio/radio && \
+    SKIP_PIGPIO=1 TEST_MODE=1 DOCKER_ENV=1 ./install/install.sh --test
 
-# Run a detailed validation and exit
+# Validation command remains the same
 CMD ["bash", "-c", "\
     echo 'Running installation validation...' && \
     RADIO_HOME='/home/radio/radio' && \
