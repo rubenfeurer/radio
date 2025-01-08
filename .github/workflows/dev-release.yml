@@ -1,0 +1,122 @@
+name: Development Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [develop]
+  workflow_dispatch:
+
+jobs:
+  development:
+    if: github.event.pull_request.merged == true
+    name: Development Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cache setup
+      - name: Cache pip and Docker layers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/piwheels
+            /tmp/.buildx-cache
+          key: ${{ runner.os }}-dev-${{ hashFiles('install/requirements*.txt', 'docker/**/*') }}
+
+      # Run tests
+      - name: Run test suite
+        run: |
+          docker compose -f docker/compose/docker-compose.dev.yml run --rm \
+            -e MOCK_SERVICES=true \
+            -e TEST_MODE=1 \
+            backend pytest
+
+  build-dev:
+    name: Build Dev Package
+    needs: development
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build frontend
+      - name: Build frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - run: |
+          cd web
+          npm ci
+          npm run build
+
+      # Create development package
+      - name: Create dev package
+        run: |
+          VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
+          mkdir -p dist/radio
+          cp -r src config install scripts web/build dist/radio/
+          cp manage_radio.sh dist/radio/
+          chmod +x dist/radio/manage_radio.sh dist/radio/install/install.sh
+          cd dist && tar -czf radio-${VERSION}.tar.gz radio/
+          echo "PACKAGE_NAME=radio-${VERSION}.tar.gz" >> $GITHUB_ENV
+
+      # Upload artifact
+      - name: Upload dev package
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-dev-package
+          path: dist/${{ env.PACKAGE_NAME }}
+          retention-days: 7
+
+  test-dev-install:
+    name: Test Dev Package Installation
+    needs: build-dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: radio-dev-package
+
+      - name: Test installation
+        run: |
+          mkdir test-install && cd test-install
+          tar -xzf ../*.tar.gz
+
+          # Create test Dockerfile
+          cat > Dockerfile.test <<EOF
+          FROM debian:bullseye-slim
+
+          # Install dependencies first
+          RUN apt-get update && \
+              apt-get install -y --no-install-recommends \
+              python3 \
+              python3-venv \
+              sudo \
+              && rm -rf /var/lib/apt/lists/*
+
+          # Create radio user with sudo access
+          RUN useradd -m -s /bin/bash radio && \
+              echo "radio ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+              mkdir -p /home/radio/radio && \
+              chown -R radio:radio /home/radio
+
+          # Copy files
+          COPY --chown=radio:radio radio/ /home/radio/radio/
+
+          # Set environment variables
+          ENV MOCK_SERVICES=true \
+              SKIP_HARDWARE=1 \
+              SKIP_NETWORK_SETUP=1 \
+              TEST_MODE=1
+
+          # Switch to radio user
+          USER radio
+          WORKDIR /home/radio/radio
+
+          # Run installation test with sudo
+          CMD ["sudo", "./install/install.sh", "--test"]
+          EOF
+
+          # Run test
+          docker build -t radio-test -f Dockerfile.test .
+          docker run --rm radio-test

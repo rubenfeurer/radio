@@ -1,20 +1,18 @@
-name: Radio Tests
+name: Feature Branch Tests
 
 on:
-  pull_request:
-    branches: [main, develop]
   push:
     branches:
       - "*"
       - "!main"
       - "!develop"
+  pull_request:
+    branches: [main, develop]
 
 jobs:
   test:
+    name: Run Tests
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-
     steps:
       - uses: actions/checkout@v4
 

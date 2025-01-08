@@ -1,0 +1,120 @@
+name: Production Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  production:
+    if: github.event.pull_request.merged == true || startsWith(github.ref, 'refs/tags/')
+    name: Production Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cache setup
+      - name: Cache pip and Docker layers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/piwheels
+            /tmp/.buildx-cache-prod
+          key: ${{ runner.os }}-prod-${{ hashFiles('install/requirements*.txt', 'docker/**/*') }}
+
+      # Run tests
+      - name: Run test suite
+        run: |
+          docker compose -f docker/compose/docker-compose.prod.yml run --rm \
+            -e MOCK_SERVICES=true \
+            -e TEST_MODE=1 \
+            backend pytest
+
+      # Build frontend
+      - name: Build frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - run: |
+          cd web
+          npm ci
+          npm run build
+
+      # Create production package
+      - name: Create production package
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          [ -z "$VERSION" ] && VERSION="main-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
+
+          mkdir -p dist/radio
+          cp -r src config install scripts web/build dist/radio/
+          cp manage_radio.sh dist/radio/
+          chmod +x dist/radio/manage_radio.sh dist/radio/install/install.sh
+
+          cd dist && tar -czf radio-${VERSION}.tar.gz radio/
+          echo "PACKAGE_NAME=radio-${VERSION}.tar.gz" >> $GITHUB_ENV
+
+      # Upload artifact
+      - name: Upload production package
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-prod-package
+          path: dist/${{ env.PACKAGE_NAME }}
+
+      # Test production package installation
+      - name: Test production package installation
+        run: |
+          mkdir test-install && cd test-install
+          tar -xzf ../*.tar.gz
+
+          # Create test Dockerfile simulating Pi environment
+          cat > Dockerfile.test <<EOF
+          FROM arm32v7/debian:bullseye-slim
+
+          # Install dependencies first
+          RUN apt-get update && \
+              apt-get install -y --no-install-recommends \
+              python3 \
+              python3-venv \
+              sudo \
+              && rm -rf /var/lib/apt/lists/*
+
+          # Create radio user with sudo access
+          RUN useradd -m -s /bin/bash radio && \
+              echo "radio ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+              mkdir -p /home/radio/radio && \
+              chown -R radio:radio /home/radio
+
+          # Copy files
+          COPY --chown=radio:radio radio/ /home/radio/radio/
+
+          # Set environment variables
+          ENV MOCK_SERVICES=true \
+              SKIP_HARDWARE=1 \
+              SKIP_NETWORK_SETUP=1 \
+              TEST_MODE=1
+
+          # Switch to radio user
+          USER radio
+          WORKDIR /home/radio/radio
+
+          # Run installation test with sudo
+          CMD ["sudo", "./install/install.sh", "--test"]
+          EOF
+
+          # Run test
+          docker build -t radio-test -f Dockerfile.test .
+          docker run --rm radio-test
+
+      # Create GitHub Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./*.tar.gz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
