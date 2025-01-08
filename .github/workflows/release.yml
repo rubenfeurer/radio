@@ -23,6 +23,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # Cache Docker layers with proper cache paths
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
@@ -49,17 +50,21 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: radio-dev:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             DOCKER_BUILDKIT=1
 
-      # Move cache
+      # Move cache only if new cache exists
       - name: Move cache
         run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          if [ -d "/tmp/.buildx-cache-new" ]; then
+            rm -rf /tmp/.buildx-cache
+            mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          else
+            echo "No new cache to move"
+          fi
 
       # Run tests with optimized venv
       - name: Run tests in Docker
