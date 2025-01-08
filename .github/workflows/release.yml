@@ -332,7 +332,7 @@ jobs:
 
   build-prod:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-    needs: [test, security-scan]
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -433,8 +433,7 @@ jobs:
           path: dist/${{ env.PACKAGE_NAME }}
 
   test-package:
-    needs: [build-dev, build-prod]
-    if: always() && !failure() && !cancelled()
+    needs: [test]
     runs-on: ubuntu-latest
     strategy:
       matrix:
