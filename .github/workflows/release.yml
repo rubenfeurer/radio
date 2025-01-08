@@ -75,7 +75,9 @@ jobs:
           # Run tests in the container
           docker compose -f docker/compose/docker-compose.dev.yml run --rm \
             --user root \
-            -v ${PWD}:/home/radio/radio \
+            -v ${PWD}/src:/home/radio/radio/src \
+            -v ${PWD}/tests:/home/radio/radio/tests \
+            -v ${PWD}/config:/home/radio/radio/config \
             -e MOCK_SERVICES=true \
             -e MOCK_GPIO=true \
             -e DEV_MODE=true \
