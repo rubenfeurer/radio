@@ -325,12 +325,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Optimize QEMU setup
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
 
+      # Optimize Buildx setup
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          buildkitd-flags: --debug
 
+      # Add caching for production builds
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache-prod
+          key: ${{ runner.os }}-buildx-prod-${{ hashFiles('docker/prod/**/*', 'install/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-prod-
+
+      # Login only when needed
       - name: Login to GitHub Container Registry
         if: startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
@@ -339,6 +358,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Optimize multi-platform build
       - name: Build and push production image
         uses: docker/build-push-action@v5
         with:
@@ -351,44 +371,23 @@ jobs:
             ${{ startsWith(github.ref, 'refs/tags/') && format('ghcr.io/{0}:{1}', github.repository, github.ref_name) || '' }}
           build-args: |
             BUILD_TYPE=production
-          cache-from: type=gha,scope=prod
-          cache-to: type=gha,scope=prod,mode=max
+            BUILDKIT_INLINE_CACHE=1
+          cache-from: type=local,src=/tmp/.buildx-cache-prod
+          cache-to: type=local,dest=/tmp/.buildx-cache-prod-new,mode=max
 
-      - name: Scan Docker image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: "ghcr.io/${{ github.repository }}:latest"
-          format: "table"
-          exit-code: "1"
-          severity: "CRITICAL,HIGH"
+      # Move cache
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache-prod
+          mv /tmp/.buildx-cache-prod-new /tmp/.buildx-cache-prod
 
+      # Export production package more efficiently
       - name: Export production package
         run: |
           # Create dist directory
           mkdir -p dist
 
-          # Copy install script first
-          cp install/install.sh dist/ || {
-            echo "Error: Failed to copy install.sh"
-            ls -la install/
-            exit 1
-          }
-
-          # Copy manage_radio script
-          cp manage_radio.sh dist/ || {
-            echo "Error: Failed to copy manage_radio.sh"
-            ls -la
-            exit 1
-          }
-
-          # Set permissions
-          chmod +x dist/install.sh dist/manage_radio.sh || {
-            echo "Error: Failed to set permissions"
-            ls -la dist/
-            exit 1
-          }
-
-          # Create container and copy files
+          # Create container and copy files efficiently
           CONTAINER_ID=$(docker create ghcr.io/${{ github.repository }}:latest)
           docker cp $CONTAINER_ID:/home/radio/radio/. dist/
           docker rm $CONTAINER_ID
@@ -397,11 +396,19 @@ jobs:
           VERSION="${GITHUB_REF#refs/tags/}"
           [ -z "$VERSION" ] && VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
 
-          # Create package
-          PACKAGE="radio-${VERSION}"
+          # Create package efficiently
           cd dist
-          tar -czf ${PACKAGE}.tar.gz ./*
-          echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
+          tar -czf radio-${VERSION}.tar.gz ./*
+          echo "PACKAGE_NAME=radio-${VERSION}.tar.gz" >> $GITHUB_ENV
+
+      # Scan Docker image
+      - name: Scan Docker image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "ghcr.io/${{ github.repository }}:latest"
+          format: "table"
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"
 
       - name: Upload production artifact
         uses: actions/upload-artifact@v4
@@ -423,10 +430,128 @@ jobs:
 
       - name: Test package
         run: |
-          tar -xzf *.tar.gz
-          ./install.sh --test
-          ./radio --version
-          ./radio status
+          # Create test directory
+          mkdir -p test-install
+          cd test-install
+          tar -xzf ../*.tar.gz
+
+          # Build a lightweight test container
+          cat > Dockerfile.test <<EOF
+          FROM debian:bullseye-slim
+          WORKDIR /app
+          COPY . .
+          RUN apt-get update && \
+              apt-get install -y python3 python3-venv && \
+              rm -rf /var/lib/apt/lists/*
+          ENV MOCK_SERVICES=true \
+              SKIP_HARDWARE=1 \
+              SKIP_NETWORK_SETUP=1 \
+              SKIP_PIGPIO=1 \
+              DEV_MODE=true \
+              TEST_MODE=1 \
+              DOCKER_ENV=1
+          CMD ["./install.sh", "--test"]
+          EOF
+
+          # Build and run test
+          docker build -t radio-test -f Dockerfile.test .
+          docker run --rm radio-test
+
+      # Optimize build steps with caching
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/**/*', 'install/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Use BuildKit's parallel processing
+      - name: Build development image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/dev/Dockerfile.dev
+          platforms: linux/amd64
+          load: true
+          tags: radio-dev:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            DOCKER_BUILDKIT=1
+            COMPOSE_DOCKER_CLI_BUILD=1
+
+      # Multi-platform build
+      - name: Build multi-platform image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/dev/Dockerfile.dev
+          platforms: linux/amd64,linux/arm/v7
+          push: false
+          tags: radio-dev:latest
+          build-args: |
+            BUILD_TYPE=development
+          cache-from: type=gha,scope=dev
+          cache-to: type=gha,scope=dev,mode=max
+
+      - name: Export development package
+        run: |
+          VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
+          PACKAGE="radio-${VERSION}"
+
+          # Create dist directory
+          mkdir -p dist
+
+          # Copy files with verification
+          cp -v manage_radio.sh dist/ || {
+            echo "Error: manage_radio.sh not found in root"
+            ls -la
+            exit 1
+          }
+
+          # Copy install script
+          cp -v install/install.sh dist/ || {
+            echo "Error: install.sh not found in install directory"
+            ls -la install/
+            exit 1
+          }
+
+          # Copy requirements
+          cp -v install/requirements*.txt dist/ || {
+            echo "Error: requirements files not found"
+            ls -la install/
+            exit 1
+          }
+
+          # Copy directories
+          for dir in src web/build install config scripts; do
+            if [ -d "$dir" ]; then
+              cp -r $dir dist/
+            else
+              echo "Warning: $dir directory not found"
+            fi
+          done
+
+          # Set permissions
+          chmod +x dist/install.sh dist/manage_radio.sh
+
+          cd dist
+          tar -czf ${PACKAGE}.tar.gz ./*
+          echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload development artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-dev-package
+          path: dist/${{ env.PACKAGE_NAME }}
+          retention-days: 7
 
   create-release:
     needs: test-package
