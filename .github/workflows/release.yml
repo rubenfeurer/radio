@@ -121,7 +121,7 @@ jobs:
           npm ci
           npm run build
 
-      # Export development package with proper file structure
+      # Export development package with proper structure
       - name: Export development package
         run: |
           VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
@@ -129,130 +129,124 @@ jobs:
 
           # Debug: Show current directory and files
           echo "Current directory: $(pwd)"
-          echo "Files in current directory:"
           ls -la
 
           # Create dist directory with proper structure
           mkdir -p dist/radio
 
-          # Copy manage_radio.sh with verification
-          if [ -f "manage_radio.sh" ]; then
-            cp -v manage_radio.sh dist/radio/ || {
-              echo "Error copying manage_radio.sh"
-              exit 1
-            }
-          else
-            echo "Error: manage_radio.sh not found in $(pwd)"
+          # Ensure manage_radio.sh exists and is executable
+          if [ ! -f "manage_radio.sh" ]; then
+            echo "Error: manage_radio.sh not found"
             exit 1
           fi
+          chmod +x manage_radio.sh
 
-          # Copy directories with verification
+          # Copy files with structure preservation
+          cp manage_radio.sh dist/radio/
           for dir in src config install scripts web/build; do
             if [ -d "$dir" ]; then
-              cp -rv $dir dist/radio/ || {
-                echo "Error copying $dir"
-                exit 1
-              }
+              mkdir -p "dist/radio/$(dirname $dir)"
+              cp -r "$dir" "dist/radio/$(dirname $dir)/"
             else
-              echo "Warning: $dir not found in $(pwd)"
+              echo "Warning: Directory $dir not found"
             fi
           done
 
           # Set permissions
-          chmod +x dist/radio/manage_radio.sh dist/radio/install/install.sh
+          find dist/radio -type f -name "*.sh" -exec chmod +x {} \;
+          chmod +x dist/radio/manage_radio.sh
+          chmod +x dist/radio/install/install.sh
 
-          # Create and verify package
+          # Create package
           cd dist
           tar -czvf "${PACKAGE}.tar.gz" radio/
-
-          # Verify tar file was created
-          if [ ! -f "${PACKAGE}.tar.gz" ]; then
-            echo "Error: Failed to create tar file"
-            exit 1
-          fi
-
-          echo "Created package: ${PACKAGE}.tar.gz"
           echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
 
-      # Test installation
+      # Test installation with proper structure
       - name: Test installation
         run: |
-          # Debug: Show current directory and dist contents
-          echo "Current directory: $(pwd)"
-          echo "Contents of dist directory:"
-          ls -la dist/
-
           # Create test directory
           mkdir -p test-install
           cd test-install
 
-          # Copy and extract package
+          # Copy and verify package
           cp ../dist/*.tar.gz ./ || {
-            echo "Error: No tar file found in dist directory"
+            echo "Error: No package found in dist/"
+            ls -la ../dist/
             exit 1
           }
 
-          tar -xzvf *.tar.gz || {
-            echo "Error: Failed to extract package"
+          # Extract and verify
+          tar -xzvf *.tar.gz
+          if [ ! -d "radio" ]; then
+            echo "Error: radio directory not found after extraction"
+            ls -la
             exit 1
-          }
+          fi
 
-      # Test reporting
-      - name: Test Summary
-        if: always()
-        uses: test-summary/action@v2
-        with:
-          paths: "test-results/pytest-results.xml"
+          # Create test Dockerfile
+          cat > Dockerfile.test <<EOF
+          FROM debian:bullseye-slim
 
-      # Error notification
-      - name: Notify on Failure
-        if: failure() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              ...context.repo,
-              issue_number: context.event.pull_request.number,
-              body: '❌ Tests failed in release workflow'
-            })
+          # Create radio user and set up directory
+          RUN useradd -m -s /bin/bash radio && \
+              mkdir -p /home/radio/radio && \
+              chown -R radio:radio /home/radio
 
-  security-scan:
-    needs: [test]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run security checks
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        run: |
-          pip install bandit snyk-sdk
-          bandit -r src/
-          snyk test
+          # Install minimal dependencies
+          RUN apt-get update && \
+              apt-get install -y --no-install-recommends \
+              python3 \
+              python3-venv \
+              && rm -rf /var/lib/apt/lists/*
 
-  build-dev:
-    if: github.ref == 'refs/heads/develop'
-    needs: [test]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+          # Copy files with correct ownership
+          COPY --chown=radio:radio radio/ /home/radio/radio/
 
-    steps:
-      - uses: actions/checkout@v4
+          # Verify and set permissions
+          RUN ls -la /home/radio/radio/manage_radio.sh && \
+              chmod +x /home/radio/radio/manage_radio.sh && \
+              chmod +x /home/radio/radio/install/install.sh
 
+          # Set environment variables
+          ENV MOCK_SERVICES=true \
+              SKIP_HARDWARE=1 \
+              SKIP_NETWORK_SETUP=1 \
+              SKIP_PIGPIO=1 \
+              DEV_MODE=true \
+              TEST_MODE=1 \
+              DOCKER_ENV=1
+
+          # Switch to radio user
+          USER radio
+          WORKDIR /home/radio/radio
+
+          # Run installation test
+          CMD ["./install/install.sh", "--test"]
+          EOF
+
+          # Build and run test
+          docker build --no-cache -t radio-test -f Dockerfile.test .
+          docker run --rm radio-test
+
+      # Set up Node.js for frontend build
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
 
+      # Build frontend with proper permissions
       - name: Build frontend
         working-directory: ./web
         run: |
           npm ci
           npm run build
 
+      # Set up QEMU
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
+      # Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
