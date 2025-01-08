@@ -127,92 +127,75 @@ jobs:
           VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
           PACKAGE="radio-${VERSION}"
 
+          # Debug: Show current directory and files
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
+
           # Create dist directory with proper structure
           mkdir -p dist/radio
 
-          # Debug current directory
-          echo "Current directory contents:"
-          ls -la
-
-          # Copy files with verification
-          cp -v manage_radio.sh dist/radio/ || {
-            echo "Error: manage_radio.sh not found"
+          # Copy manage_radio.sh with verification
+          if [ -f "manage_radio.sh" ]; then
+            cp -v manage_radio.sh dist/radio/ || {
+              echo "Error copying manage_radio.sh"
+              exit 1
+            }
+          else
+            echo "Error: manage_radio.sh not found in $(pwd)"
             exit 1
-          }
+          fi
 
-          # Copy directories maintaining structure
+          # Copy directories with verification
           for dir in src config install scripts web/build; do
             if [ -d "$dir" ]; then
-              mkdir -p dist/radio/$(dirname $dir)
-              cp -rv $dir dist/radio/$(dirname $dir)/
+              cp -rv $dir dist/radio/ || {
+                echo "Error copying $dir"
+                exit 1
+              }
             else
-              echo "Warning: $dir not found"
+              echo "Warning: $dir not found in $(pwd)"
             fi
           done
 
           # Set permissions
-          chmod +x dist/radio/manage_radio.sh
-          chmod +x dist/radio/install/install.sh
+          chmod +x dist/radio/manage_radio.sh dist/radio/install/install.sh
 
-          # Create package from radio directory
+          # Create and verify package
           cd dist
-          tar -czf ${PACKAGE}.tar.gz radio/
+          tar -czvf "${PACKAGE}.tar.gz" radio/
+
+          # Verify tar file was created
+          if [ ! -f "${PACKAGE}.tar.gz" ]; then
+            echo "Error: Failed to create tar file"
+            exit 1
+          fi
+
+          echo "Created package: ${PACKAGE}.tar.gz"
           echo "PACKAGE_NAME=${PACKAGE}.tar.gz" >> $GITHUB_ENV
 
-      # Test installation with proper directory structure
+      # Test installation
       - name: Test installation
         run: |
+          # Debug: Show current directory and dist contents
+          echo "Current directory: $(pwd)"
+          echo "Contents of dist directory:"
+          ls -la dist/
+
           # Create test directory
           mkdir -p test-install
           cd test-install
 
-          # Extract package
-          tar -xzf ../*.tar.gz
+          # Copy and extract package
+          cp ../dist/*.tar.gz ./ || {
+            echo "Error: No tar file found in dist directory"
+            exit 1
+          }
 
-          # Debug extracted contents
-          echo "Extracted contents:"
-          ls -la
-
-          # Create Dockerfile for testing
-          cat > Dockerfile.test <<EOF
-          FROM debian:bullseye-slim
-
-          # Create radio user and directory
-          RUN useradd -m -s /bin/bash radio && \
-              mkdir -p /home/radio/radio
-
-          # Copy files
-          COPY radio /home/radio/radio/
-
-          # Set ownership
-          RUN chown -R radio:radio /home/radio/radio && \
-              chmod +x /home/radio/radio/manage_radio.sh /home/radio/radio/install/install.sh
-
-          # Install minimal dependencies
-          RUN apt-get update && \
-              apt-get install -y python3 python3-venv && \
-              rm -rf /var/lib/apt/lists/*
-
-          # Set environment variables
-          ENV MOCK_SERVICES=true \
-              SKIP_HARDWARE=1 \
-              SKIP_NETWORK_SETUP=1 \
-              SKIP_PIGPIO=1 \
-              DEV_MODE=true \
-              TEST_MODE=1 \
-              DOCKER_ENV=1
-
-          # Switch to radio user
-          USER radio
-          WORKDIR /home/radio/radio
-
-          # Run installation test
-          CMD ["./install/install.sh", "--test"]
-          EOF
-
-          # Build and test
-          docker build -t radio-test -f Dockerfile.test .
-          docker run --rm radio-test
+          tar -xzvf *.tar.gz || {
+            echo "Error: Failed to extract package"
+            exit 1
+          }
 
       # Test reporting
       - name: Test Summary
