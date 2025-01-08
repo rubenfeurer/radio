@@ -45,7 +45,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/dev/Dockerfile.dev
+          file: docker/dev/Dockerfile.dev
           platforms: linux/amd64
           load: true
           tags: radio-dev:latest
@@ -73,27 +73,15 @@ jobs:
             -e DEV_MODE=true \
             -e PYTHONPATH=/home/radio/radio \
             backend bash -c "
-              apt-get update && \
-              apt-get install -y python3-venv && \
-              python3 -m venv /home/radio/radio/venv && \
-              chown -R radio:radio /home/radio/radio && \
-              su radio -c '
-                source /home/radio/radio/venv/bin/activate && \
-                cd /home/radio/radio && \
-                pip install --no-cache-dir \
-                  --only-binary :all: \
-                  --extra-index-url https://www.piwheels.org/simple \
-                  -r install/requirements.txt \
-                  -r install/requirements-dev.txt && \
-                python -m pytest tests/ \
-                  --verbose \
-                  --cov=src/core \
-                  --cov=src/api \
-                  --cov=src/hardware \
-                  --cov-report=term-missing \
-                  --cov-fail-under=50 \
-                  --junitxml=pytest-results.xml
-              '
+              cd /home/radio/radio && \
+              python3 -m pytest tests/ \
+                --verbose \
+                --cov=src/core \
+                --cov=src/api \
+                --cov=src/hardware \
+                --cov-report=term-missing \
+                --cov-fail-under=50 \
+                --junitxml=/home/radio/radio/pytest-results.xml
             "
 
       # Set up Node.js for frontend build
@@ -155,10 +143,11 @@ jobs:
 
       # Test reporting
       - name: Test Summary
+        if: always()
         uses: test-summary/action@v2
         with:
-          paths: pytest-results.xml
-        if: always()
+          paths: |
+            pytest-results.xml
 
       # Error notification
       - name: Notify on Failure
@@ -325,39 +314,34 @@ jobs:
 
       - name: Export production package
         run: |
-          # Ensure source files exist
-          if [ ! -f "install/install.sh" ]; then
-            echo "Error: install/install.sh not found"
-            exit 1
-          fi
+          # Create dist directory
+          mkdir -p dist
 
-          if [ ! -f "manage_radio.sh" ]; then
-            echo "Error: manage_radio.sh not found"
+          # Copy install script first
+          cp install/install.sh dist/ || {
+            echo "Error: Failed to copy install.sh"
+            ls -la install/
             exit 1
-          fi
+          }
+
+          # Copy manage_radio script
+          cp manage_radio.sh dist/ || {
+            echo "Error: Failed to copy manage_radio.sh"
+            ls -la
+            exit 1
+          }
+
+          # Set permissions
+          chmod +x dist/install.sh dist/manage_radio.sh || {
+            echo "Error: Failed to set permissions"
+            ls -la dist/
+            exit 1
+          }
 
           # Create container and copy files
           CONTAINER_ID=$(docker create ghcr.io/${{ github.repository }}:latest)
-          mkdir -p dist
-          docker cp $CONTAINER_ID:/home/radio/radio/. ./dist/
+          docker cp $CONTAINER_ID:/home/radio/radio/. dist/
           docker rm $CONTAINER_ID
-
-          # Copy install script with error checking
-          cp install/install.sh dist/install.sh || {
-            echo "Error copying install.sh"
-            exit 1
-          }
-
-          # Set permissions with error checking
-          chmod +x dist/install.sh || {
-            echo "Error setting permissions for install.sh"
-            exit 1
-          }
-
-          chmod +x dist/manage_radio.sh || {
-            echo "Error setting permissions for manage_radio.sh"
-            exit 1
-          }
 
           # Set version
           VERSION="${GITHUB_REF#refs/tags/}"
