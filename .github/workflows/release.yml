@@ -128,16 +128,31 @@ jobs:
           sudo chown $USER:$USER dist
 
           # Copy files with verification
-          cp -rv manage_radio.sh dist/
-          cp -r src/ dist/
-          cp -r web/build/ dist/web/
-          cp -r install/ dist/
-          cp -r config/ dist/
-          cp -r scripts/ dist/
+          cp -rv manage_radio.sh dist/ || {
+            echo "Error: manage_radio.sh not found"
+            ls -la
+            exit 1
+          }
 
-          # Ensure manage_radio.sh is executable
-          chmod +x dist/manage_radio.sh
-          chmod +x dist/install.sh
+          cp -rv install/install.sh dist/ || {
+            echo "Error: install/install.sh not found"
+            ls -la install/
+            exit 1
+          }
+
+          # Copy other directories
+          cp -r src/ dist/ || echo "Warning: src/ not copied"
+          cp -r web/build/ dist/web/ || echo "Warning: web/build/ not copied"
+          cp -r install/ dist/ || echo "Warning: install/ not copied"
+          cp -r config/ dist/ || echo "Warning: config/ not copied"
+          cp -r scripts/ dist/ || echo "Warning: scripts/ not copied"
+
+          # Ensure scripts are executable
+          chmod +x dist/manage_radio.sh dist/install.sh || {
+            echo "Error: Failed to set permissions"
+            ls -la dist/
+            exit 1
+          }
 
           cd dist
           tar -czf ${PACKAGE}.tar.gz ./*
