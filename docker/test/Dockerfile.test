@@ -1,0 +1,43 @@
+FROM debian:bullseye-slim
+
+# Create radio user and set up directory first
+RUN useradd -m -s /bin/bash radio && \
+    mkdir -p /home/radio/radio && \
+    chown -R radio:radio /home/radio && \
+    # Add radio to audio group
+    groupadd -f audio && \
+    usermod -aG audio radio
+
+# Install minimal dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3 \
+    python3-venv \
+    sudo \
+    && rm -rf /var/lib/apt/lists/* && \
+    # Allow radio user to use sudo without password
+    echo "radio ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Copy files with correct ownership
+COPY --chown=radio:radio radio/ /home/radio/radio/
+
+# Verify and set permissions
+RUN ls -la /home/radio/radio/manage_radio.sh && \
+    chmod +x /home/radio/radio/manage_radio.sh && \
+    chmod +x /home/radio/radio/install/install.sh
+
+# Set environment variables
+ENV MOCK_SERVICES=true \
+    SKIP_HARDWARE=1 \
+    SKIP_NETWORK_SETUP=1 \
+    SKIP_PIGPIO=1 \
+    DEV_MODE=true \
+    TEST_MODE=1 \
+    DOCKER_ENV=1
+
+# Switch to radio user
+USER radio
+WORKDIR /home/radio/radio
+
+# Run installation test
+CMD ["sudo", "./install/install.sh", "--test"]
