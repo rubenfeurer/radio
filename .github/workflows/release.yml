@@ -69,7 +69,10 @@ jobs:
       # Run tests with optimized venv
       - name: Run tests in Docker
         run: |
-          mkdir -p venv && chmod 777 venv
+          # Build the development image first
+          docker compose -f docker/compose/docker-compose.dev.yml build
+
+          # Run tests in the container
           docker compose -f docker/compose/docker-compose.dev.yml run --rm \
             --user root \
             -v ${PWD}:/home/radio/radio \
