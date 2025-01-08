@@ -79,7 +79,6 @@ jobs:
             -e PYTHONPATH=/home/radio/radio \
             backend bash -c "
               cd /home/radio/radio && \
-              /home/radio/radio/venv/bin/pip install pytest pytest-cov pytest-timeout && \
               /home/radio/radio/venv/bin/python -m pytest tests/ \
                 --verbose \
                 --cov=src/core \
