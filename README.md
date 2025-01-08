@@ -2,7 +2,9 @@
 
 A web-controlled internet radio system for Raspberry Pi with physical controls and WiFi management.
 
-## Features
+## For Users
+
+### Features
 
 - Three configurable radio station slots with instant playback
 - Physical controls (buttons and rotary encoder)
@@ -13,23 +15,56 @@ A web-controlled internet radio system for Raspberry Pi with physical controls a
 - System sounds for user feedback
 - Hardware support for Raspberry Pi 4B and Zero 2 WH
 
-## Quick Start
+### Installation
 
-### Access the Radio
+1. Download Latest Release:
 
-- Web Interface: `http://radiod.local`
-- Default AP Mode: Connect to `RadioPi` network
-- Direct IP: `http://<raspberry-pi-ip>`
+   - Go to GitHub Releases page
+   - Download the latest `radio-v*.tar.gz` file
+   - Or use wget:
 
-### Basic Controls
+   ```bash
+   wget https://github.com/user/radio/releases/latest/download/radio-v*.tar.gz
+   ```
+
+2. Install on Raspberry Pi:
+
+   ```bash
+   # Extract package
+   tar -xzf radio-v*.tar.gz
+   cd radio
+
+   # Run installation script
+   sudo ./install/install.sh
+
+   # Wait for installation to complete
+   # Radio service will start automatically
+   ```
+
+3. Verify Installation:
+   - Check service status:
+   ```bash
+   sudo systemctl status radio
+   ```
+
+### Quick Start
+
+#### Access the Radio User Interface
+
+- Web Interface: `http://<hostname>.local`
+- Default AP Mode: Connect to `<hostname>` network
+
+#### Basic Controls
 
 - Play/Pause: Click station slot or use physical buttons
 - Volume: Use rotary knob or web slider
 - WiFi: Connect via web interface
 
-## Development Setup
+## For Developers
 
-### On Raspberry Pi
+### Development Setup
+
+#### On Raspberry Pi
 
 1. Download development build:
 
@@ -63,7 +98,7 @@ Available development commands:
 ./dev.sh rebuild   # Rebuild environment
 ```
 
-### Using Docker (Alternative)
+#### Using Docker (Alternative)
 
 ```bash
 # Start development environment (backend + frontend)
@@ -85,28 +120,24 @@ The development environment will be available at:
 - API Docs: http://localhost:80/docs
 - Backend: http://localhost:80
 
-### Manual Setup (Alternative)
+#### Manual Setup (Alternative)
 
-#### 1. Virtual Environment
+1. Virtual Environment:
 
-```bash
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-# Install dependencies
-pip install -r requirements.txt
-```
+2. Web Interface:
+   ```bash
+   cd web
+   npm install
+   npm run dev
+   ```
 
-#### 2. Web Interface
-
-```bash
-cd web
-npm install
-npm run dev
-```
-
-## Project Structure
+### Project Structure
 
 ```
 radio/
@@ -123,60 +154,9 @@ radio/
 └── dev.sh        # Development script
 ```
 
-## Configuration
+### Testing
 
-### Radio Stations
-
-Edit `config/stations.json`:
-
-```json
-{
-  "stations": [
-    {
-      "name": "Station 1",
-      "url": "http://stream.url",
-      "slot": 1
-    }
-  ]
-}
-```
-
-### System Settings
-
-Edit `config/settings.json`:
-
-```json
-{
-  "volume": {
-    "default": 70,
-    "knob_direction": "clockwise"
-  },
-  "ap_mode": {
-    "ssid": "RadioPi",
-    "password": "yourpassword"
-  }
-}
-```
-
-## Service Management
-
-```bash
-# Status
-sudo systemctl status radio
-
-# Logs
-sudo journalctl -u radio -f
-
-# Restart
-sudo systemctl restart radio
-
-# Stop
-sudo systemctl stop radio
-```
-
-## Testing
-
-### Using Docker (Recommended)
+#### Using Docker (Recommended)
 
 ```bash
 # Run linting checks
@@ -200,46 +180,159 @@ sudo systemctl stop radio
 
 All tests run with hardware mocking enabled (`MOCK_SERVICES=true`).
 
-### Linting
+### Development Resources
 
-The project uses several linting tools to maintain code quality:
+#### API Documentation
 
-- **Black**: Code formatting
-- **Ruff**: Fast Python linter
-- **MyPy**: Static type checking
-- **Pylint**: Code analysis
+- OpenAPI UI: `http://radiod.local/docs`
+- ReDoc: `http://radiod.local/redoc`
 
-Run all linting checks with:
+#### WebSocket Events
+
+Connect to `ws://radiod.local/ws` for real-time updates:
+
+- Volume changes
+- Station status
+- WiFi connection status
+- System mode changes
+
+### Development Workflow
+
+#### 1. Feature Branch Development
+
+- Create feature branch from `develop`
+- Push changes trigger `branch-test.yml`
+- Tests run automatically on push
+- Pre-commit hooks ensure code quality
+
+#### 2. Development Release
+
+- Open PR to `develop` branch
+- Tests run via `branch-test.yml`
+- When merged, `dev-release.yml`:
+  - Builds frontend
+  - Creates development package
+  - Tests installation
+  - Uploads artifact
+
+#### 3. Production Release
+
+- Open PR from `develop` to `main`
+- Tests run via `branch-test.yml`
+- When merged, `prod-release.yml`:
+  - Builds frontend
+  - Creates production package
+  - Tests in Pi environment
+  - Creates GitHub release (for tags)
+
+### Branch Protection
+
+- Protected branches: `main`, `develop`
+- Required status checks must pass
+- No direct pushes allowed
+- PRs required for all changes
+
+### CI/CD Pipeline
+
+#### Feature Branch Tests (`branch-test.yml`)
 
 ```bash
-./dev.sh lint
+# Runs on:
+- Push to feature branches
+- PRs to main/develop
 ```
 
-These are the same checks that run in the CI pipeline.
+#### Development Release (`dev-release.yml`)
 
-## Troubleshooting
+```bash
+# Runs on:
+- PR merge to develop
+- Manual workflow dispatch
+```
 
-### Common Issues
+#### Production Release (`prod-release.yml`)
 
-1. **Radio Not Starting**:
+```bash
+# Runs on:
+- PR merge to main
+- Version tags
+- Manual workflow dispatch
+```
+
+### Configuration
+
+#### Radio Stations
+
+Edit `config/stations.json`:
+
+```json
+{
+  "stations": [
+    {
+      "name": "Station 1",
+      "url": "http://stream.url",
+      "slot": 1
+    }
+  ]
+}
+```
+
+#### System Settings
+
+Edit `config/config.py`:
+
+```json
+{
+  "volume": {
+    "default": 70,
+    "knob_direction": "clockwise"
+  },
+  "ap_mode": {
+    "ssid": "RadioPi",
+    "password": "yourpassword"
+  }
+}
+```
+
+### Service Management
+
+```bash
+# Status
+sudo systemctl status radio
+
+# Logs
+sudo journalctl -u radio -f
+
+# Restart
+sudo systemctl restart radio
+
+# Stop
+sudo systemctl stop radio
+```
+
+### Troubleshooting
+
+#### Common Issues
+
+1. Radio Not Starting:
 
    ```bash
    tail -f logs/radio.log
    sudo lsof -i :80
    ```
 
-2. **No Audio**:
+2. No Audio:
 
    - Check volume settings
    - Verify audio device permissions
    - Restart audio service
 
-3. **WiFi Issues**:
+3. WiFi Issues:
    - Check network status
    - Verify WiFi credentials
    - Switch to AP mode if needed
 
-### GPIO Setup
+#### GPIO Setup
 
 ```bash
 # Install pigpio
@@ -253,157 +346,6 @@ sudo systemctl start pigpiod
 sudo systemctl status pigpiod
 ```
 
-## Development Resources
-
-### API Documentation
-
-- OpenAPI UI: `http://radiod.local/docs`
-- ReDoc: `http://radiod.local/redoc`
-
-### WebSocket Events
-
-Connect to `ws://radiod.local/ws` for real-time updates:
-
-- Volume changes
-- Station status
-- WiFi connection status
-- System mode changes
-
 ## License
 
 MIT License - See LICENSE file for details
-
-## Installation
-
-### Quick Install (Production)
-
-1. Download latest release:
-
-   ```bash
-   wget https://github.com/rubenfeurer/radio/releases/latest/download/radio-v*.tar.gz
-   ```
-
-2. Extract and install:
-
-   ```bash
-   tar xzf radio-v*.tar.gz
-   cd radio-*
-   sudo ./install/install.sh
-   ```
-
-3. Access your radio at `http://radiod.local`
-
-### Development Installation
-
-1. Download development build:
-
-   ```bash
-   # Option 1: Direct download from GitHub Actions
-   # Go to: GitHub -> Actions -> Build and Release -> Latest develop branch run
-   # Download the "radio-dev-package" artifact
-
-   # Option 2: Using wget (replace URL with actual artifact URL)
-   wget https://github.com/rubenfeurer/radio/actions/artifacts/radio-dev-package.zip
-   unzip radio-dev-package.zip
-   ```
-
-2. Install with development flags:
-
-   ```bash
-   # Extract the package
-   tar -xzf radio-develop-*.tar.gz
-   cd radio-*
-
-   # Full development installation
-   sudo DEV_MODE=true ./install.sh --dev
-
-   # For testing without hardware
-   sudo DEV_MODE=true SKIP_HARDWARE=1 ./install.sh --dev
-   ```
-
-3. Verify installation:
-
-   ```bash
-   # Check service status
-   systemctl status radio
-
-   # Check version (should show development version)
-   radio --version
-
-   # View debug logs
-   journalctl -u radio -f
-   ```
-
-4. Development features:
-
-   - Debug logging enabled
-   - Pre-commit hooks installed
-   - Development dependencies available
-   - Test suite installed
-   - Source maps included
-
-5. Running tests:
-
-   ```bash
-   # Activate virtual environment
-   source /home/radio/radio/venv/bin/activate
-
-   # Run tests
-   pytest tests/
-
-   # Run with coverage
-   pytest --cov=src tests/
-   ```
-
-6. Development tools:
-
-   ```bash
-   # Format code
-   black src/
-
-   # Run linting
-   ruff check src/
-
-   # Type checking
-   mypy src/
-   ```
-
-## Release Process
-
-### Creating a Production Release
-
-1. Ensure all changes are merged to main
-2. Create and push a new tag:
-   ```bash
-   git checkout main
-   git pull
-   git tag v1.0.0  # Update version number
-   git push origin v1.0.0
-   ```
-3. GitHub Action will automatically:
-   - Build frontend
-   - Create release package
-   - Publish to GitHub Releases
-
-### Creating a Development Build
-
-1. Push to development branch:
-   ```bash
-   git checkout development
-   git push origin development
-   ```
-2. GitHub Action will automatically:
-   - Build frontend
-   - Create development package
-   - Upload as workflow artifact
-
-### Version Numbering
-
-- Production: `v1.0.0`, `v1.0.1`, etc.
-- Development: `develop-YYYYMMDD-commit`
-
-### Finding Releases
-
-- Production releases: GitHub Releases page
-- Development builds: GitHub Actions artifacts
-- Direct download: `https://github.com/rubenfeurer/radio/releases`
