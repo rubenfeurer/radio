@@ -72,12 +72,16 @@ jobs:
           # Build the development image first
           docker compose -f docker/compose/docker-compose.dev.yml build
 
+          # Create directory for test results
+          mkdir -p test-results
+
           # Run tests in the container
           docker compose -f docker/compose/docker-compose.dev.yml run --rm \
             --user root \
             -v ${PWD}/src:/home/radio/radio/src \
             -v ${PWD}/tests:/home/radio/radio/tests \
             -v ${PWD}/config:/home/radio/radio/config \
+            -v ${PWD}/test-results:/home/radio/radio/test-results \
             -e MOCK_SERVICES=true \
             -e MOCK_GPIO=true \
             -e DEV_MODE=true \
@@ -91,7 +95,7 @@ jobs:
                 --cov=src/hardware \
                 --cov-report=term-missing \
                 --cov-fail-under=50 \
-                --junitxml=/home/radio/radio/pytest-results.xml
+                --junitxml=/home/radio/radio/test-results/pytest-results.xml
             "
 
       # Set up Node.js for frontend build
@@ -176,8 +180,7 @@ jobs:
         if: always()
         uses: test-summary/action@v2
         with:
-          paths: |
-            pytest-results.xml
+          paths: "test-results/pytest-results.xml"
 
       # Error notification
       - name: Notify on Failure
