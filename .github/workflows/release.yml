@@ -123,36 +123,41 @@ jobs:
           VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
           PACKAGE="radio-${VERSION}"
 
-          # Create dist directory with sudo
-          sudo mkdir -p dist
-          sudo chown $USER:$USER dist
+          # Create dist directory
+          mkdir -p dist
 
           # Copy files with verification
-          cp -rv manage_radio.sh dist/ || {
-            echo "Error: manage_radio.sh not found"
+          cp -v manage_radio.sh dist/ || {
+            echo "Error: manage_radio.sh not found in root"
             ls -la
             exit 1
           }
 
-          cp -rv install/install.sh dist/ || {
-            echo "Error: install/install.sh not found"
+          # Copy install script
+          cp -v install/install.sh dist/ || {
+            echo "Error: install.sh not found in install directory"
             ls -la install/
             exit 1
           }
 
-          # Copy other directories
-          cp -r src/ dist/ || echo "Warning: src/ not copied"
-          cp -r web/build/ dist/web/ || echo "Warning: web/build/ not copied"
-          cp -r install/ dist/ || echo "Warning: install/ not copied"
-          cp -r config/ dist/ || echo "Warning: config/ not copied"
-          cp -r scripts/ dist/ || echo "Warning: scripts/ not copied"
-
-          # Ensure scripts are executable
-          chmod +x dist/manage_radio.sh dist/install.sh || {
-            echo "Error: Failed to set permissions"
-            ls -la dist/
+          # Copy requirements
+          cp -v install/requirements*.txt dist/ || {
+            echo "Error: requirements files not found"
+            ls -la install/
             exit 1
           }
+
+          # Copy directories
+          for dir in src web/build install config scripts; do
+            if [ -d "$dir" ]; then
+              cp -r $dir dist/
+            else
+              echo "Warning: $dir directory not found"
+            fi
+          done
+
+          # Set permissions
+          chmod +x dist/install.sh dist/manage_radio.sh
 
           cd dist
           tar -czf ${PACKAGE}.tar.gz ./*
@@ -259,24 +264,41 @@ jobs:
           VERSION="develop-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
           PACKAGE="radio-${VERSION}"
 
-          # Create dist directory with sudo
-          sudo mkdir -p dist
-          sudo chown $USER:$USER dist
+          # Create dist directory
+          mkdir -p dist
 
-          # Copy files
-          cp -r src/ dist/
-          cp -r web/build/ dist/web/
-          cp -r install/ dist/
-          cp -r config/ dist/
-          cp -r scripts/ dist/
-          cp manage_radio.sh dist/
+          # Copy files with verification
+          cp -v manage_radio.sh dist/ || {
+            echo "Error: manage_radio.sh not found in root"
+            ls -la
+            exit 1
+          }
 
-          # Copy install.sh from install directory
-          cp install/install.sh dist/
-          cp install/requirements*.txt dist/
+          # Copy install script
+          cp -v install/install.sh dist/ || {
+            echo "Error: install.sh not found in install directory"
+            ls -la install/
+            exit 1
+          }
 
-          # Ensure install.sh is executable
-          chmod +x dist/install.sh
+          # Copy requirements
+          cp -v install/requirements*.txt dist/ || {
+            echo "Error: requirements files not found"
+            ls -la install/
+            exit 1
+          }
+
+          # Copy directories
+          for dir in src web/build install config scripts; do
+            if [ -d "$dir" ]; then
+              cp -r $dir dist/
+            else
+              echo "Warning: $dir directory not found"
+            fi
+          done
+
+          # Set permissions
+          chmod +x dist/install.sh dist/manage_radio.sh
 
           cd dist
           tar -czf ${PACKAGE}.tar.gz ./*
