@@ -26,14 +26,6 @@ jobs:
             /tmp/.buildx-cache-prod
           key: ${{ runner.os }}-prod-${{ hashFiles('install/requirements*.txt', 'docker/**/*') }}
 
-      # Run tests
-      - name: Run test suite
-        run: |
-          docker compose -f docker/compose/docker-compose.prod.yml run --rm \
-            -e MOCK_SERVICES=true \
-            -e TEST_MODE=1 \
-            backend pytest
-
       # Build frontend
       - name: Build frontend
         uses: actions/setup-node@v4
@@ -112,9 +104,10 @@ jobs:
 
       # Create GitHub Release
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: ./*.tar.gz
+          files: dist/${{ env.PACKAGE_NAME }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

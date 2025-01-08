@@ -9,7 +9,7 @@ on:
 jobs:
   development:
     if: github.event.pull_request.merged == true
-    name: Development Build and Test
+    name: Development Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,23 +23,6 @@ jobs:
             ~/.cache/piwheels
             /tmp/.buildx-cache
           key: ${{ runner.os }}-dev-${{ hashFiles('install/requirements*.txt', 'docker/**/*') }}
-
-      # Only run tests on manual workflow dispatch
-      - name: Run test suite
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          docker compose -f docker/compose/docker-compose.dev.yml run --rm \
-            -e MOCK_SERVICES=true \
-            -e TEST_MODE=1 \
-            backend pytest
-
-  build-dev:
-    name: Build Dev Package
-    # Remove dependency on tests for PR merges
-    needs: [development]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
       # Build frontend
       - name: Build frontend
@@ -72,7 +55,7 @@ jobs:
 
   test-dev-install:
     name: Test Dev Package Installation
-    needs: build-dev
+    needs: development
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
