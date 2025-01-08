@@ -40,7 +40,7 @@ jobs:
             network=host
           buildkitd-flags: --debug
 
-      # Optimized build for AMD64
+      # Build development image with proper cache handling
       - name: Build development image
         uses: docker/build-push-action@v5
         with:
@@ -55,11 +55,13 @@ jobs:
             BUILDKIT_INLINE_CACHE=1
             DOCKER_BUILDKIT=1
 
-      # Move cache
+      # Only move cache if it exists
       - name: Move cache
         run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          if [ -d "/tmp/.buildx-cache-new" ]; then
+            rm -rf /tmp/.buildx-cache
+            mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          fi
 
       # Run tests with optimized venv
       - name: Run tests in Docker
