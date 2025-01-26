@@ -106,11 +106,9 @@ start_dev() {
     # Kill any existing frontend process
     kill_frontend
 
-    # Start backend container
-    docker compose -f docker/docker-compose.dev.yml up -d --build
-
-    # Install pre-commit if needed
-    check_precommit
+    # Start backend container and run manage_radio.sh in dev mode
+    docker compose -f docker/compose/docker-compose.dev.yml up -d --build
+    docker compose -f docker/compose/docker-compose.dev.yml exec -e DEV_MODE=true backend ./manage_radio.sh start
 
     # Check and start frontend
     if [ -d "web" ]; then
