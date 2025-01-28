@@ -116,29 +116,29 @@ detect_environment() {
 # Function to start development environment
 start_dev() {
     detect_environment
-    
+
     # Add pre-commit check at the start
     check_precommit
 
     echo "Starting development environment..."
     kill_frontend
-    
+
     # Start backend first
     echo "Starting backend services..."
     docker compose -f docker/compose/docker-compose.dev.yml down
     docker compose -f docker/compose/docker-compose.dev.yml up -d --build
-    
+
     # Wait for backend to be ready
     echo "Waiting for backend to start..."
     sleep 5
-    
+
     # Check backend health
     if ! curl -s http://localhost:8000/health > /dev/null; then
         echo "Backend failed to start properly"
         docker compose -f docker/compose/docker-compose.dev.yml logs
         exit 1
     fi
-    
+
     # Start frontend if available
     if [ -d "web" ]; then
         check_frontend_deps
@@ -147,7 +147,7 @@ start_dev() {
         DEV_PORT=3000 npm run dev &
         cd ..
     fi
-    
+
     echo "Development environment started"
     echo "Backend running on http://localhost:8000"
     echo "Frontend running on http://localhost:3000"

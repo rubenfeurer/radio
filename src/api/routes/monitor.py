@@ -7,8 +7,8 @@ from pathlib import Path
 import psutil
 from fastapi import APIRouter, WebSocket
 
-from src.core.mode_manager import ModeManagerSingleton
 from config.config import settings
+from src.core.mode_manager import ModeManagerSingleton
 
 from ..models.requests import SystemInfo
 

@@ -1,17 +1,18 @@
-from pydantic import BaseModel
-from typing import Dict
-import socket
 import json
 import os
+import socket
+from typing import Dict
+
+from pydantic import BaseModel
 
 
 class Settings(BaseModel):
     # API Settings
     API_V1_STR: str = "/api/v1"
     WS_PATH: str = "/ws"
-    API_PORT: int = 8000      # External API port
-    DEV_PORT: int = 3000      # Frontend dev server port
-    CONTAINER_PORT: int = 8000 # Internal container port (keep constant)
+    API_PORT: int = 8000  # External API port
+    DEV_PORT: int = 3000  # Frontend dev server port
+    CONTAINER_PORT: int = 8000  # Internal container port (keep constant)
 
     # API Path Settings
     API_PREFIX: str = "/api"  # New setting for the API prefix

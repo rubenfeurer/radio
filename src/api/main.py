@@ -58,14 +58,14 @@ app = FastAPI(
 
 # Construct the allowed origins using settings
 allowed_origins = [
-    f"http://{settings.HOSTNAME}.local:{settings.DEV_PORT}",     # Dev server
-    f"http://{settings.HOSTNAME}.local:{settings.API_PORT}",     # Production with port
-    f"http://{settings.HOSTNAME}.local",                         # Production without port
-    f"ws://{settings.HOSTNAME}.local:{settings.API_PORT}",       # WebSocket with port
-    f"ws://{settings.HOSTNAME}.local",                          # WebSocket without port
-    f"http://localhost:{settings.DEV_PORT}",                    # Local development
-    f"http://localhost:{settings.API_PORT}",                    # Local API
-    f"ws://localhost:{settings.API_PORT}",                      # Local WebSocket
+    f"http://{settings.HOSTNAME}.local:{settings.DEV_PORT}",  # Dev server
+    f"http://{settings.HOSTNAME}.local:{settings.API_PORT}",  # Production with port
+    f"http://{settings.HOSTNAME}.local",  # Production without port
+    f"ws://{settings.HOSTNAME}.local:{settings.API_PORT}",  # WebSocket with port
+    f"ws://{settings.HOSTNAME}.local",  # WebSocket without port
+    f"http://localhost:{settings.DEV_PORT}",  # Local development
+    f"http://localhost:{settings.API_PORT}",  # Local API
+    f"ws://localhost:{settings.API_PORT}",  # Local WebSocket
 ]
 
 app.add_middleware(

@@ -64,7 +64,7 @@ class MockNetworkManagerService:
             "ap_active": self._ap_active,
             "ap_ssid": self._ap_ssid,
             "signal_strength": 90 if self._connected_ssid else None,
-            "has_internet": bool(self._connected_ssid)
+            "has_internet": bool(self._connected_ssid),
         }
 
     def _run_command(

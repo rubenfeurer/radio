@@ -1,8 +1,8 @@
+import asyncio
 import logging
 import os
 import platform
 from typing import Any, Callable, Dict, Optional, Type, TypeVar, cast
-import asyncio
 
 T = TypeVar("T")
 
@@ -17,8 +17,8 @@ class ServiceFactory:
         """Determine if we should use mock services"""
         mock_services = os.getenv("MOCK_SERVICES", "false").lower() == "true"
         is_ci = os.getenv("CI", "false").lower() == "true"
-        is_raspberry_pi = platform.machine().startswith('arm')
-        
+        is_raspberry_pi = platform.machine().startswith("arm")
+
         # Always use mocks in CI
         if is_ci:
             return True
@@ -40,44 +40,51 @@ class ServiceFactory:
         long_press_callback: Optional[Callable[[], Any]] = None,
     ) -> Any:
         """Get appropriate service implementation based on environment"""
-        
+
         if os.getenv("MOCK_SERVICES") == "true":
             logger.info(f"Using mock {service_type} service")
             if service_type == "network":
                 from src.mocks.network_mocks import MockNetworkManagerService
+
                 return MockNetworkManagerService()
             elif service_type == "gpio":
                 from src.mocks.hardware_mocks import MockGPIOController
+
                 return MockGPIOController(
                     event_loop=event_loop,
                     button_press_callback=button_press_callback,
                     volume_change_callback=volume_change_callback,
                     triple_press_callback=triple_press_callback,
-                    long_press_callback=long_press_callback
+                    long_press_callback=long_press_callback,
                 )
             elif service_type == "audio":
                 from src.mocks.hardware_mocks import MockAudioPlayer
+
                 return MockAudioPlayer()
         else:
             logger.info(f"Using real {service_type} service")
             if service_type == "network":
                 from src.mocks.network_mocks import MockNetworkManagerService
+
                 class NetworkManager(MockNetworkManagerService):
                     def __init__(self):
                         super().__init__()
                         self.logger = logging.getLogger(__name__)
+
                 return NetworkManager()
             elif service_type == "gpio":
                 from src.hardware.gpio_controller import GPIOController
+
                 return GPIOController(
                     event_loop=event_loop,
                     button_press_callback=button_press_callback,
                     volume_change_callback=volume_change_callback,
                     triple_press_callback=triple_press_callback,
-                    long_press_callback=long_press_callback
+                    long_press_callback=long_press_callback,
                 )
             elif service_type == "audio":
                 from src.hardware.audio_player import AudioPlayer
+
                 return AudioPlayer()
 
         raise ValueError(f"Unknown service type: {service_type}")
