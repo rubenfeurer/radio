@@ -5,6 +5,10 @@ import { DEV_PORT, API_PORT, HOSTNAME, API_PREFIX, API_V1_STR } from './src/lib/
 export default defineConfig({
 	plugins: [sveltekit()],
 	server: {
+		host: '0.0.0.0',
+		port: 3000,
+		strictPort: true,
+		https: false,
 		proxy: {
 			[API_PREFIX]: {
 				target: `http://localhost:${API_PORT}`,
@@ -16,11 +20,12 @@ export default defineConfig({
 				ws: true,
 				changeOrigin: true,
 				rewrite: (path) => path.includes(API_V1_STR) ? path : `${API_V1_STR}${path}`
+			},
+			'/api': {
+				target: 'http://localhost:8000',
+				changeOrigin: true
 			}
 		},
-		host: '0.0.0.0',
-		port: process.env.DEV_PORT || 3000,
-		strictPort: true,
 		hmr: {
 			host: 'localhost',
 			protocol: 'ws',

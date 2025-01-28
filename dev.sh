@@ -32,9 +32,14 @@ check_frontend_deps() {
 # Function to kill existing frontend process
 kill_frontend() {
     echo "Stopping any running frontend processes..."
+    # Kill any process using port 3000
+    fuser -k 3000/tcp 2>/dev/null || true
+    # Kill npm run dev processes
     pkill -f "npm run dev" || true
-    # Wait a moment for the port to be released
-    sleep 2
+    # Kill node processes related to vite
+    pkill -f "vite" || true
+    # Wait a moment for the ports to be released
+    sleep 3
 }
 
 # Function to run tests in existing Docker container
@@ -150,7 +155,7 @@ start_dev() {
         check_frontend_deps
         echo "Starting frontend development server..."
         cd web
-        DEV_PORT=3000 npm run dev &
+        VITE_HOST=0.0.0.0 VITE_PORT=3000 npm run dev &
         cd ..
     fi
 
@@ -250,6 +255,31 @@ cleanup_git_locks() {
     git gc --prune=now
 }
 
+# Add this new function
+update_deps() {
+    echo "Updating dependencies..."
+
+    # Update pre-commit hooks
+    pre-commit clean
+    pre-commit autoupdate
+
+    # Update frontend dependencies if web directory exists
+    if [ -d "web" ]; then
+        echo "Updating frontend dependencies..."
+        cd web
+        npm update
+        cd ..
+    fi
+
+    # Rebuild Docker containers with fresh dependencies
+    echo "Rebuilding Docker containers with updated dependencies..."
+    docker compose -f docker/compose/docker-compose.dev.yml down
+    docker compose -f docker/compose/docker-compose.dev.yml build --no-cache
+    docker compose -f docker/compose/docker-compose.dev.yml up -d
+
+    echo "Dependencies updated successfully"
+}
+
 # Main script
 check_docker
 check_node
@@ -291,8 +321,11 @@ case "$1" in
     "cleanup")
         cleanup_git_locks
         ;;
+    "update")
+        update_deps
+        ;;
     *)
-        echo "Usage: $0 {start|stop|logs|rebuild|test|test-clean|lint|test-all|fix|setup-hooks|cleanup}"
+        echo "Usage: $0 {start|stop|logs|rebuild|test|test-clean|lint|test-all|fix|setup-hooks|cleanup|update}"
         exit 1
         ;;
 esac

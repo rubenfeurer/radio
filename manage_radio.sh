@@ -59,34 +59,17 @@ check_ports() {
 validate_installation() {
     echo "Validating radio installation..."
 
-    # Run checks in parallel
-    (
-        # Check radio user and groups
-        if ! id radio >/dev/null 2>&1; then
-            echo "Error: radio user does not exist"
-            exit 1
-        fi
-    ) &
+    # Check and start required services with NOPASSWD sudo
+    for service in avahi-daemon dnsmasq NetworkManager pigpiod; do
+        echo "Starting $service..."
+        sudo systemctl start $service || echo "Warning: Could not start $service"
+    done
 
-    (
-        # Check services in parallel
-        while read -r line; do
-            [[ $line =~ ^#.*$ ]] && continue
-            [[ -z $line ]] && continue
-
-            case "$line" in
-                "pigpio") systemctl is-active --quiet pigpiod ||
-                    { echo "Error: pigpiod not running"; exit 1; } ;;
-                "network-manager") systemctl is-active --quiet NetworkManager ||
-                    { echo "Error: NetworkManager not running"; exit 1; } ;;
-                "avahi-daemon"|"dnsmasq"|"hostapd") systemctl is-active --quiet "$line" ||
-                    { echo "Error: $line not running"; exit 1; } ;;
-            esac
-        done < /home/radio/radio/install/system-requirements.txt
-    ) &
-
-    # Wait for all checks to complete
-    wait
+    # Verify MPV installation
+    if ! ldconfig -p | grep libmpv > /dev/null; then
+        echo "Error: libmpv not found in system library path"
+        exit 1
+    fi
 }
 
 ensure_client_mode() {
@@ -123,37 +106,135 @@ asyncio.run(ensure_client())
 validate_network() {
     echo "Validating network services..."
 
-    # Check for conflicting services
-    NETWORK_SERVICES=(
-        "dhcpcd"
-        "wpa_supplicant"
-        "systemd-networkd"
-        "raspberrypi-net-mods"
-    )
-
-    # Ensure conflicting services remain disabled
-    for service in "${NETWORK_SERVICES[@]}"; do
-        if systemctl is-active --quiet $service; then
-            echo "Warning: Disabling conflicting service: $service"
-            systemctl stop $service
-            systemctl mask $service
-        fi
-    done
-
-    # Verify NetworkManager is running
-    if ! systemctl is-active --quiet NetworkManager; then
-        echo "Restarting NetworkManager..."
-        systemctl restart NetworkManager
+    # Reset WiFi interface only if it's down
+    if ! ip link show wlan0 | grep -q "UP"; then
+        echo "Resetting WiFi interface..."
+        sudo ip link set wlan0 down
+        sudo rfkill unblock wifi
+        sudo ip link set wlan0 up
         sleep 2
     fi
 
-    # Verify wlan0 interface exists
-    if ! ip link show wlan0 >/dev/null 2>&1; then
-        echo "Warning: wlan0 interface not found"
-        # Trigger udev rules reload
-        udevadm control --reload-rules
-        udevadm trigger --action=add
+    # Only restart NetworkManager if it's not working
+    if ! systemctl is-active --quiet NetworkManager; then
+        echo "Restarting NetworkManager..."
+        sudo systemctl restart NetworkManager
+        sleep 3
     fi
+
+    # Ensure wpa_supplicant is running
+    if ! systemctl is-active --quiet wpa_supplicant; then
+        echo "Starting wpa_supplicant..."
+        sudo systemctl unmask wpa_supplicant
+        sudo systemctl enable wpa_supplicant
+        sudo systemctl start wpa_supplicant
+        sleep 2
+    fi
+
+    # Only stop truly conflicting services
+    for service in "systemd-networkd"; do
+        if systemctl is-active --quiet $service; then
+            echo "Stopping conflicting service: $service"
+            sudo systemctl stop $service
+            sudo systemctl mask $service
+        fi
+    done
+
+    # Ensure interface is managed by NetworkManager
+    echo "Setting wlan0 as managed..."
+    sudo nmcli device set wlan0 managed yes
+
+    # Wait for interface to become available
+    echo "Waiting for WiFi interface..."
+    for i in {1..10}; do
+        if nmcli device status | grep "wlan0" | grep -q "disconnected"; then
+            echo "WiFi interface is ready"
+            break
+        fi
+        sleep 1
+    done
+}
+
+setup_network_services() {
+    echo "Setting up network services..."
+
+    # Stop all network services first
+    for service in dnsmasq avahi-daemon NetworkManager wpa_supplicant; do
+        sudo systemctl stop $service
+    done
+
+    # Unmask and enable services in correct order
+    echo "Starting wpa_supplicant..."
+    sudo systemctl unmask wpa_supplicant
+    sudo systemctl enable wpa_supplicant
+    sudo systemctl start wpa_supplicant
+    sleep 2
+
+    echo "Starting NetworkManager..."
+    sudo systemctl enable NetworkManager
+    sudo systemctl start NetworkManager
+    sleep 2
+
+    echo "Starting dnsmasq..."
+    sudo systemctl enable dnsmasq
+    sudo systemctl start dnsmasq
+
+    echo "Starting avahi-daemon..."
+    sudo systemctl enable avahi-daemon
+    sudo systemctl start avahi-daemon
+
+    # Verify network interface
+    echo "Setting up WiFi interface..."
+    sudo ip link set wlan0 up
+    sudo rfkill unblock wifi
+
+    # Wait for NetworkManager to manage the interface
+    sleep 3
+    sudo nmcli device set wlan0 managed yes
+}
+
+setup_system() {
+    echo "Setting up system dependencies..."
+
+    # Create required directories
+    sudo mkdir -p /home/radio/radio/logs
+    sudo chown -R radio:radio /home/radio/radio/logs
+
+    # Install system packages
+    sudo apt-get update
+    sudo apt-get install -y \
+        libmpv1 \
+        libmpv-dev \
+        mpv \
+        dnsmasq \
+        network-manager \
+        wireless-tools \
+        wpasupplicant \
+        firmware-brcm80211
+
+    # Create symlink for libmpv in standard locations
+    sudo ln -sf /usr/lib/*/libmpv.so.1 /usr/lib/libmpv.so
+    sudo ln -sf /usr/lib/*/libmpv.so.1 /usr/local/lib/libmpv.so
+    sudo ldconfig
+
+    # Verify MPV installation
+    if ! ldconfig -p | grep libmpv > /dev/null; then
+        echo "Error: libmpv not found after installation"
+        exit 1
+    fi
+
+    # Set up network services
+    setup_network_services
+
+    # Now install Python packages
+    source $VENV_PATH/bin/activate
+    pip install -r /home/radio/radio/install/requirements.txt
+    deactivate
+
+    # Add radio user to required groups
+    sudo usermod -aG audio,video,netdev radio
+
+    echo "Setup completed successfully"
 }
 
 start() {
@@ -260,7 +341,11 @@ case "$1" in
     status)
         status
         ;;
+    setup)
+        setup_system
+        ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status}"
+        echo "Usage: $0 {start|stop|restart|status|setup}"
         exit 1
+        ;;
 esac
