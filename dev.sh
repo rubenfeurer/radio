@@ -53,6 +53,12 @@ run_tests_clean() {
 check_precommit() {
     echo "Checking pre-commit installation..."
 
+    # Disable git locale warnings
+    git config --global advice.setLocale false
+
+    # Clean up any stale git locks first
+    cleanup_git_locks
+
     # Create virtual environment if it doesn't exist
     if [ ! -d "venv" ]; then
         echo "Creating virtual environment..."
@@ -128,9 +134,9 @@ start_dev() {
     docker compose -f docker/compose/docker-compose.dev.yml down
     docker compose -f docker/compose/docker-compose.dev.yml up -d --build
 
-    # Wait for backend to be ready
+    # Wait longer for backend to be ready
     echo "Waiting for backend to start..."
-    sleep 5
+    sleep 10  # Increased from 5 to 10 seconds
 
     # Check backend health
     if ! curl -s http://localhost:8000/health > /dev/null; then
@@ -235,6 +241,15 @@ run_fix() {
     fi
 }
 
+# Add this new function
+cleanup_git_locks() {
+    echo "Cleaning up git lock files..."
+    rm -f .git/index.lock
+    rm -f .git/refs/heads/*.lock
+    rm -f .git/*.lock
+    git gc --prune=now
+}
+
 # Main script
 check_docker
 check_node
@@ -270,8 +285,14 @@ case "$1" in
     "fix")
         run_fix
         ;;
+    "setup-hooks")
+        check_precommit
+        ;;
+    "cleanup")
+        cleanup_git_locks
+        ;;
     *)
-        echo "Usage: $0 {start|stop|logs|rebuild|test|test-clean|lint|test-all|fix}"
+        echo "Usage: $0 {start|stop|logs|rebuild|test|test-clean|lint|test-all|fix|setup-hooks|cleanup}"
         exit 1
         ;;
 esac

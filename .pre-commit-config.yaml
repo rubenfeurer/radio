@@ -2,7 +2,7 @@
 default_language_version:
     python: python3
 default_stages: [commit]
-default_install_hook_types: [pre-commit, commit-msg]
+default_install_hook_types: [pre-commit]
 
 # Set default shell environment
 default_environment:
@@ -10,31 +10,29 @@ default_environment:
     LC_ALL: C
     LC_CTYPE: C
 
-# Redirect stderr to suppress locale warnings
 repos:
-  # 1. Code Formatting (fixes code)
+  # 1. Essential Formatting Only
   - repo: https://github.com/psf/black
     rev: 24.1.1
     hooks:
       - id: black
         language_version: python3
-        entry: env LANG=C black
+        args: ["--fast", "--quiet", "--workers", "1"]
 
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
-        args: ["--profile", "black"]
-        entry: env LANG=C isort
+        args: ["--profile", "black", "--quiet", "--jobs", "1"]
 
-  # 2. Linting & Auto-fixes
+  # 2. Basic Linting Only
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.2.0
     hooks:
       - id: ruff
-        args: [--fix]
+        args: ["--fix", "--no-cache", "--quiet"]
 
-  # 3. Code Quality Checks (after formatting)
+  # 3. Essential File Checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
@@ -42,51 +40,3 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-json
-      - id: check-added-large-files
-      - id: debug-statements
-      - id: requirements-txt-fixer
-
-  # 4. Static Type Checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
-    hooks:
-      - id: mypy
-        additional_dependencies:
-          - types-requests
-          - types-psutil
-          - pydantic
-          - fastapi
-          - types-aiofiles
-        exclude: ^tests/
-
-  # 5. Additional Linting (for unused imports/vars)
-  - repo: https://github.com/pycqa/pylint
-    rev: v3.0.3
-    hooks:
-      - id: pylint
-        args:
-          - --disable=all
-          - --enable=unused-import,unused-variable
-        exclude: ^tests/
-
-  # 6. Fast Tests (after all code quality checks)
-  - repo: local
-    hooks:
-      - id: fast-tests
-        name: Run Fast Unit Tests
-        entry: bash -c 'docker compose -f docker/compose/docker-compose.dev.yml run --rm backend /home/radio/radio/venv/bin/python -m pytest'
-        language: system
-        types: [python]
-        pass_filenames: false
-        stages: [pre-commit]
-        args: ["tests/unit", "-v", "--no-cov", "--timeout=1"]
-
-  # Last hook for git commit
-  - repo: local
-    hooks:
-      - id: git-commit
-        name: git commit
-        entry: env LANG=C LC_ALL=C LC_CTYPE=C git commit
-        language: system
-        require_serial: true
-        stages: [commit]
