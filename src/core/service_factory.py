@@ -1,46 +1,85 @@
+import logging
 import os
+import platform
 from typing import Any, Callable, Dict, Optional, Type, TypeVar, cast
+import asyncio
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceFactory:
     _instances: Dict[Type[Any], Any] = {}
 
     @classmethod
-    def get_service(cls, service_type: str) -> Any:
-        use_mocks = os.getenv("MOCK_SERVICES", "false").lower() == "true"
+    def should_use_mocks(cls) -> bool:
+        """Determine if we should use mock services"""
+        mock_services = os.getenv("MOCK_SERVICES", "false").lower() == "true"
+        is_ci = os.getenv("CI", "false").lower() == "true"
+        is_raspberry_pi = platform.machine().startswith('arm')
+        
+        # Always use mocks in CI
+        if is_ci:
+            return True
+        # Use real hardware on Raspberry Pi unless explicitly mocked
+        elif is_raspberry_pi:
+            return mock_services
+        # Use mocks on other platforms
+        else:
+            return True
 
-        if use_mocks:
-            from src.mocks import (
-                MockAudioPlayer,
-                MockGPIOController,
-                MockNetworkManager,
-            )
+    @classmethod
+    def get_service(
+        cls,
+        service_type: str,
+        event_loop: Optional[asyncio.AbstractEventLoop] = None,
+        button_press_callback: Optional[Callable[[int], Any]] = None,
+        volume_change_callback: Optional[Callable[[int], Any]] = None,
+        triple_press_callback: Optional[Callable[[], Any]] = None,
+        long_press_callback: Optional[Callable[[], Any]] = None,
+    ) -> Any:
+        """Get appropriate service implementation based on environment"""
+        
+        if os.getenv("MOCK_SERVICES") == "true":
+            logger.info(f"Using mock {service_type} service")
+            if service_type == "network":
+                from src.mocks.network_mocks import MockNetworkManagerService
+                return MockNetworkManagerService()
+            elif service_type == "gpio":
+                from src.mocks.hardware_mocks import MockGPIOController
+                return MockGPIOController(
+                    event_loop=event_loop,
+                    button_press_callback=button_press_callback,
+                    volume_change_callback=volume_change_callback,
+                    triple_press_callback=triple_press_callback,
+                    long_press_callback=long_press_callback
+                )
+            elif service_type == "audio":
+                from src.mocks.hardware_mocks import MockAudioPlayer
+                return MockAudioPlayer()
+        else:
+            logger.info(f"Using real {service_type} service")
+            if service_type == "network":
+                from src.mocks.network_mocks import MockNetworkManagerService
+                class NetworkManager(MockNetworkManagerService):
+                    def __init__(self):
+                        super().__init__()
+                        self.logger = logging.getLogger(__name__)
+                return NetworkManager()
+            elif service_type == "gpio":
+                from src.hardware.gpio_controller import GPIOController
+                return GPIOController(
+                    event_loop=event_loop,
+                    button_press_callback=button_press_callback,
+                    volume_change_callback=volume_change_callback,
+                    triple_press_callback=triple_press_callback,
+                    long_press_callback=long_press_callback
+                )
+            elif service_type == "audio":
+                from src.hardware.audio_player import AudioPlayer
+                return AudioPlayer()
 
-            services = {
-                "network": MockNetworkManager,
-                "gpio": MockGPIOController,
-                "audio": MockAudioPlayer,
-            }
-            service_class = services.get(service_type)
-            if service_class is None:
-                raise ValueError(f"Unknown service type: {service_type}")
-            return service_class()
-
-        # Return real implementations
-        if service_type == "network":
-            from src.hardware.network import NetworkManager
-
-            return NetworkManager()
-        if service_type == "gpio":
-            from src.hardware.gpio import GPIOController
-
-            return GPIOController()
-        if service_type == "audio":
-            from src.hardware.audio import AudioPlayer
-
-            return AudioPlayer()
         raise ValueError(f"Unknown service type: {service_type}")
 
     @classmethod

@@ -8,6 +8,7 @@ import psutil
 from fastapi import APIRouter, WebSocket
 
 from src.core.mode_manager import ModeManagerSingleton
+from config.config import settings
 
 from ..models.requests import SystemInfo
 
@@ -132,8 +133,8 @@ async def check_web_access():
             return False
 
     return {
-        "api": await check_url("http://localhost:80/health"),
-        "ui": await check_url("http://localhost:5173"),
+        "api": await check_url(f"http://localhost:{settings.CONTAINER_PORT}/health"),
+        "ui": await check_url(f"http://localhost:{settings.DEV_PORT}"),
     }
 
 

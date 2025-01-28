@@ -58,12 +58,14 @@ app = FastAPI(
 
 # Construct the allowed origins using settings
 allowed_origins = [
-    f"http://{settings.HOSTNAME}.local:{settings.DEV_PORT}",  # Dev server
-    f"http://{settings.HOSTNAME}.local",  # Production
-    f"ws://{settings.HOSTNAME}.local",  # WebSocket production
-    f"ws://{settings.HOSTNAME}.local:{settings.API_PORT}",  # WebSocket explicit port
-    f"http://localhost:{settings.DEV_PORT}",  # Local development
-    f"ws://localhost:{settings.API_PORT}",  # Local WebSocket
+    f"http://{settings.HOSTNAME}.local:{settings.DEV_PORT}",     # Dev server
+    f"http://{settings.HOSTNAME}.local:{settings.API_PORT}",     # Production with port
+    f"http://{settings.HOSTNAME}.local",                         # Production without port
+    f"ws://{settings.HOSTNAME}.local:{settings.API_PORT}",       # WebSocket with port
+    f"ws://{settings.HOSTNAME}.local",                          # WebSocket without port
+    f"http://localhost:{settings.DEV_PORT}",                    # Local development
+    f"http://localhost:{settings.API_PORT}",                    # Local API
+    f"ws://localhost:{settings.API_PORT}",                      # Local WebSocket
 ]
 
 app.add_middleware(
@@ -109,6 +111,11 @@ frontend_path = os.path.join(
 
 # Get development mode from environment
 dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
+
+if dev_mode:
+    logger.info("🚀 Starting in DEVELOPMENT mode")
+    logger.info(f"API running on port {settings.API_PORT}")
+    logger.info(f"Frontend dev server expected on port {settings.DEV_PORT}")
 
 if os.path.exists(frontend_path) and not dev_mode:
     # Production: Serve built files from FastAPI

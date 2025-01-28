@@ -1,3 +1,16 @@
+# Add this at the top of the file
+default_language_version:
+    python: python3
+default_stages: [commit]
+default_install_hook_types: [pre-commit, commit-msg]
+
+# Set default shell environment
+default_environment:
+    LANG: C
+    LC_ALL: C
+    LC_CTYPE: C
+
+# Redirect stderr to suppress locale warnings
 repos:
   # 1. Code Formatting (fixes code)
   - repo: https://github.com/psf/black
@@ -5,12 +18,14 @@ repos:
     hooks:
       - id: black
         language_version: python3
+        entry: env LANG=C black
 
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
         args: ["--profile", "black"]
+        entry: env LANG=C isort
 
   # 2. Linting & Auto-fixes
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -65,3 +80,13 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
         args: ["tests/unit", "-v", "--no-cov", "--timeout=1"]
+
+  # Last hook for git commit
+  - repo: local
+    hooks:
+      - id: git-commit
+        name: git commit
+        entry: env LANG=C LC_ALL=C LC_CTYPE=C git commit
+        language: system
+        require_serial: true
+        stages: [commit]

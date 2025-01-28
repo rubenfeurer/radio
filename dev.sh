@@ -40,13 +40,13 @@ kill_frontend() {
 # Function to run tests in existing Docker container
 run_tests() {
     echo "Running tests in Docker container..."
-    docker compose -f docker/docker-compose.dev.yml exec backend /home/radio/radio/venv/bin/python -m pytest "$@"
+    docker compose -f docker/compose/docker-compose.dev.yml exec backend /home/radio/radio/venv/bin/python -m pytest "$@"
 }
 
 # Function to run tests in clean container
 run_tests_clean() {
     echo "Running tests in clean Docker container..."
-    docker compose -f docker/docker-compose.dev.yml run --rm backend /home/radio/radio/venv/bin/python -m pytest "$@"
+    docker compose -f docker/compose/docker-compose.dev.yml run --rm backend /home/radio/radio/venv/bin/python -m pytest "$@"
 }
 
 # Function to check and install pre-commit
@@ -72,6 +72,9 @@ check_precommit() {
         pip install pre-commit
     fi
 
+    # Install required packages for config
+    pip install pydantic
+
     # Unset core.hooksPath before installing hooks
     echo "Unsetting core.hooksPath..."
     git config --unset-all core.hooksPath
@@ -96,31 +99,58 @@ EOF
     echo "Pre-commit setup complete"
 }
 
+# Function to detect hardware environment
+detect_environment() {
+    if [ -f /etc/rpi-issue ]; then
+        echo "Running on Raspberry Pi - using real hardware"
+        export MOCK_SERVICES=false
+    elif [ "$CI" = "true" ]; then
+        echo "Running in CI environment - using mocks"
+        export MOCK_SERVICES=true
+    else
+        echo "Running on development machine - using mocks"
+        export MOCK_SERVICES=true
+    fi
+}
+
 # Function to start development environment
 start_dev() {
+    detect_environment
+    
     # Add pre-commit check at the start
     check_precommit
 
     echo "Starting development environment..."
-
-    # Kill any existing frontend process
     kill_frontend
-
-    # Start backend container and run manage_radio.sh in dev mode
+    
+    # Start backend first
+    echo "Starting backend services..."
+    docker compose -f docker/compose/docker-compose.dev.yml down
     docker compose -f docker/compose/docker-compose.dev.yml up -d --build
-    docker compose -f docker/compose/docker-compose.dev.yml exec -e DEV_MODE=true backend ./manage_radio.sh start
-
-    # Check and start frontend
+    
+    # Wait for backend to be ready
+    echo "Waiting for backend to start..."
+    sleep 5
+    
+    # Check backend health
+    if ! curl -s http://localhost:8000/health > /dev/null; then
+        echo "Backend failed to start properly"
+        docker compose -f docker/compose/docker-compose.dev.yml logs
+        exit 1
+    fi
+    
+    # Start frontend if available
     if [ -d "web" ]; then
         check_frontend_deps
         echo "Starting frontend development server..."
         cd web
-        npm run dev &
+        DEV_PORT=3000 npm run dev &
         cd ..
     fi
-
-    # Wait for all background processes
-    wait
+    
+    echo "Development environment started"
+    echo "Backend running on http://localhost:8000"
+    echo "Frontend running on http://localhost:3000"
 }
 
 # Function to rebuild environment
@@ -214,11 +244,11 @@ case "$1" in
         start_dev
         ;;
     "stop")
-        docker compose -f docker/docker-compose.dev.yml down
+        docker compose -f docker/compose/docker-compose.dev.yml down
         kill_frontend
         ;;
     "logs")
-        docker compose -f docker/docker-compose.dev.yml logs -f
+        docker compose -f docker/compose/docker-compose.dev.yml logs -f
         ;;
     "rebuild")
         rebuild_dev

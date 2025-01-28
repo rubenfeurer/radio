@@ -14,10 +14,13 @@ services:
       - ../../manage_radio.sh:/home/radio/radio/manage_radio.sh
       - ../../install/requirements.txt:/home/radio/radio/requirements.txt
       - ../../.git:/home/radio/radio/.git
+      - ../../sounds:/home/radio/radio/sounds
     ports:
-      - "80:80"
+      - "${API_PORT:-8000}:8000"
     environment:
-      - MOCK_SERVICES=true
       - DEV_MODE=true
-      - PYTHONPATH=/home/radio/radio
-    command: /home/radio/radio/venv/bin/python -m uvicorn src.api.main:app --host 0.0.0.0 --port 80 --reload
+      - MOCK_SERVICES=${MOCK_SERVICES:-false}
+      - API_PORT=8000
+      - DEV_PORT=3000
+      - CONTAINER_PORT=8000
+    command: /home/radio/radio/venv/bin/python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload

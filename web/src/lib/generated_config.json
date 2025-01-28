@@ -2,7 +2,7 @@
   "API_V1_STR": "/api/v1",
   "API_PREFIX": "/api",
   "WS_PATH": "/ws",
-  "API_PORT": 80,
-  "DEV_PORT": 5173,
-  "HOSTNAME": "Rubens-MacBook-Air.local.local"
+  "API_PORT": 8000,
+  "DEV_PORT": 3000,
+  "HOSTNAME": "radiod.local"
 }

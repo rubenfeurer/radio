@@ -11,7 +11,7 @@ NODE_ENV="production"
 if [ -f /.dockerenv ]; then
     echo "Running in Docker environment - skipping system checks"
     # Simplified startup for Docker
-    exec "$VENV_PATH/bin/python" -m uvicorn src.api.main:app --host "0.0.0.0" --port "$API_PORT" --reload
+    exec "$VENV_PATH/bin/python" -m uvicorn src.api.main:app --host "0.0.0.0" --port "$CONTAINER_PORT" --reload
     exit 0
 fi
 

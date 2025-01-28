@@ -50,6 +50,10 @@ RUN mkdir -p /home/radio/radio/tests/unit \
     /home/radio/radio/tests/e2e && \
     chown -R radio:radio /home/radio/radio/tests
 
+# Add PulseAudio setup
+RUN mkdir -p /run/user/1000/pulse && \
+    chown -R radio:radio /run/user/1000
+
 # Switch to radio user
 USER radio
 WORKDIR /home/radio/radio

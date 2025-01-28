@@ -19,7 +19,7 @@ export default defineConfig({
 			}
 		},
 		host: '0.0.0.0',
-		port: DEV_PORT,
+		port: process.env.DEV_PORT || 3000,
 		strictPort: true,
 		hmr: {
 			host: 'localhost',
