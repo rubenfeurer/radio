@@ -14,13 +14,19 @@ const config = {
 			strict: true
 		}),
 		paths: {
-			base: ''
+			base: '',
+			assets: ''
 		},
-		alias: {
-			$lib: './src/lib'
+		appDir: 'app',
+		files: {
+			assets: 'static',
+			lib: 'src/lib',
+			routes: 'src/routes'
+		},
+		prerender: {
+			handleMissingId: 'ignore'
 		}
 	}
 };
 
 export default config;
-

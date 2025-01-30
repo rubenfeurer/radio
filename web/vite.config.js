@@ -2,12 +2,22 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { DEV_PORT, API_PORT, HOSTNAME, API_PREFIX, API_V1_STR } from './src/lib/generated_config.js';
 
+// Get IP address from hostname if it's an IP
+const isIP = (host) => /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(host);
+const hostIP = isIP(HOSTNAME) ? HOSTNAME : '127.0.0.1';
+
 export default defineConfig({
 	plugins: [sveltekit()],
 	server: {
 		host: '0.0.0.0',
-		port: 3000,
+		port: DEV_PORT,
 		strictPort: true,
+		fs: {
+			allow: ['..']
+		},
+		watch: {
+			usePolling: true
+		},
 		https: false,
 		proxy: {
 			[API_PREFIX]: {
@@ -20,40 +30,25 @@ export default defineConfig({
 				ws: true,
 				changeOrigin: true,
 				rewrite: (path) => path.includes(API_V1_STR) ? path : `${API_V1_STR}${path}`
-			},
-			'/api': {
-				target: 'http://localhost:8000',
-				changeOrigin: true
 			}
-		},
-		hmr: {
-			host: 'localhost',
-			protocol: 'ws',
-			clientPort: DEV_PORT
 		},
 		headers: {
 			'Access-Control-Allow-Origin': '*',
-			'Access-Control-Allow-Private-Network': 'true',
 			'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
-			'Access-Control-Allow-Headers': 'Content-Type, Origin, Accept, Authorization, Content-Length, X-Requested-With',
-			'Access-Control-Allow-Credentials': 'true',
-			'Cross-Origin-Opener-Policy': 'same-origin',
-			'Cross-Origin-Embedder-Policy': 'require-corp',
-			'Cross-Origin-Resource-Policy': 'cross-origin',
-			'Permissions-Policy': 'interest-cohort=()'
+			'Access-Control-Allow-Headers': 'Content-Type, Authorization'
 		},
-		cors: {
-			origin: '*',
-			methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
-			allowedHeaders: ['Content-Type', 'Authorization'],
-			exposedHeaders: ['Content-Range', 'X-Content-Range'],
-			credentials: true,
-			maxAge: 3600
-		}
+		// Use dynamic hostname and IP
+		allowedHosts: [
+			'localhost',
+			hostIP,
+			HOSTNAME,
+			'*.local'
+		]
 	},
 	preview: {
 		host: '0.0.0.0',
 		port: DEV_PORT,
+		strictPort: true,
 		proxy: {
 			[API_PREFIX]: {
 				target: `http://${HOSTNAME}:${API_PORT}`,

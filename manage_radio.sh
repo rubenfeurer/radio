@@ -4,6 +4,7 @@ APP_NAME="radio"
 VENV_PATH="/home/radio/radio/venv"
 APP_PATH="/home/radio/radio/src/api/main.py"
 LOG_FILE="/home/radio/radio/logs/radio.log"
+WEB_LOG_FILE="/home/radio/radio/logs/web.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
 NODE_ENV="production"
 
@@ -59,16 +60,31 @@ check_ports() {
 validate_installation() {
     echo "Validating radio installation..."
 
+    # Check dnsmasq configuration
+    if [ ! -f "/etc/dnsmasq.conf" ]; then
+        echo "Error: dnsmasq configuration not found"
+        exit 1
+    fi
+
     # Check and start required services with NOPASSWD sudo
     for service in avahi-daemon dnsmasq NetworkManager pigpiod; do
         echo "Starting $service..."
-        sudo systemctl start $service || echo "Warning: Could not start $service"
+        sudo systemctl start $service || {
+            echo "Warning: Could not start $service, attempting to install..."
+            sudo apt-get install -y $service
+            sudo systemctl start $service || echo "Warning: Could not start $service"
+        }
     done
 
-    # Verify MPV installation
+    # Verify MPV installation with correct path
     if ! ldconfig -p | grep libmpv > /dev/null; then
         echo "Error: libmpv not found in system library path"
-        exit 1
+        # Try to fix MPV symlinks
+        sudo ln -sf /usr/lib/aarch64-linux-gnu/libmpv.so.2 /usr/lib/libmpv.so
+        sudo ldconfig
+        if ! ldconfig -p | grep libmpv > /dev/null; then
+            exit 1
+        fi
     fi
 }
 
@@ -158,39 +174,84 @@ validate_network() {
 setup_network_services() {
     echo "Setting up network services..."
 
-    # Stop all network services first
-    for service in dnsmasq avahi-daemon NetworkManager wpa_supplicant; do
-        sudo systemctl stop $service
+    # Get current IP address dynamically
+    WIFI_IP=$(ip -4 addr show wlan0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+
+    # Configure hosts file first
+    echo "Configuring hosts file..."
+    sudo tee /etc/hosts > /dev/null << EOF
+127.0.0.1       localhost
+::1             localhost ip6-localhost ip6-loopback
+ff02::1         ip6-allnodes
+ff02::2         ip6-allrouters
+127.0.1.1       radiod
+${WIFI_IP}      radiod.local
+EOF
+
+    # Configure dnsmasq with dynamic IP
+    echo "Configuring dnsmasq..."
+    sudo tee /etc/dnsmasq.conf > /dev/null << EOF
+interface=wlan0
+domain-needed
+bogus-priv
+expand-hosts
+domain=local
+local=/local/
+listen-address=127.0.0.1,${WIFI_IP}
+address=/radiod.local/${WIFI_IP}
+bind-interfaces
+except-interface=docker0
+EOF
+
+    # Configure avahi for dynamic setup
+    echo "Configuring avahi-daemon..."
+    sudo tee /etc/avahi/avahi-daemon.conf > /dev/null << EOF
+[server]
+host-name=radiod
+domain-name=local
+use-ipv4=yes
+use-ipv6=no
+allow-interfaces=wlan0
+enable-dbus=yes
+publish-addresses=yes
+
+[publish]
+publish-addresses=yes
+publish-hinfo=yes
+publish-workstation=yes
+publish-domain=yes
+
+[wide-area]
+enable-wide-area=yes
+EOF
+
+    # Start services in correct order
+    echo "Starting network services..."
+
+    # Restart services in proper order
+    for service in wpa_supplicant NetworkManager dnsmasq avahi-daemon; do
+        echo "Restarting $service..."
+        sudo systemctl restart $service
+        sleep 2
     done
 
-    # Unmask and enable services in correct order
-    echo "Starting wpa_supplicant..."
-    sudo systemctl unmask wpa_supplicant
-    sudo systemctl enable wpa_supplicant
-    sudo systemctl start wpa_supplicant
-    sleep 2
-
-    echo "Starting NetworkManager..."
-    sudo systemctl enable NetworkManager
-    sudo systemctl start NetworkManager
-    sleep 2
-
-    echo "Starting dnsmasq..."
-    sudo systemctl enable dnsmasq
-    sudo systemctl start dnsmasq
-
-    echo "Starting avahi-daemon..."
-    sudo systemctl enable avahi-daemon
-    sudo systemctl start avahi-daemon
-
-    # Verify network interface
-    echo "Setting up WiFi interface..."
-    sudo ip link set wlan0 up
-    sudo rfkill unblock wifi
-
-    # Wait for NetworkManager to manage the interface
-    sleep 3
-    sudo nmcli device set wlan0 managed yes
+    # Wait for IP address assignment and update configs if needed
+    echo "Waiting for IP address assignment..."
+    for i in {1..30}; do
+        NEW_IP=$(ip -4 addr show wlan0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+        if [ -n "$NEW_IP" ] && [ "$NEW_IP" != "$WIFI_IP" ]; then
+            echo "IP address changed to: $NEW_IP"
+            # Update hosts file
+            sudo sed -i "s/${WIFI_IP}.*radiod.local/${NEW_IP}      radiod.local/" /etc/hosts
+            # Update dnsmasq config
+            sudo sed -i "s/listen-address=.*/listen-address=127.0.0.1,${NEW_IP}/" /etc/dnsmasq.conf
+            sudo sed -i "s/address=\/radiod.local\/.*/address=\/radiod.local\/${NEW_IP}/" /etc/dnsmasq.conf
+            # Restart dnsmasq to apply changes
+            sudo systemctl restart dnsmasq
+            break
+        fi
+        sleep 1
+    done
 }
 
 setup_system() {
@@ -200,21 +261,21 @@ setup_system() {
     sudo mkdir -p /home/radio/radio/logs
     sudo chown -R radio:radio /home/radio/radio/logs
 
-    # Install system packages
+    # Install system packages with proper package names for Raspberry Pi OS
     sudo apt-get update
     sudo apt-get install -y \
-        libmpv1 \
-        libmpv-dev \
         mpv \
+        libmpv2 \
+        libmpv-dev \
         dnsmasq \
         network-manager \
         wireless-tools \
         wpasupplicant \
         firmware-brcm80211
 
-    # Create symlink for libmpv in standard locations
-    sudo ln -sf /usr/lib/*/libmpv.so.1 /usr/lib/libmpv.so
-    sudo ln -sf /usr/lib/*/libmpv.so.1 /usr/local/lib/libmpv.so
+    # Create symlink for libmpv with correct path for Raspberry Pi OS
+    sudo ln -sf /usr/lib/aarch64-linux-gnu/libmpv.so.2 /usr/lib/libmpv.so
+    sudo ln -sf /usr/lib/aarch64-linux-gnu/libmpv.so.2 /usr/local/lib/libmpv.so
     sudo ldconfig
 
     # Verify MPV installation
@@ -237,49 +298,102 @@ setup_system() {
     echo "Setup completed successfully"
 }
 
+start_web_server() {
+    if [ "$DEV_MODE" = true ]; then
+        echo "Starting web server in development mode on port $DEV_PORT..."
+
+        # Ensure we're in the web directory
+        cd /home/radio/radio/web || exit 1
+
+        # Clean install if needed
+        if [ ! -d "node_modules" ]; then
+            echo "Installing npm dependencies..."
+            npm install
+        fi
+
+        # Start the dev server with explicit environment variables
+        sudo -E -u radio \
+            PATH="/home/radio/.nvm/versions/node/v22.13.1/bin:$PATH" \
+            NODE_ENV=development \
+            PORT=$DEV_PORT \
+            HOST=0.0.0.0 \
+            HOME=/home/radio \
+            /home/radio/.nvm/versions/node/v22.13.1/bin/npm run dev -- \
+            --host "0.0.0.0" \
+            --port "$DEV_PORT" \
+            --strictPort \
+            >> "$WEB_LOG_FILE" 2>&1 &
+
+        # Store PID
+        WEB_PID=$!
+        echo $WEB_PID >> $PID_FILE
+
+        # Return to original directory
+        cd - || exit 1
+
+        # Wait for server to start
+        echo "Waiting for web server to start..."
+        for i in {1..30}; do
+            if curl -s "http://localhost:$DEV_PORT" >/dev/null; then
+                echo "Web server started successfully on port $DEV_PORT"
+                return 0
+            fi
+            sleep 1
+        done
+
+        echo "Error: Web server failed to start"
+        tail -n 20 "$WEB_LOG_FILE"
+        return 1
+    fi
+}
+
+start_api_server() {
+    echo "Starting API server..."
+
+    # Activate virtual environment and start uvicorn
+    source "$VENV_PATH/bin/activate"
+
+    # Start the API server with nohup
+    nohup "$VENV_PATH/bin/python" -m uvicorn \
+        src.api.main:app \
+        --host "0.0.0.0" \
+        --port "$API_PORT" \
+        --reload \
+        >> "$LOG_FILE" 2>&1 &
+
+    API_PID=$!
+    echo $API_PID >> $PID_FILE
+
+    # Wait for API server to start
+    echo "Waiting for API server to start..."
+    for i in {1..30}; do
+        if curl -s "http://localhost:$API_PORT/api/v1/health" >/dev/null; then
+            echo "API server started successfully on port $API_PORT"
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "Error: API server failed to start"
+    tail -n 20 "$LOG_FILE"
+    return 1
+}
+
 start() {
     echo "Starting $APP_NAME..."
     get_config
-
-    # Run validations in parallel
-    validate_installation &
-    validate_network &
-    ensure_client_mode &
-    wait
-
-    # Start services
+    validate_network
+    validate_installation
+    ensure_client_mode
     check_ports
 
-    # Start FastAPI server and web server in parallel
-    (
-        echo "Starting FastAPI server on port $API_PORT..."
-        nohup sudo -E env "PATH=$PATH" \
-            "PYTHONPATH=/home/radio/radio" \
-            "XDG_RUNTIME_DIR=/run/user/1000" \
-            "PULSE_RUNTIME_PATH=/run/user/1000/pulse" \
-            "$VENV_PATH/bin/python" -m uvicorn src.api.main:app \
-            --host "0.0.0.0" \
-            --port "$API_PORT" \
-            --log-level debug \
-            > $LOG_FILE 2>&1 &
-        echo $! > $PID_FILE
-    ) &
+    # Start the API server first
+    start_api_server || exit 1
 
-    if [ "$DEV_MODE" = true ]; then
-        (
-            echo "Starting web server in development mode..."
-            cd /home/radio/radio/web
-            sudo -u radio NODE_ENV=development \
-                HOME=/home/radio \
-                npm run dev -- \
-                --host "0.0.0.0" \
-                --port "$DEV_PORT" \
-                >> "$WEB_LOG_FILE" 2>&1 &
-            echo $! >> $PID_FILE
-        ) &
-    fi
+    # Then start the web server
+    start_web_server || exit 1
 
-    wait
+    echo "$APP_NAME started successfully"
 }
 
 stop() {

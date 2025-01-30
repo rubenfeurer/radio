@@ -10,92 +10,81 @@ interface WSMessage {
 }
 
 export const createWebSocketStore = () => {
+    if (!browser) {
+        return {
+            subscribe: () => () => { },
+            sendMessage: () => { },
+            disconnect: () => { }
+        };
+    }
+
+    console.log('Initializing WebSocket store with URL:', WS_URL);
     const { subscribe, set } = writable<WebSocket | null>(null);
     let ws: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout>;
     let isIntentionalClose = false;
 
     const connect = () => {
-        if (!browser) return;
-
         if (ws) {
+            console.log('Closing existing WebSocket connection');
             isIntentionalClose = true;
             ws.close();
         }
 
-        console.log('Connecting to WebSocket URL:', WS_URL);
+        console.log('Attempting WebSocket connection to:', WS_URL);
         ws = new WebSocket(WS_URL);
-        
+
         ws.onopen = () => {
-            console.log('WebSocket connected to:', WS_URL);
+            console.log('WebSocket connected successfully');
             set(ws);
             isIntentionalClose = false;
+            sendMessage({ type: 'status_request' });
         };
 
         ws.onmessage = (event) => {
             try {
-                const message: WSMessage = JSON.parse(event.data);
+                const message = JSON.parse(event.data);
                 console.log('WebSocket message received:', message);
-
-                if (message.type === 'monitor_update' && message.data?.systemInfo?.mode) {
-                    const rawMode = message.data.systemInfo.mode;
-                    const mode = rawMode.toLowerCase();
-                    console.log('Mode update:', { rawMode, normalizedMode: mode });
-                    
-                    if (mode === 'ap' || mode === 'client') {
-                        currentMode.set(mode);
-                        console.log('Current mode set to:', mode);
-                    } else {
-                        console.error('Invalid mode received:', rawMode);
-                    }
-                }
-
-                // Update websocketStore
                 websocketStore.set({ data: message });
+
+                if (message.type === 'status_response') {
+                    console.log('Processing status response:', message.data);
+                }
             } catch (error) {
-                console.error('Error parsing WebSocket message:', error);
+                console.error('Error processing WebSocket message:', error);
             }
         };
 
         ws.onclose = (event) => {
-            console.log(`WebSocket closed: ${event.code}`);
+            console.log('WebSocket closed:', event.code, event.reason);
             set(null);
-            
+
             if (!isIntentionalClose && browser) {
+                console.log('Scheduling reconnection attempt...');
                 reconnectTimer = setTimeout(connect, 1000);
             }
         };
 
         ws.onerror = (error) => {
             console.error('WebSocket error:', error);
-            if (ws) ws.close();
         };
     };
 
-    const sendMessage = (message: WSMessage) => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(message));
-        }
-    };
-
     // Initial connection
-    if (browser) {
-        connect();
-        
-        // Add mode change subscription
-        currentMode.subscribe((mode) => {
-            if (mode) {
-                console.log('WebSocket: Mode changed to', mode, ', reconnecting...');
-                connect();
-            }
-        });
-    }
+    connect();
 
     return {
         subscribe,
-        sendMessage,
+        sendMessage: (message: any) => {
+            if (ws?.readyState === WebSocket.OPEN) {
+                console.log('Sending WebSocket message:', message);
+                ws.send(JSON.stringify(message));
+            } else {
+                console.warn('WebSocket not ready, message not sent:', message);
+            }
+        },
         disconnect: () => {
-            if (!browser) return;
+            console.log('Disconnecting WebSocket...');
             isIntentionalClose = true;
             clearTimeout(reconnectTimer);
             if (ws) ws.close();
@@ -106,13 +95,7 @@ export const createWebSocketStore = () => {
 // Create and export the store
 export const ws = createWebSocketStore();
 // Create a derived store for WebSocket data
-export const websocketStore = writable<{
-    data?: {
-        type: string;
-        mode?: 'ap' | 'client';
-        [key: string]: any;
-    };
-}>({});
+export const websocketStore = writable<{ data?: WSMessage }>({});
 
 // Update websocketStore when messages are received
 if (browser) {
@@ -131,33 +114,32 @@ if (browser) {
 }
 
 function handleWebSocketMessage(event: MessageEvent) {
-  try {
-    const data = JSON.parse(event.data);
-    console.log('WebSocket message received:', data);
+    try {
+        const data = JSON.parse(event.data);
+        console.log('WebSocket message received:', data);
 
-    if (data.type === 'status_response') {
-      console.log('Processing status response:', data.data);
-      
-      // Set mode from status response
-      if (data.data.mode) {
-        const mode = data.data.mode.toLowerCase() as NetworkMode;
-        console.log('Setting mode to:', mode);
-        if (mode === 'ap' || mode === 'client') {
-          currentMode.set(mode);
+        if (data.type === 'status_response') {
+            console.log('Processing status response:', data.data);
+
+            // Set mode from status response
+            if (data.data.mode) {
+                const mode = data.data.mode.toLowerCase() as NetworkMode;
+                console.log('Setting mode to:', mode);
+                if (mode === 'ap' || mode === 'client') {
+                    currentMode.set(mode);
+                }
+            }
         }
-      }
-    }
-    
-    // Handle mode_update messages as well
-    if (data.type === 'mode_update') {
-      const mode = data.mode.toLowerCase() as NetworkMode;
-      console.log('Mode update received:', mode);
-      if (mode === 'ap' || mode === 'client') {
-        currentMode.set(mode);
-      }
-    }
-  } catch (error) {
-    console.error('Error handling WebSocket message:', error);
-  }
-}
 
+        // Handle mode_update messages as well
+        if (data.type === 'mode_update') {
+            const mode = data.mode.toLowerCase() as NetworkMode;
+            console.log('Mode update received:', mode);
+            if (mode === 'ap' || mode === 'client') {
+                currentMode.set(mode);
+            }
+        }
+    } catch (error) {
+        console.error('Error handling WebSocket message:', error);
+    }
+}

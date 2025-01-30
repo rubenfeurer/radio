@@ -116,9 +116,40 @@ Available development commands:
 
 The development environment will be available at:
 
-- Frontend: http://localhost:5173
-- API Docs: http://localhost:80/docs
-- Backend: http://localhost:80
+- Frontend: http://radiod.local:3000 (DEV_PORT)
+- API: http://radiod.local:8000 (API_PORT)
+- API Docs: http://radiod.local:8000/docs
+
+### Port Configuration
+
+The application uses the following ports (configured in `config/config.py`):
+- `DEV_PORT=3000`: Frontend development server
+- `API_PORT=8000`: Backend API server
+- `CONTAINER_PORT=8000`: Internal container port
+
+### Finding Your Radio on the Network
+
+1. **Using mDNS**:
+   - Frontend: `http://radiod.local:3000` (development)
+   - API: `http://radiod.local:8000`
+   - API Docs: `http://radiod.local:8000/docs`
+
+2. **Using IP Address**:
+   ```bash
+   # Find IP address
+   hostname -I
+
+   # Or use
+   ip addr show wlan0
+   ```
+   Then access:
+   - Frontend: `http://<ip-address>:3000`
+   - API: `http://<ip-address>:8000`
+
+3. **Port Usage**:
+   - Development Frontend: Port 3000 (DEV_PORT)
+   - Development Backend: Port 8000 (API_PORT)
+   - Container Port: 8000 (CONTAINER_PORT)
 
 #### Manual Setup (Alternative)
 
