@@ -12,20 +12,25 @@ NODE_ENV="production"
 if [ -f /.dockerenv ]; then
     echo "Running in Docker environment - skipping system checks"
     # Simplified startup for Docker
-    exec "$VENV_PATH/bin/python" -m uvicorn src.api.main:app --host "0.0.0.0" --port "$CONTAINER_PORT" --reload
+    exec "$VENV_PATH/bin/python" -m uvicorn src.api.main:app --host "0.0.0.0" --port "$CONTAINER_PORT"
     exit 0
 fi
 
 # Get configuration from Python
 get_config() {
-    source $VENV_PATH/bin/activate
-    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)")
-    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)")
-    HOSTNAME=$(python3 -c "from config.config import settings; print(settings.HOSTNAME)")
+    python3 -c "
+from config.config import settings
+print(f'export API_PORT={settings.API_PORT}')
+print(f'export DEV_PORT={settings.DEV_PORT}')
+print(f'export PROD_PORT={settings.PROD_PORT}')
+print(f'export HOSTNAME={settings.HOSTNAME}')
+"
 }
 
+# Load configuration
+eval "$(get_config)"
+
 check_ports() {
-    get_config
     echo "Checking for processes using ports..."
 
     if [ -n "$DEV_PORT" ]; then
@@ -299,53 +304,25 @@ setup_system() {
 }
 
 start_web_server() {
-    if [ "$DEV_MODE" = true ]; then
-        echo "Starting web server in development mode on port $DEV_PORT..."
-        cd /home/radio/radio/web || exit 1
+    cd /home/radio/radio/web || exit 1
 
-        # Install dependencies if needed
-        if [ ! -d "node_modules" ]; then
-            echo "Installing npm dependencies..."
-            npm install
-        fi
+    # Install dependencies if needed
+    [ ! -d "node_modules" ] && npm install
 
-        # Start dev server on port 3000
-        sudo -E -u radio \
-            PATH="/home/radio/.nvm/versions/node/v22.13.1/bin:$PATH" \
-            NODE_ENV=development \
-            PORT=$DEV_PORT \
-            HOST=0.0.0.0 \
-            HOME=/home/radio \
-            /home/radio/.nvm/versions/node/v22.13.1/bin/npm run dev -- \
-            --host "0.0.0.0" \
-            --port "$DEV_PORT" \
-            --strictPort \
-            >> "$WEB_LOG_FILE" 2>&1 &
-    else
-        echo "Starting web server in production mode on port ${PROD_PORT}..."
-        cd /home/radio/radio/web || exit 1
+    # Set port based on mode
+    PORT=$([ "$DEV_MODE" = true ] && echo "$DEV_PORT" || echo "$PROD_PORT")
 
-        # Install dependencies if needed
-        if [ ! -d "node_modules" ]; then
-            echo "Installing npm dependencies..."
-            npm install
-        fi
+    # Start server
+    sudo -E -u radio \
+        NODE_ENV=$([ "$DEV_MODE" = true ] && echo "development" || echo "production") \
+        PORT=$PORT \
+        HOST=0.0.0.0 \
+        npm run $([ "$DEV_MODE" = true ] && echo "dev" || echo "preview") -- \
+        --host "0.0.0.0" \
+        --port "$PORT" \
+        --strictPort \
+        >> "$WEB_LOG_FILE" 2>&1 &
 
-        # Start production server
-        sudo -E -u radio \
-            PATH="/home/radio/.nvm/versions/node/v22.13.1/bin:$PATH" \
-            NODE_ENV=production \
-            PORT=$PROD_PORT \
-            HOST=0.0.0.0 \
-            HOME=/home/radio \
-            /home/radio/.nvm/versions/node/v22.13.1/bin/npm run preview -- \
-            --host "0.0.0.0" \
-            --port "$PROD_PORT" \
-            --strictPort \
-            >> "$WEB_LOG_FILE" 2>&1 &
-    fi
-
-    # Store PID
     WEB_PID=$!
     echo $WEB_PID >> $PID_FILE
     cd - || exit 1
@@ -385,7 +362,6 @@ start_api_server() {
 
 start() {
     echo "Starting $APP_NAME..."
-    get_config
     validate_network
     validate_installation
     ensure_client_mode
@@ -428,7 +404,6 @@ restart() {
 }
 
 status() {
-    get_config
     if [ -f $PID_FILE ]; then
         PID=$(cat $PID_FILE)
         if ps -p $PID > /dev/null; then

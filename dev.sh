@@ -1,5 +1,40 @@
 #!/bin/bash
 
+# Get configuration from Python
+get_config() {
+    python3 -c "
+from config.config import settings
+print(f'export API_PORT={settings.API_PORT}')
+print(f'export DEV_PORT={settings.DEV_PORT}')
+print(f'export PROD_PORT={settings.PROD_PORT}')
+print(f'export HOSTNAME={settings.HOSTNAME}')
+"
+}
+
+# Load configuration
+eval "$(get_config)"
+
+# Check for running instances
+check_running() {
+    if [ -f "/tmp/radio.pid" ]; then
+        echo "Radio service is already running. Stop it first:"
+        echo "./manage_radio.sh stop"
+        exit 1
+    fi
+}
+
+# Check ports
+check_ports() {
+    echo "Checking ports: API=$API_PORT, DEV=$DEV_PORT..."
+    for port in $API_PORT $DEV_PORT; do
+        if lsof -i ":$port" >/dev/null 2>&1; then
+            echo "Port $port is in use. Stopping processes..."
+            sudo lsof -ti ":$port" | xargs sudo kill -9 2>/dev/null
+        fi
+    done
+    sleep 2
+}
+
 # Function to check Docker status
 check_docker() {
     if ! docker info >/dev/null 2>&1; then
@@ -124,44 +159,34 @@ detect_environment() {
     fi
 }
 
-# Function to start development environment
+# Start development environment
 start_dev() {
-    detect_environment
-
-    # Add pre-commit check at the start
-    check_precommit
+    check_running
+    check_ports
 
     echo "Starting development environment..."
-    kill_frontend
 
-    # Start backend first
-    echo "Starting backend services..."
-    docker compose -f docker/compose/docker-compose.dev.yml down
+    # Start backend
     docker compose -f docker/compose/docker-compose.dev.yml up -d --build
 
-    # Wait longer for backend to be ready
-    echo "Waiting for backend to start..."
-    sleep 10  # Increased from 5 to 10 seconds
+    # Wait for backend
+    echo "Waiting for backend..."
+    for i in {1..30}; do
+        if curl -s "http://localhost:$API_PORT/api/v1/health" >/dev/null; then
+            break
+        fi
+        sleep 1
+    done
 
-    # Check backend health
-    if ! curl -s http://localhost:8000/health > /dev/null; then
-        echo "Backend failed to start properly"
-        docker compose -f docker/compose/docker-compose.dev.yml logs
-        exit 1
-    fi
-
-    # Start frontend if available
+    # Start frontend
     if [ -d "web" ]; then
-        check_frontend_deps
-        echo "Starting frontend development server..."
-        cd web
-        VITE_HOST=0.0.0.0 VITE_PORT=3000 npm run dev &
-        cd ..
+        [ ! -d "web/node_modules" ] && (cd web && npm install)
+        cd web && VITE_HOST=0.0.0.0 VITE_PORT=$DEV_PORT npm run dev &
     fi
 
-    echo "Development environment started"
-    echo "Backend running on http://localhost:8000"
-    echo "Frontend running on http://localhost:3000"
+    echo "Development environment started:"
+    echo "Backend: http://localhost:$API_PORT"
+    echo "Frontend: http://localhost:$DEV_PORT"
 }
 
 # Function to rebuild environment

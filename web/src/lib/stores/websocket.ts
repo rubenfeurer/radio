@@ -23,6 +23,7 @@ export const createWebSocketStore = () => {
     let ws: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout>;
     let isIntentionalClose = false;
+    let messageQueue: any[] = [];  // Add message queue
 
     const connect = () => {
         if (ws) {
@@ -38,6 +39,12 @@ export const createWebSocketStore = () => {
             console.log('WebSocket connected successfully');
             set(ws);
             isIntentionalClose = false;
+            // Process any queued messages
+            while (messageQueue.length > 0) {
+                const message = messageQueue.shift();
+                sendMessage(message);
+            }
+            // Send initial status request
             sendMessage({ type: 'status_request' });
         };
 
@@ -70,19 +77,22 @@ export const createWebSocketStore = () => {
         };
     };
 
+    const sendMessage = (message: any) => {
+        if (ws?.readyState === WebSocket.OPEN) {
+            console.log('Sending WebSocket message:', message);
+            ws.send(JSON.stringify(message));
+        } else {
+            console.log('WebSocket not ready, queueing message:', message);
+            messageQueue.push(message);
+        }
+    };
+
     // Initial connection
     connect();
 
     return {
         subscribe,
-        sendMessage: (message: any) => {
-            if (ws?.readyState === WebSocket.OPEN) {
-                console.log('Sending WebSocket message:', message);
-                ws.send(JSON.stringify(message));
-            } else {
-                console.warn('WebSocket not ready, message not sent:', message);
-            }
-        },
+        sendMessage,
         disconnect: () => {
             console.log('Disconnecting WebSocket...');
             isIntentionalClose = true;

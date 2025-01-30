@@ -699,3 +699,86 @@ install_system_dependencies
 
 # Add to environment variables section
 PROD_PORT=${PROD_PORT:-80}
+
+# Get configuration
+get_config() {
+    python3 -c "
+from config.config import settings
+print(f'export API_PORT={settings.API_PORT}')
+print(f'export DEV_PORT={settings.DEV_PORT}')
+print(f'export PROD_PORT={settings.PROD_PORT}')
+print(f'export HOSTNAME={settings.HOSTNAME}')
+"
+}
+
+# Load configuration
+eval "$(get_config)"
+
+# Test mode skips hardware checks
+if [ "$TEST_MODE" != "1" ]; then
+    # Check if running on Raspberry Pi
+    if ! grep -q "Raspberry Pi" /proc/cpuinfo; then
+        echo "Error: This installer must run on a Raspberry Pi"
+        exit 1
+    fi
+fi
+
+echo "Installing Radio..."
+echo "Using ports: API=$API_PORT, PROD=$PROD_PORT"
+
+# Create radio user if doesn't exist
+if ! id "radio" &>/dev/null; then
+    sudo useradd -m -s /bin/bash radio
+    sudo usermod -aG audio,video radio
+fi
+
+# Install system dependencies
+sudo apt-get update
+sudo apt-get install -y \
+    python3 python3-venv \
+    mpv libmpv2 libmpv-dev \
+    network-manager wireless-tools \
+    dnsmasq avahi-daemon
+
+# Setup directories
+sudo mkdir -p /home/radio/radio
+sudo cp -r . /home/radio/radio/
+sudo chown -R radio:radio /home/radio/radio
+
+# Setup Python environment
+sudo -u radio python3 -m venv /home/radio/radio/venv
+sudo -u radio /home/radio/radio/venv/bin/pip install -r /home/radio/radio/install/requirements.txt
+
+# Install Node.js for production
+if ! command -v node &>/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+fi
+
+# Setup systemd service
+sudo tee /etc/systemd/system/radio.service <<EOF
+[Unit]
+Description=Internet Radio Service
+After=network.target
+
+[Service]
+Type=simple
+User=radio
+WorkingDirectory=/home/radio/radio
+Environment=PROD_PORT=${PROD_PORT}
+Environment=API_PORT=${API_PORT}
+ExecStart=/home/radio/radio/manage_radio.sh start
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable radio
+sudo systemctl start radio
+
+echo "✓ Installation complete!"
+echo "Access your radio at: http://radiod.local:${PROD_PORT}"
+echo "If radiod.local doesn't work, find your IP with: hostname -I"
