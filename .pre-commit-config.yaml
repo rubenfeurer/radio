@@ -1,0 +1,42 @@
+# Add this at the top of the file
+default_language_version:
+    python: python3
+default_stages: [commit]
+default_install_hook_types: [pre-commit]
+
+# Set default shell environment
+default_environment:
+    LANG: C
+    LC_ALL: C
+    LC_CTYPE: C
+
+repos:
+  # 1. Essential Formatting Only
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        language_version: python3
+        args: ["--fast", "--quiet", "--workers", "1"]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--quiet", "--jobs", "1"]
+
+  # 2. Basic Linting Only
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.2.0
+    hooks:
+      - id: ruff
+        args: ["--fix", "--no-cache", "--quiet"]
+
+  # 3. Essential File Checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json

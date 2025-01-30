@@ -1,19 +1,24 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
 
 class VolumeRequest(BaseModel):
     volume: int
+
 
 class AssignStationRequest(BaseModel):
     stationId: int
     name: str
     url: str
     country: Optional[str] = None
-    location: Optional[str] = None 
+    location: Optional[str] = None
+
 
 class WiFiConnectionRequest(BaseModel):
     ssid: str
-    password: Optional[str] = None 
+    password: Optional[str] = None
+
 
 class SystemInfo(BaseModel):
     hostname: str
@@ -21,21 +26,31 @@ class SystemInfo(BaseModel):
     cpuUsage: str
     diskSpace: str
     temperature: str
-    hotspot_ssid: Optional[str] = None
     mode: str
+    hotspot_ssid: Optional[str] = None
+    internet_connected: bool = False
+
 
 class ServiceStatus(BaseModel):
     name: str
     active: bool
     status: str
 
+
 class WebAccess(BaseModel):
     api: bool
     ui: bool
 
+
 class MonitorUpdate(BaseModel):
     type: str = "monitor_update"
     systemInfo: SystemInfo
-    services: List[ServiceStatus]
+    services: list[ServiceStatus]
     webAccess: WebAccess
-    logs: List[str]
+    logs: list[str]
+
+
+class NetworkAddRequest(BaseModel):
+    ssid: str
+    password: str
+    priority: int = Field(default=1, ge=0, le=999)

@@ -9,8 +9,13 @@
 
   let error: string | null = null;
 
+  $: {
+    console.log('Main page - Current mode:', $currentMode);
+  }
+
   onMount(async () => {
     try {
+      console.log('Main page mounted - Initial mode:', $currentMode);
       // Any initialization if needed
     } catch (err) {
       console.error("Page initialization error:", err);

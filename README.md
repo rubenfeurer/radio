@@ -1,911 +1,415 @@
-# radio
+# Internet Radio
 
-## Virtual Environment Setup
+A web-controlled internet radio system for Raspberry Pi with physical controls and WiFi management.
 
-To ensure all dependencies are installed in an isolated environment, follow these steps to create and manage a virtual environment:
-
-### Creating a Virtual Environment
-
-1. **Navigate to the project directory**:
-   ```bash
-   cd ~/radio
-   ```
-
-2. **Create the virtual environment**:
-   ```bash
-   python3 -m venv venv
-   ```
-
-### Activating the Virtual Environment
-
-- **On Linux/Mac**:
-  ```bash
-  source venv/bin/activate
-  ```
-
-- **On Windows**:
-  ```bash
-  .\venv\Scripts\activate
-  ```
-
-### Deactivating the Virtual Environment
-
-To deactivate the virtual environment, simply run:
-```bash
-deactivate
-```
-
-## Development Setup
-
-### Installing Dependencies
-
-After activating the virtual environment, install the required packages:
-```bash
-pip install -r requirements.txt
-```
-
-### Running the Development Server
-
-1. **Start the FastAPI server**:
-   ```bash
-   uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-2. **Access the API**:
-   - Main API: `http://<raspberry-pi-ip>:8000`
-   - Health Check: `http://<raspberry-pi-ip>:8000/health`
-   - API Documentation: `http://<raspberry-pi-ip>:8000/docs`
-
-   Replace `<raspberry-pi-ip>` with your Raspberry Pi's IP address (find it using `hostname -I`)
-
-## Project Structure
-
-```
-radio/
-├── config/         # Configuration files
-├── install/        # Installation scripts
-├── src/            # Source code
-│   ├── api/        # API endpoints
-│   ├── core/       # Business logic
-│   ├── hardware/   # Hardware interfaces
-│   ├── system/     # System management
-│   └── utils/      # Utility functions
-├── tests/          # Test files
-├── web/            # Web Interface (SvelteKit)
-│   ├── src/        # SvelteKit source code
-│   ├── static/     # Static assets
-│   ├── package.json
-│   └── ...         # Other SvelteKit files
-├── venv/           # Virtual environment
-└── README.md       # This file
-```
-
-## Web Interface Setup
-
-The web interface is built using SvelteKit and Flowbite-Svelte components.
-
-### Setup Instructions
-
-1. **Navigate to the web directory**:
-   ```bash
-   cd ~/radio/web
-   ```
-
-2. **Initialize a new SvelteKit project**:
-   ```bash
-   npx create-svelte@latest .
-   ```
-
-3. **Select the following options**:
-   - Template: Skeleton project
-   - TypeScript: Yes, using TypeScript syntax
-   - ESLint: Yes
-   - Prettier: Yes
-   - Playwright: Yes
-
-4. **Install dependencies**:
-   ```bash
-   npm install
-   npm install flowbite-svelte flowbite
-   npm install -D tailwindcss postcss autoprefixer @sveltejs/adapter-static
-   ```
-
-5. **Configure Tailwind CSS**:
-   - Create `tailwind.config.js` and `src/app.css` as described in the setup instructions.
-
-6. **Run the development server**:
-   ```bash
-   npm run dev -- --open
-   ```
+## For Users
 
 ### Features
 
-- **Responsive Design**: Works on mobile, tablet, and desktop
-- **Real-time Updates**: WebSocket connection for immediate feedback
-- **Station Management**: Three configurable radio slots
-- **Volume Control**: Both web and physical control sync
-- **Status Indicators**: Clear visual feedback
-- **Mobile-First**: Touch-friendly interface
-- **No Installation**: Access via web browser
-- **Easy URL**: Access via `http://radio.local`
-
-## Configuration
-
-- **Hardware Pins**: Configurable in `config.py`
-- **Volume Behavior**: Adjust sensitivity and default settings in `config.py`
-
-## Development Notes
-
-- The server runs in development mode with auto-reload enabled
-- API documentation is automatically generated at `/docs`
-- CORS is enabled for all origins in development mode
-
-## Logging
-
-The application uses rotating log files to track events and errors. Logs are stored in the `logs` directory.
-
-### Log File Location
-- Main log file: `logs/radio.log`
-- Rotating backup files: `radio.log.1`, `radio.log.2`, etc.
-- Maximum log file size: 10MB
-- Maximum number of backup files: 5
-
-### Viewing Logs
-
-1. **View the entire log file**:
-   ```bash
-   cat logs/radio.log
-   ```
-
-2. **Follow log updates in real-time**:
-   ```bash
-   tail -f logs/radio.log
-   ```
-
-3. **View last 50 lines**:
-   ```bash
-   tail -n 50 logs/radio.log
-   ```
-
-4. **Search logs for specific terms**:
-   ```bash
-   grep "ERROR" logs/radio.log
-   ```
-
-### Log Levels
-- INFO: Normal operation events
-- WARNING: Unexpected but handled events
-- ERROR: Error conditions that need attention
-- DEBUG: Detailed information for debugging
-
-## Radio Manager
-
-The `RadioManager` class handles the core functionality of the radio, including station management, playback control, and hardware interactions.
-
-### Singleton Implementation
-
-The application uses a singleton pattern to ensure only one instance of `RadioManager` exists throughout the application lifecycle. This is crucial for:
-- Preventing multiple GPIO controller initializations
-- Maintaining consistent state across all routes
-- Ensuring proper WebSocket callback handling
-
-```python
-# Using the singleton manager
-from src.core.singleton_manager import SingletonRadioManager
-from src.api.routes.websocket import broadcast_status_update
-
-# Get the singleton instance with WebSocket callback
-radio_manager = SingletonRadioManager.get_instance(status_update_callback=broadcast_status_update)
-```
-
-The singleton pattern is implemented in `src/core/singleton_manager.py` and should be used whenever accessing the `RadioManager` instead of creating new instances.
-
-### Basic Usage
-
-```python
-from src.core.singleton_manager import SingletonRadioManager
-from src.core.models import RadioStation
-
-# Get the radio manager instance
-radio = SingletonRadioManager.get_instance()
-
-# Add a radio station
-station = RadioStation(
-    name="Example Radio",
-    url="http://example.com/stream",
-    slot=1
-)
-radio.add_station(station)
-
-# Play a station
-await radio.play_station(1)
-
-# Control volume
-await radio.set_volume(75)  # Set volume to 75%
-
-# Stop playback
-await radio.stop_playback()
-```
-
-### Hardware Controls
-
-The RadioManager automatically handles hardware interactions:
-
-- **Buttons**: 
-  - Button 1: Play station in slot 1
-  - Button 2: Play station in slot 2
-  - Button 3: Play station in slot 3
-
-- **Rotary Encoder**:
-  - Clockwise: Increase volume
-  - Counter-clockwise: Decrease volume
-
-### Methods
-
-- `add_station(station: RadioStation)`: Add or update a station in a slot
-- `remove_station(slot: int)`: Remove a station from a slot
-- `get_station(slot: int)`: Get station information for a slot
-- `play_station(slot: int)`: Start playing the station in the specified slot
-- `stop_playback()`: Stop the current playback
-- `set_volume(volume: int)`: Set the volume (0-100)
-- `get_status()`: Get the current system status
-
-### System Status
-
-The system status includes:
-- Current volume level
-- Currently playing station
-- Playback status (playing/stopped)
-
-## GPIO Setup
-
-### Hardware Control
-The application uses `pigpio` for GPIO management, providing:
-- Reliable hardware control with microsecond precision
-- Better timing accuracy for rotary encoder
-- Hardware-timed PWM
-- Stable interrupt handling
+- Three configurable radio station slots with instant playback
+- Physical controls (buttons and rotary encoder)
+- Web interface with mobile support
+- Real-time updates via WebSocket
+- WiFi management with Access Point mode
+- Volume control via knob and web interface
+- System sounds for user feedback
+- Hardware support for Raspberry Pi 4B and Zero 2 WH
 
 ### Installation
 
-1. **Install pigpio System Package**:
+1. Download Latest Release:
+
+   - Go to GitHub Releases page
+   - Download the latest `radio-v*.tar.gz` file
+   - Or use wget:
+
    ```bash
-   sudo apt-get update
-   sudo apt-get install pigpio python3-pigpio
+   wget https://github.com/user/radio/releases/latest/download/radio-v*.tar.gz
    ```
 
-2. **Enable GPIO Daemon**:
+2. Install on Raspberry Pi:
+
    ```bash
-   # Enable pigpiod to start on boot
-   sudo systemctl enable pigpiod
+   # Extract package
+   tar -xzf radio-v*.tar.gz
+   cd radio
 
-   # Start pigpiod immediately
-   sudo systemctl start pigpiod
+   # Run installation script
+   sudo ./install/install.sh
 
-   # Check status
-   sudo systemctl status pigpiod
+   # Wait for installation to complete
+   # Radio service will start automatically
    ```
 
-### Troubleshooting GPIO
-
-If hardware controls aren't working:
-
-1. **Check GPIO Service Status**:
+3. Verify Installation:
+   - Check service status:
    ```bash
-   sudo systemctl status pigpiod
+   sudo systemctl status radio
    ```
 
-2. **Restart GPIO Service**:
+### Quick Start
+
+#### Access the Radio User Interface
+
+- Web Interface: `http://<hostname>.local`
+- Default AP Mode: Connect to `<hostname>` network
+
+#### Basic Controls
+
+- Play/Pause: Click station slot or use physical buttons
+- Volume: Use rotary knob or web slider
+- WiFi: Connect via web interface
+
+## For Developers
+
+### Development Setup
+
+#### On Raspberry Pi
+
+1. Download development build:
+
    ```bash
-   sudo systemctl restart pigpiod
+   # From GitHub Actions:
+   # Go to: GitHub -> Actions -> Build and Release -> Latest develop branch run
+   # Download the "radio-dev-package" artifact
+
+   tar -xzf radio-develop-*.tar.gz
+   cd radio-*
    ```
 
-3. **Verify pigpio Installation**:
+2. Install and start development environment:
+
    ```bash
-   # Test Python pigpio module
-   python3 -c "import pigpio; pi = pigpio.pi(); print('Connected' if pi.connected else 'Not connected')"
+   # Install with development mode
+   sudo DEV_MODE=true ./install/install.sh --dev
+
+   # Start development environment
+   ./dev.sh start   # Sets up everything automatically
    ```
 
-4. **Enable Debug Logging**:
-   - Set log level to DEBUG in configuration
-   - Monitor hardware events:
-     ```bash
-     tail -f logs/radio.log | grep "GPIO"
-     ```
-
-5. **Check Hardware Connections**:
-   - Verify pin numbers in config.py match physical connections
-   - Check for loose wires or connections
-   - Ensure proper grounding
-
-## Application Management
-
-The `manage_radio.sh` script provides easy control over the radio application. This script handles starting, stopping, restarting, and checking the status of the application.
-
-### Basic Usage
+Available development commands:
 
 ```bash
-# Start the application
-./manage_radio.sh start
-
-# Stop the application
-./manage_radio.sh stop
-
-# Restart the application
-./manage_radio.sh restart
-
-# Check application status
-./manage_radio.sh status
+./dev.sh logs      # View backend logs
+./dev.sh test      # Run tests
+./dev.sh lint      # Check code quality
+./dev.sh fix       # Auto-fix code issues
+./dev.sh stop      # Stop all services
+./dev.sh rebuild   # Rebuild environment
 ```
 
-### Features
+#### Using Docker (Alternative)
 
-- **Automatic Port Management**: Checks and frees port 8000 if it's already in use
-- **GPIO Daemon Check**: Ensures the pigpiod service is running
-- **Process Management**: Properly handles process startup and shutdown
-- **Status Monitoring**: Shows recent logs and current process status
-- **Virtual Environment**: Automatically activates the Python virtual environment
+```bash
+# Start development environment (backend + frontend)
+./dev.sh start
+
+# Stop all services
+./dev.sh stop
+
+# View backend logs
+./dev.sh logs
+
+# Rebuild everything
+./dev.sh rebuild
+```
+
+The development environment will be available at:
+
+- Frontend: http://radiod.local:3000 (DEV_PORT)
+- API: http://radiod.local:8000 (API_PORT)
+- API Docs: http://radiod.local:8000/docs
+
+### Port Configuration
+
+The application uses the following ports:
+- Production Frontend: Port 80 (default HTTP port)
+- Development Frontend: Port 3000 (DEV_PORT)
+- Backend API: Port 8000 (API_PORT)
+
+#### Accessing the Interface
+
+1. **Production Mode**:
+   ```bash
+   # Start production server
+   ./manage_radio.sh start
+
+   # Access at:
+   http://radiod.local         # No port needed
+   ```
+
+2. **Development Mode**:
+   ```bash
+   # Start development server
+   DEV_MODE=true ./manage_radio.sh start
+
+   # Access at:
+   http://radiod.local:3000   # Frontend with hot reload
+   http://radiod.local:8000   # API and docs
+   ```
+
+The development mode provides:
+- Hot reload for frontend changes
+- API documentation at `/docs`
+- WebSocket debugging tools
+- Real-time logging
+
+The production mode provides:
+- Standard HTTP port (80)
+- Optimized build
+- Better performance
+- Simpler URL access
+
+### Finding Your Radio on the Network
+
+1. **Using mDNS**:
+   - Frontend: `http://radiod.local:3000` (development)
+   - API: `http://radiod.local:8000`
+   - API Docs: `http://radiod.local:8000/docs`
+
+2. **Using IP Address**:
+   ```bash
+   # Find IP address
+   hostname -I
+
+   # Or use
+   ip addr show wlan0
+   ```
+   Then access:
+   - Frontend: `http://<ip-address>:3000`
+   - API: `http://<ip-address>:8000`
+
+3. **Port Usage**:
+   - Development Frontend: Port 3000 (DEV_PORT)
+   - Development Backend: Port 8000 (API_PORT)
+   - Container Port: 8000 (CONTAINER_PORT)
+
+#### Manual Setup (Alternative)
+
+1. Virtual Environment:
+
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+2. Web Interface:
+   ```bash
+   cd web
+   npm install
+   npm run dev
+   ```
+
+### Project Structure
+
+```
+radio/
+├── src/           # Backend source code
+│   ├── api/       # FastAPI backend
+│   ├── core/      # Business logic
+│   ├── hardware/  # Hardware control
+│   └── utils/     # Shared utilities
+├── web/           # SvelteKit frontend
+├── tests/         # Test suites
+├── config/        # Configuration files
+├── docker/        # Docker configuration
+│   └── dev/       # Development containers
+└── dev.sh        # Development script
+```
+
+### Testing
+
+#### Using Docker (Recommended)
+
+```bash
+# Run linting checks
+./dev.sh lint
+
+# Run tests in existing container (fast, for development)
+./dev.sh test
+
+# Run tests in clean container (for verification)
+./dev.sh test-clean
+
+# Run both linting and tests (recommended before committing)
+./dev.sh test-all
+
+# Common test options:
+./dev.sh test --cov=src            # Run with coverage
+./dev.sh test tests/test_wifi.py   # Run specific test file
+./dev.sh test -k "test_wifi"       # Run tests matching pattern
+./dev.sh test -v                   # Verbose output
+```
+
+All tests run with hardware mocking enabled (`MOCK_SERVICES=true`).
+
+### Development Resources
+
+#### API Documentation
+
+- OpenAPI UI: `http://radiod.local/docs`
+- ReDoc: `http://radiod.local/redoc`
+
+#### WebSocket Events
+
+Connect to `ws://radiod.local/ws` for real-time updates:
+
+- Volume changes
+- Station status
+- WiFi connection status
+- System mode changes
+
+### Development Workflow
+
+#### 1. Feature Branch Development
+
+- Create feature branch from `develop`
+- Push changes trigger `branch-test.yml`
+- Tests run automatically on push
+- Pre-commit hooks ensure code quality
+
+#### 2. Development Release
+
+- Open PR to `develop` branch
+- Tests run via `branch-test.yml`
+- When merged, `dev-release.yml`:
+  - Builds frontend
+  - Creates development package
+  - Tests installation
+  - Uploads artifact
+
+#### 3. Production Release
+
+- Open PR from `develop` to `main`
+- Tests run via `branch-test.yml`
+- When merged, `prod-release.yml`:
+  - Builds frontend
+  - Creates production package
+  - Tests in Pi environment
+  - Creates GitHub release (for tags)
+
+### Branch Protection
+
+- Protected branches: `main`, `develop`
+- Required status checks must pass
+- No direct pushes allowed
+- PRs required for all changes
+
+### CI/CD Pipeline
+
+#### Feature Branch Tests (`branch-test.yml`)
+
+```bash
+# Runs on:
+- Push to feature branches
+- PRs to main/develop
+```
+
+#### Development Release (`dev-release.yml`)
+
+```bash
+# Runs on:
+- PR merge to develop
+- Manual workflow dispatch
+```
+
+#### Production Release (`prod-release.yml`)
+
+```bash
+# Runs on:
+- PR merge to main
+- Version tags
+- Manual workflow dispatch
+```
+
+### Configuration
+
+#### Radio Stations
+
+Edit `config/stations.json`:
+
+```json
+{
+  "stations": [
+    {
+      "name": "Station 1",
+      "url": "http://stream.url",
+      "slot": 1
+    }
+  ]
+}
+```
+
+#### System Settings
+
+Edit `config/config.py`:
+
+```json
+{
+  "volume": {
+    "default": 70,
+    "knob_direction": "clockwise"
+  },
+  "ap_mode": {
+    "ssid": "RadioPi",
+    "password": "yourpassword"
+  }
+}
+```
+
+### Service Management
+
+```bash
+# Status
+sudo systemctl status radio
+
+# Logs
+sudo journalctl -u radio -f
+
+# Restart
+sudo systemctl restart radio
+
+# Stop
+sudo systemctl stop radio
+```
 
 ### Troubleshooting
 
-If the application fails to start:
+#### Common Issues
 
-1. **Check the Logs**:
+1. Radio Not Starting:
+
    ```bash
    tail -f logs/radio.log
+   sudo lsof -i :80
    ```
 
-2. **Verify Port Availability**:
-   ```bash
-   sudo lsof -i :8000
-   ```
+2. No Audio:
 
-3. **Check GPIO Daemon**:
-   ```bash
-   sudo systemctl status pigpiod
-   ```
+   - Check volume settings
+   - Verify audio device permissions
+   - Restart audio service
 
-4. **Force Restart**:
-   ```bash
-   ./manage_radio.sh stop
-   sleep 2
-   ./manage_radio.sh start
-   ```
+3. WiFi Issues:
+   - Check network status
+   - Verify WiFi credentials
+   - Switch to AP mode if needed
 
-### Common Issues
-
-- If the application shows as "not running" but the port is in use, use the restart command
-- If you see "stale PID file found", the application may have crashed - check the logs and restart
-- If the GPIO controls aren't working, ensure pigpiod is running with the status command
-
-## Testing
-
-The project uses pytest for unit testing. Tests are located in the `/tests` directory.
-
-### Setting Up Tests
-
-1. **Activate Virtual Environment**:
-   ```bash
-   cd ~/radio
-   source venv/bin/activate
-   ```
-
-2. **Install Required Test Packages**:
-   ```bash
-   pip install pytest
-   pip install pytest-asyncio
-   pip install pytest-cov
-   pip install pytest-mock
-   pip install httpx
-   ```
-
-3. **Add Test Dependencies to requirements.txt**:
-   ```bash
-   echo "pytest" >> requirements.txt
-   echo "pytest-asyncio" >> requirements.txt
-   echo "pytest-cov" >> requirements.txt
-   echo "pytest-mock" >> requirements.txt
-   echo "httpx" >> requirements.txt
-   ```
-
-### Running Tests
-
-After installing the required packages, you can run tests using:
+#### GPIO Setup
 
 ```bash
-# Run all tests
-PYTHONPATH=. pytest -v --asyncio-mode=auto tests/
+# Install pigpio
+sudo apt-get install pigpio python3-pigpio
 
-# Run tests with hardware mocking (CI environment)
-PYTHONPATH=. MOCK_HARDWARE=true pytest -v --asyncio-mode=auto tests/
+# Start and enable service
+sudo systemctl enable pigpiod
+sudo systemctl start pigpiod
 
-# Run tests with coverage
-PYTHONPATH=. MOCK_HARDWARE=true pytest -v --asyncio-mode=auto tests/ --cov=src
+# Check status
+sudo systemctl status pigpiod
 ```
 
-### Test Structure
+## License
 
-```
-tests/
-├── api/              # API endpoint tests
-│   ├── test_main.py
-│   └── test_routes.py
-├── core/             # Core functionality tests
-│   ├── test_models.py
-│   └── test_radio_manager.py
-└── hardware/         # Hardware interface tests
-    ├── test_audio_player.py
-    └── test_gpio_controller.py
-```
-
-### Writing Tests
-
-Tests are written using pytest and follow these conventions:
-- Test files start with `test_`
-- Test functions start with `test_`
-- Async tests use `@pytest.mark.asyncio` decorator
-- Fixtures are defined in `conftest.py` or test files
-- Use `pytest-mock` for mocking dependencies
-
-Example test with mocking:
-```python
-import pytest
-from src.core.radio_manager import RadioManager
-from src.core.models import RadioStation
-
-@pytest.mark.asyncio
-async def test_play_station():
-    manager = RadioManager()
-    station = RadioStation(name="Test", url="http://test.com", slot=1)
-    manager.add_station(station)
-    
-    await manager.play_station(1)
-    status = manager.get_status()
-    
-    assert status.is_playing == True
-    assert status.current_station == 1
-```
-
-### Common Test Commands
-
-```bash
-# Run tests and show coverage
-pytest --cov=src tests/
-
-# Run tests matching a pattern
-pytest -k "test_station"
-
-# Run tests and stop on first failure
-pytest -x tests/
-
-# Run tests with debug logging
-pytest --log-cli-level=DEBUG tests/
-```
-
-### Troubleshooting Tests
-
-If tests fail:
-1. Check the virtual environment is activated
-2. Verify all test dependencies are installed
-3. Check the log output for detailed error messages
-4. Ensure the GPIO daemon (pigpiod) is running for hardware tests
-
-### Hardware Mocking
-
-The project uses a comprehensive mocking system for hardware components during testing:
-
-1. **Environment Variables**:
-   ```bash
-   # Run tests with hardware mocking
-   MOCK_HARDWARE=true pytest -v tests/
-   
-   # Or in CI environment (GitHub Actions)
-   # Hardware mocking is automatically enabled
-   ```
-
-2. **Mock Configuration**:
-   - MPV player for audio playback
-   - pigpio for GPIO control
-   - All hardware interactions are simulated
-   - Defined in `tests/conftest.py`
-
-3. **Testing Hardware Components**:
-   ```python
-   # Example test using hardware mocks
-   @pytest.mark.asyncio
-   async def test_audio_player(mock_hardware):
-       player = AudioPlayer()
-       await player.play("http://test.stream")
-       mock_hardware['mpv'].play.assert_called_once()
-   ```
-
-4. **Local vs CI Testing**:
-   ```bash
-   # Local development (real hardware)
-   pytest -v tests/
-   
-   # CI environment (mocked hardware)
-   MOCK_HARDWARE=true pytest -v tests/
-   ```
-
-### Common Test Issues
-
-- If hardware tests fail locally, ensure pigpiod is running:
-  ```bash
-  sudo systemctl start pigpiod
-  ```
-- For CI failures, verify MOCK_HARDWARE is set
-- Check `tests/conftest.py` for mock configurations
-
-## WebSocket API
-
-The application provides real-time updates through WebSocket connections at `/ws`. This enables immediate feedback for physical controls and system status changes.
-
-### Connecting to WebSocket
-
-```javascript
-// Browser example
-const ws = new WebSocket('ws://your-pi-ip:8000/ws');
-
-ws.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    console.log('Received:', data);
-};
-```
-
-```python
-# Python example using websockets
-import asyncio
-import websockets
-import json
-
-async def connect():
-    async with websockets.connect('ws://your-pi-ip:8000/ws') as ws:
-        # Send status request
-        await ws.send(json.dumps({"type": "status_request"}))
-        # Receive response
-        response = await ws.recv()
-        print(json.loads(response))
-```
-
-### Message Types
-
-#### Client to Server:
-1. **Status Request**
-   ```json
-   {
-       "type": "status_request"
-   }
-   ```
-
-2. **WiFi Scan Request**
-   ```json
-   {
-       "type": "wifi_scan"
-   }
-   ```
-
-#### Server to Client:
-1. **Status Response/Update**
-   ```json
-   {
-       "type": "status_response",
-       "data": {
-           "volume": 70,
-           "current_station": 1,
-           "is_playing": true,
-           "wifi_status": "connected",
-           "signal_strength": -67
-       }
-   }
-   ```
-
-2. **WiFi Scan Results**
-   ```json
-   {
-       "type": "wifi_scan_result",
-       "data": [
-           {
-               "ssid": "Network1",
-               "signal_strength": -65,
-               "secured": true
-           }
-       ]
-   }
-   ```
-
-### Real-time Updates
-
-The WebSocket connection automatically broadcasts:
-- Volume changes from physical knob or web interface
-- Station play/pause status changes
-- WiFi connection status changes
-- System mode changes (WiFi/AP mode)
-
-### Error Handling
-
-The WebSocket connection will automatically:
-- Reconnect on disconnection
-- Clean up resources on client disconnect
-- Handle connection timeouts
-- Report connection errors
-
-### Example Usage
-
-```javascript
-// Complete browser example
-const ws = new WebSocket('ws://your-pi-ip:8000/ws');
-
-ws.onopen = function() {
-    // Request initial status
-    ws.send(JSON.stringify({
-        type: "status_request"
-    }));
-};
-
-ws.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    
-    switch(data.type) {
-        case "status_response":
-        case "status_update":
-            updateUI(data.data);
-            break;
-        case "wifi_scan_result":
-            updateNetworkList(data.data);
-            break;
-    }
-};
-
-ws.onerror = function(error) {
-    console.error('WebSocket error:', error);
-};
-
-ws.onclose = function() {
-    console.log('WebSocket connection closed');
-    // Implement reconnection logic here
-};
-```
-
-### Testing WebSocket Connection
-
-You can test the WebSocket connection using the provided test suite:
-
-```bash
-# Run WebSocket-specific tests
-pytest -v tests/api/test_routes.py -k "websocket"
-
-# Run all API tests including WebSocket
-pytest -v tests/api/
-```
-
-## API and WebSocket Development
-
-### File Structure
-```
-radio/
-├── src/
-│   ├── api/            # Backend API
-│   │   ├── routes/     # API route modules
-│   │   │   ├── websocket.py  # WebSocket endpoints
-│   │   │   ├── monitor.py    # Monitor endpoints
-│   │   │   └── stations.py   # Station management endpoints
-│   │   ├── models/     # API models and schemas
-│   │   ��   └── requests.py   # Request/Response models
-│   │   └── main.py    # FastAPI application setup
-│   └── lib/           # Shared libraries
-│       └── stores/    # Svelte stores
-│           └── websocket.ts  # WebSocket store
-└── web/
-    └── src/
-        └── routes/    # SvelteKit pages
-            ├── +page.svelte        # Main page
-            └── monitor/
-                └── +page.svelte    # Monitor page
-```
-
-### WebSocket Store
-The WebSocket store (`websocket.ts`) is currently located in `src/lib/stores/` and provides shared WebSocket functionality across the application. It manages:
-- WebSocket connection status
-- Monitor connection status
-- Error handling
-
-### Creating New API Endpoints
-
-1. **Create Route Module**
-   Create a new file in `src/api/routes/`:
-   ```python:src/api/routes/example.py
-   from fastapi import APIRouter
-   from ..models.requests import ExampleModel
-   
-   router = APIRouter(
-       prefix="/example",
-       tags=["Example"]
-   )
-   
-   @router.get("/status")
-   async def get_status():
-       return {"status": "ok"}
-   ```
-
-2. **Add Models**
-   Define request/response models in `src/api/models/requests.py`:
-   ```python:src/api/models/requests.py
-   from pydantic import BaseModel
-   
-   class ExampleModel(BaseModel):
-       name: str
-       value: int
-   ```
-
-3. **Register Router**
-   Add the router in `src/api/main.py`:
-   ```python:src/api/main.py
-   from src.api.routes import example
-   
-   app.include_router(example.router, prefix="/api/v1")
-   ```
-
-### WebSocket Communication
-
-1. **Backend: Add New Message Type**
-   Update `src/api/routes/websocket.py`:
-   ```python:src/api/routes/websocket.py
-   @router.websocket("/ws")
-   async def websocket_endpoint(websocket: WebSocket):
-       # ... existing code ...
-       
-       elif data.get("type") == "example_request":
-           example_data = {
-               "type": "example_update",
-               "data": await get_example_data()
-           }
-           await websocket.send_json(example_data)
-   ```
-
-2. **Frontend: Handle WebSocket Messages**
-   Create new page in `web/src/routes/`:
-   ```svelte:web/src/routes/example/+page.svelte
-   <script lang="ts">
-     import { onMount } from 'svelte';
-     import { browser } from '$app/environment';
-   
-     let ws: WebSocket;
-     
-     function connectWebSocket() {
-       if (!browser) return;
-       
-       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-       const wsHost = window.location.hostname;
-       const wsPort = window.location.port === '5173' ? '80' : window.location.port;
-       
-       const wsUrl = `${wsProtocol}//${wsHost}${wsPort ? ':' + wsPort : ''}/api/v1/ws`;
-       
-       ws = new WebSocket(wsUrl);
-       
-       ws.onmessage = (event) => {
-         const data = JSON.parse(event.data);
-         if (data.type === 'example_update') {
-           // Handle data
-         }
-       };
-     }
-   
-     onMount(() => {
-       connectWebSocket();
-       return () => ws?.close();
-     });
-   </script>
-   ```
-
-### Message Types
-
-Common WebSocket message types:
-
-1. **Status Messages**
-   ```typescript
-   // Request
-   { type: "status_request" }
-   
-   // Response
-   {
-     type: "status_response",
-     data: {
-       current_station: number | null,
-       volume: number,
-       is_playing: boolean
-     }
-   }
-   ```
-
-2. **Monitor Messages**
-   ```typescript
-   // Request
-   { 
-     type: "monitor_request",
-     data: { requestType: "full" | "update" }
-   }
-   
-   // Response
-   {
-     type: "monitor_update",
-     data: {
-       systemInfo: {...},
-       services: [...],
-       webAccess: {...},
-       logs: [...]
-     }
-   }
-   ```
-
-### Best Practices
-- Use consistent message types between frontend and backend
-- Implement proper error handling in both directions
-- Add logging for debugging
-- Follow existing patterns in the codebase
-- Keep WebSocket connections alive with periodic status checks
-- Handle reconnection gracefully
-- Clean up WebSocket connections when components unmount
-
-## WiFi Management
-
-### Features
-- Network scanning and connection
-- Saved network management
-- Access Point (AP) mode support
-- Real-time status updates via WebSocket
-- Signal strength monitoring
-- Automatic reconnection
-
-### WiFi API Endpoints
-
-1. **Get Available Networks**
-   ```bash
-   GET /api/v1/wifi/networks
-   ```
-   Returns list of available WiFi networks with signal strength and saved status.
-
-2. **Connect to Network**
-   ```bash
-   POST /api/v1/wifi/connect
-   {
-     "ssid": "NetworkName",
-     "password": "NetworkPassword"
-   }
-   ```
-
-3. **Forget Network**
-   ```bash
-   DELETE /api/v1/wifi/forget/{ssid}
-   ```
-   Removes a saved network from the system.
-
-4. **Get Current Status**
-   ```bash
-   GET /api/v1/wifi/status
-   ```
-   Returns current WiFi connection status.
-
-### WiFi Manager
-
-The `WiFiManager` class handles all WiFi-related operations:
-```python
-from src.core.wifi_manager import WiFiManager
-
-# Get WiFi status
-status = wifi_manager.get_current_status()
-
-# Connect to network
-success = await wifi_manager.connect_to_network("SSID", "password")
-
-# Remove saved network
-success = wifi_manager._remove_connection("SSID")
-```
-
-### Web Interface Features
-- Display available networks with signal strength
-- Show saved networks separately
-- Connect to new networks
-- Forget saved networks
-- Real-time connection status
-- Signal strength indicator
+MIT License - See LICENSE file for details

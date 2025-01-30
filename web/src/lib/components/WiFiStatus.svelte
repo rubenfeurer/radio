@@ -19,13 +19,7 @@
     available_networks: WiFiNetwork[];
   }
 
-  let wifiStatus: WiFiStatusData = {
-    ssid: null,
-    signal_strength: null,
-    is_connected: false,
-    has_internet: false,
-    available_networks: []
-  };
+  let wifiStatus: WiFiStatusData | null = null;  // Initialize as null for loading state
 
   onMount(async () => {
     await fetchWiFiStatus();
@@ -64,21 +58,25 @@
   <div class="flex flex-col gap-2">
     <span class="text-sm text-gray-500">WiFi</span>
     <div class="flex items-center gap-2">
-      <h3 class="text-lg font-semibold">
-        {wifiStatus.ssid || 'Not connected'}
-      </h3>
-      {#if wifiStatus.is_connected}
-        {#if wifiStatus.has_internet}
-          {@html WifiIcon.on}
-        {/if}
-        {#if wifiStatus.available_networks.find(n => n.ssid === wifiStatus.ssid)?.security}
-          {@html LockIcon}
-        {/if}
+      {#if !wifiStatus}
+        <h3 class="text-lg font-semibold">Loading...</h3>
       {:else}
-        <Badge color="red">
-          {@html WifiIcon.off}
-          Disconnected
-        </Badge>
+        <h3 class="text-lg font-semibold">
+          {wifiStatus.ssid || 'Not connected'}
+        </h3>
+        {#if wifiStatus.is_connected}
+          {#if wifiStatus.has_internet}
+            {@html WifiIcon.on}
+          {/if}
+          {#if wifiStatus.available_networks.find(n => n.ssid === wifiStatus.ssid)?.security}
+            {@html LockIcon}
+          {/if}
+        {:else}
+          <Badge color="red">
+            {@html WifiIcon.off}
+            Disconnected
+          </Badge>
+        {/if}
       {/if}
     </div>
     <a href="/wifi" class="w-full">

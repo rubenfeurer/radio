@@ -1,1 +1,1 @@
-from .requests import VolumeRequest
+from .requests import VolumeRequest as VolumeRequest

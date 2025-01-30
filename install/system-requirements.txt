@@ -1,0 +1,28 @@
+alsa-utils
+avahi-daemon
+avahi-discover
+avahi-utils
+build-essential
+curl
+dnsmasq
+git
+libffi-dev
+libmpv-dev
+libnss-mdns
+libssl-dev
+
+# Audio dependencies
+mpv
+
+# Network dependencies
+network-manager
+
+# Hardware dependencies
+pigpio
+pulseaudio
+# Core system dependencies
+python3-dev
+python3-pip
+python3-venv
+wireless-tools
+wpasupplicant

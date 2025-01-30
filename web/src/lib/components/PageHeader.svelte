@@ -1,16 +1,8 @@
 <script lang="ts">
-  import { Badge } from 'flowbite-svelte';
-  import { ws as wsStore } from '$lib/stores/websocket';
   import { page } from '$app/stores';
 
   // Props
   export let title: string;
-
-  // WebSocket connection status
-  let wsConnected = false;
-  wsStore.subscribe(socket => {
-    wsConnected = socket !== null;
-  });
 
   // Get current path for back navigation
   $: currentPath = $page.url.pathname;
@@ -29,7 +21,4 @@
     {/if}
     <h1 class="text-2xl font-bold">{title}</h1>
   </div>
-  <Badge color={wsConnected ? "green" : "red"}>
-    {wsConnected ? "Connected" : "Disconnected"}
-  </Badge>
 </div> 

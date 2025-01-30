@@ -4,53 +4,56 @@ APP_NAME="radio"
 VENV_PATH="/home/radio/radio/venv"
 APP_PATH="/home/radio/radio/src/api/main.py"
 LOG_FILE="/home/radio/radio/logs/radio.log"
+WEB_LOG_FILE="/home/radio/radio/logs/web.log"
 PID_FILE="/tmp/${APP_NAME}.pid"
 NODE_ENV="production"
-DEV_MODE=${DEV_MODE:-true}
+
+# Check if running in Docker
+if [ -f /.dockerenv ]; then
+    echo "Running in Docker environment - skipping system checks"
+    # Simplified startup for Docker
+    exec "$VENV_PATH/bin/python" -m uvicorn src.api.main:app --host "0.0.0.0" --port "$CONTAINER_PORT"
+    exit 0
+fi
 
 # Get configuration from Python
 get_config() {
-    source $VENV_PATH/bin/activate
-    
-    # Create config directory with correct permissions
-    sudo mkdir -p /home/radio/radio/web/src/lib
-    sudo chown -R radio:radio /home/radio/radio/web
-    
-    # Get configuration values
-    API_PORT=$(python3 -c "from config.config import settings; print(settings.API_PORT)")
-    DEV_PORT=$(python3 -c "from config.config import settings; print(settings.DEV_PORT)")
-    HOSTNAME=$(python3 -c "from config.config import settings; print(settings.HOSTNAME)")
+    python3 -c "
+from config.config import settings
+print(f'export API_PORT={settings.API_PORT}')
+print(f'export DEV_PORT={settings.DEV_PORT}')
+print(f'export PROD_PORT={settings.PROD_PORT}')
+print(f'export HOSTNAME={settings.HOSTNAME}')
+"
 }
 
+# Load configuration
+eval "$(get_config)"
+
 check_ports() {
-    get_config
-    
     echo "Checking for processes using ports..."
-    
+
     if [ -n "$DEV_PORT" ]; then
         for pid in $(lsof -ti :$DEV_PORT 2>/dev/null); do
             echo "Killing process $pid using port $DEV_PORT..."
             sudo kill -9 $pid 2>/dev/null || true
         done
     fi
-    
+
     if [ -n "$API_PORT" ]; then
         for pid in $(sudo lsof -ti :$API_PORT 2>/dev/null); do
             echo "Killing process $pid using port $API_PORT..."
             sudo kill -9 $pid 2>/dev/null || true
         done
     fi
-    
+
     # Additional cleanup
-    echo "Cleaning up any remaining processes..."
     sudo pkill -f "uvicorn.*$APP_PATH" || true
     pkill -f "npm run dev" || true
     pkill -f "vite" || true
-    
-    # Wait for ports to be freed
+
     sleep 3
-    
-    # Verify ports are free
+
     if [ -n "$DEV_PORT" ] && [ -n "$API_PORT" ]; then
         if lsof -ti :$DEV_PORT 2>/dev/null || sudo lsof -ti :$API_PORT 2>/dev/null; then
             echo "Error: Ports still in use after cleanup"
@@ -59,103 +62,48 @@ check_ports() {
     fi
 }
 
-check_pigpiod() {
-    if ! pgrep -x "pigpiod" > /dev/null; then
-        echo "Starting pigpiod..."
-        sudo systemctl start pigpiod
-    else
-        echo "pigpiod is already running."
-    fi
-}
+validate_installation() {
+    echo "Validating radio installation..."
 
-check_nmcli_permissions() {
-    # Create sudo rule for nmcli if it doesn't exist
-    SUDO_FILE="/etc/sudoers.d/radio-nmcli"
-    if [ ! -f "$SUDO_FILE" ]; then
-        echo "Setting up nmcli and system permissions..."
-        sudo tee $SUDO_FILE <<EOF
-# Allow radio user to run specific nmcli commands without password
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi list
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi rescan
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli networking connectivity check
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device wifi connect *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection up *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection delete *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection show
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device set *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection add *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli connection modify *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli radio wifi *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli networking *
-radio ALL=(ALL) NOPASSWD: /usr/bin/rfkill
-radio ALL=(ALL) NOPASSWD: /sbin/ip link set *
-radio ALL=(ALL) NOPASSWD: /usr/bin/nmcli device disconnect *
-# Add system control permissions
-radio ALL=(ALL) NOPASSWD: /sbin/reboot
-radio ALL=(ALL) NOPASSWD: /sbin/shutdown
-EOF
-        sudo chmod 440 $SUDO_FILE
+    # Check dnsmasq configuration
+    if [ ! -f "/etc/dnsmasq.conf" ]; then
+        echo "Error: dnsmasq configuration not found"
+        exit 1
     fi
-}
 
-check_audio_permissions() {
-    echo "Setting up audio permissions..."
-    
-    # Add radio user to required groups if not already added
-    for group in audio pulse pulse-access; do
-        if ! groups radio | grep -q "\b${group}\b"; then
-            echo "Adding radio user to $group group..."
-            sudo usermod -a -G $group radio
-        fi
+    # Check and start required services with NOPASSWD sudo
+    for service in avahi-daemon dnsmasq NetworkManager pigpiod; do
+        echo "Starting $service..."
+        sudo systemctl start $service || {
+            echo "Warning: Could not start $service, attempting to install..."
+            sudo apt-get install -y $service
+            sudo systemctl start $service || echo "Warning: Could not start $service"
+        }
     done
-    
-    # Ensure XDG_RUNTIME_DIR exists and has correct permissions
-    RUNTIME_DIR="/run/user/$(id -u radio)"
-    if [ ! -d "$RUNTIME_DIR" ]; then
-        echo "Creating runtime directory..."
-        sudo mkdir -p "$RUNTIME_DIR"
-        sudo chown radio:radio "$RUNTIME_DIR"
-        sudo chmod 700 "$RUNTIME_DIR"
+
+    # Verify MPV installation with correct path
+    if ! ldconfig -p | grep libmpv > /dev/null; then
+        echo "Error: libmpv not found in system library path"
+        # Try to fix MPV symlinks
+        sudo ln -sf /usr/lib/aarch64-linux-gnu/libmpv.so.2 /usr/lib/libmpv.so
+        sudo ldconfig
+        if ! ldconfig -p | grep libmpv > /dev/null; then
+            exit 1
+        fi
     fi
-    
-    # Set up PulseAudio runtime path
-    PULSE_DIR="$RUNTIME_DIR/pulse"
-    if [ ! -d "$PULSE_DIR" ]; then
-        echo "Setting up PulseAudio directory..."
-        sudo mkdir -p "$PULSE_DIR"
-        sudo chown radio:radio "$PULSE_DIR"
-    fi
-    
-    # Export required environment variables
-    export XDG_RUNTIME_DIR="$RUNTIME_DIR"
-    export PULSE_RUNTIME_PATH="$RUNTIME_DIR/pulse"
-    
-    # Ensure audio devices have correct permissions
-    echo "Setting audio device permissions..."
-    sudo chmod -R a+rwX /dev/snd/ || true
 }
 
 ensure_client_mode() {
     echo "Ensuring client mode on startup..."
     source $VENV_PATH/bin/activate
-    
-    # Ensure correct permissions before running Python
-    sudo chown -R radio:radio /home/radio/radio/web
-    
+
     # Create directory and initial mode file if it doesn't exist
-    echo "Setting up mode state file..."
     sudo mkdir -p /tmp/radio
     if [ ! -f "/tmp/radio/radio_mode.json" ]; then
-        echo "Creating initial mode state file..."
         echo '{"mode": "CLIENT"}' | sudo tee /tmp/radio/radio_mode.json > /dev/null
     fi
-    
-    # Ensure correct permissions
     sudo chown -R radio:radio /tmp/radio
-    sudo chmod 644 /tmp/radio/radio_mode.json
-    
-    # Add debug output
-    echo "Running mode check and switch..."
+
     python3 -c "
 from src.core.mode_manager import ModeManagerSingleton
 import asyncio
@@ -167,271 +115,265 @@ logger = logging.getLogger('mode_switch')
 async def ensure_client():
     try:
         manager = ModeManagerSingleton.get_instance()
-        await manager.enable_client_mode()  # This method already calls _save_state internally
+        await manager.enable_client_mode()
         logger.info('Client mode switch completed')
-            
     except Exception as e:
         logger.error(f'Error in mode switch: {str(e)}', exc_info=True)
 
 asyncio.run(ensure_client())
 "
-    
-    # Wait for network to be ready
-    echo "Waiting for network..."
-    max_attempts=30
-    attempt=0
-    while [ $attempt -lt $max_attempts ]; do
-        if sudo nmcli networking connectivity check | grep -q "full"; then
-            echo "Network is ready"
-            break
-        fi
-        echo "Waiting for network... attempt $((attempt+1))/$max_attempts"
-        attempt=$((attempt+1))
-        sleep 1
-    done
-    
-    if [ $attempt -eq $max_attempts ]; then
-        echo "Warning: Network not ready after $max_attempts attempts"
-    fi
 }
 
-check_avahi() {
-    echo "Checking Avahi daemon..."
-    get_config
-    
-    # Install avahi-daemon if not present
-    if ! command -v avahi-daemon &> /dev/null; then
-        echo "Installing avahi-daemon..."
-        sudo apt-get update
-        sudo apt-get install -y avahi-daemon
+validate_network() {
+    echo "Validating network services..."
+
+    # Reset WiFi interface only if it's down
+    if ! ip link show wlan0 | grep -q "UP"; then
+        echo "Resetting WiFi interface..."
+        sudo ip link set wlan0 down
+        sudo rfkill unblock wifi
+        sudo ip link set wlan0 up
+        sleep 2
     fi
-    
-    # Configure Avahi with hostname
-    echo "Configuring Avahi..."
-    sudo tee /etc/avahi/avahi-daemon.conf << EOF
+
+    # Only restart NetworkManager if it's not working
+    if ! systemctl is-active --quiet NetworkManager; then
+        echo "Restarting NetworkManager..."
+        sudo systemctl restart NetworkManager
+        sleep 3
+    fi
+
+    # Ensure wpa_supplicant is running
+    if ! systemctl is-active --quiet wpa_supplicant; then
+        echo "Starting wpa_supplicant..."
+        sudo systemctl unmask wpa_supplicant
+        sudo systemctl enable wpa_supplicant
+        sudo systemctl start wpa_supplicant
+        sleep 2
+    fi
+
+    # Only stop truly conflicting services
+    for service in "systemd-networkd"; do
+        if systemctl is-active --quiet $service; then
+            echo "Stopping conflicting service: $service"
+            sudo systemctl stop $service
+            sudo systemctl mask $service
+        fi
+    done
+
+    # Ensure interface is managed by NetworkManager
+    echo "Setting wlan0 as managed..."
+    sudo nmcli device set wlan0 managed yes
+
+    # Wait for interface to become available
+    echo "Waiting for WiFi interface..."
+    for i in {1..10}; do
+        if nmcli device status | grep "wlan0" | grep -q "disconnected"; then
+            echo "WiFi interface is ready"
+            break
+        fi
+        sleep 1
+    done
+}
+
+setup_network_services() {
+    echo "Setting up network services..."
+
+    # Get current IP address dynamically
+    WIFI_IP=$(ip -4 addr show wlan0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+
+    # Configure hosts file first
+    echo "Configuring hosts file..."
+    sudo tee /etc/hosts > /dev/null << EOF
+127.0.0.1       localhost
+::1             localhost ip6-localhost ip6-loopback
+ff02::1         ip6-allnodes
+ff02::2         ip6-allrouters
+127.0.1.1       radiod
+${WIFI_IP}      radiod.local
+EOF
+
+    # Configure dnsmasq with dynamic IP
+    echo "Configuring dnsmasq..."
+    sudo tee /etc/dnsmasq.conf > /dev/null << EOF
+interface=wlan0
+domain-needed
+bogus-priv
+expand-hosts
+domain=local
+local=/local/
+listen-address=127.0.0.1,${WIFI_IP}
+address=/radiod.local/${WIFI_IP}
+bind-interfaces
+except-interface=docker0
+EOF
+
+    # Configure avahi for dynamic setup
+    echo "Configuring avahi-daemon..."
+    sudo tee /etc/avahi/avahi-daemon.conf > /dev/null << EOF
 [server]
-host-name=$HOSTNAME
+host-name=radiod
 domain-name=local
 use-ipv4=yes
 use-ipv6=no
-enable-dbus=yes
 allow-interfaces=wlan0
+enable-dbus=yes
+publish-addresses=yes
 
 [publish]
 publish-addresses=yes
 publish-hinfo=yes
 publish-workstation=yes
 publish-domain=yes
-EOF
-    
-    # Restart Avahi daemon
-    echo "Restarting Avahi daemon..."
-    sudo systemctl restart avahi-daemon
-    
-    # Wait for Avahi to be ready
-    sleep 2
-    
-    # Verify Avahi is running
-    if ! systemctl is-active --quiet avahi-daemon; then
-        echo "Warning: avahi-daemon is not running"
-    else
-        echo "avahi-daemon is running"
-    fi
-}
 
-setup_service() {
-    # Check if service already exists
-    if systemctl list-unit-files | grep -q "radio.service"; then
-        echo "Radio service already exists, skipping setup..."
-        return
-    fi
-
-    echo "Setting up radio service..."
-    
-    # Create service file with improved restart behavior
-    sudo tee /etc/systemd/system/radio.service << EOF
-[Unit]
-Description=Radio Service
-After=network.target pigpiod.service avahi-daemon.service
-Wants=network.target pigpiod.service avahi-daemon.service
-
-[Service]
-Type=forking
-User=radio
-Group=radio
-Environment=DEV_MODE=${DEV_MODE}
-WorkingDirectory=/home/radio/radio
-ExecStart=/home/radio/radio/manage_radio.sh start
-ExecStop=/home/radio/radio/manage_radio.sh stop
-ExecReload=/home/radio/radio/manage_radio.sh restart
-Restart=always
-RestartSec=3
-RemainAfterExit=yes
-TimeoutStartSec=60
-TimeoutStopSec=30
-
-[Install]
-WantedBy=multi-user.target
+[wide-area]
+enable-wide-area=yes
 EOF
 
-    # Set correct permissions
-    sudo chmod 644 /etc/systemd/system/radio.service
-    
-    # Reload systemd
-    sudo systemctl daemon-reload
-    
-    # Enable service to start on boot
-    sudo systemctl enable radio.service
-    
-    echo "Radio service has been set up and enabled to start on boot"
+    # Start services in correct order
+    echo "Starting network services..."
+
+    # Restart services in proper order
+    for service in wpa_supplicant NetworkManager dnsmasq avahi-daemon; do
+        echo "Restarting $service..."
+        sudo systemctl restart $service
+        sleep 2
+    done
+
+    # Wait for IP address assignment and update configs if needed
+    echo "Waiting for IP address assignment..."
+    for i in {1..30}; do
+        NEW_IP=$(ip -4 addr show wlan0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+        if [ -n "$NEW_IP" ] && [ "$NEW_IP" != "$WIFI_IP" ]; then
+            echo "IP address changed to: $NEW_IP"
+            # Update hosts file
+            sudo sed -i "s/${WIFI_IP}.*radiod.local/${NEW_IP}      radiod.local/" /etc/hosts
+            # Update dnsmasq config
+            sudo sed -i "s/listen-address=.*/listen-address=127.0.0.1,${NEW_IP}/" /etc/dnsmasq.conf
+            sudo sed -i "s/address=\/radiod.local\/.*/address=\/radiod.local\/${NEW_IP}/" /etc/dnsmasq.conf
+            # Restart dnsmasq to apply changes
+            sudo systemctl restart dnsmasq
+            break
+        fi
+        sleep 1
+    done
 }
 
-service_start() {
-    sudo systemctl start radio
+setup_system() {
+    echo "Setting up system dependencies..."
+
+    # Create required directories
+    sudo mkdir -p /home/radio/radio/logs
+    sudo chown -R radio:radio /home/radio/radio/logs
+
+    # Install system packages with proper package names for Raspberry Pi OS
+    sudo apt-get update
+    sudo apt-get install -y \
+        mpv \
+        libmpv2 \
+        libmpv-dev \
+        dnsmasq \
+        network-manager \
+        wireless-tools \
+        wpasupplicant \
+        firmware-brcm80211
+
+    # Create symlink for libmpv with correct path for Raspberry Pi OS
+    sudo ln -sf /usr/lib/aarch64-linux-gnu/libmpv.so.2 /usr/lib/libmpv.so
+    sudo ln -sf /usr/lib/aarch64-linux-gnu/libmpv.so.2 /usr/local/lib/libmpv.so
+    sudo ldconfig
+
+    # Verify MPV installation
+    if ! ldconfig -p | grep libmpv > /dev/null; then
+        echo "Error: libmpv not found after installation"
+        exit 1
+    fi
+
+    # Set up network services
+    setup_network_services
+
+    # Now install Python packages
+    source $VENV_PATH/bin/activate
+    pip install -r /home/radio/radio/install/requirements.txt
+    deactivate
+
+    # Add radio user to required groups
+    sudo usermod -aG audio,video,netdev radio
+
+    echo "Setup completed successfully"
 }
 
-service_stop() {
-    sudo systemctl stop radio
+start_web_server() {
+    cd /home/radio/radio/web || exit 1
+
+    # Install dependencies if needed
+    [ ! -d "node_modules" ] && npm install
+
+    # Set port based on mode
+    PORT=$([ "$DEV_MODE" = true ] && echo "$DEV_PORT" || echo "$PROD_PORT")
+
+    # Start server
+    sudo -E -u radio \
+        NODE_ENV=$([ "$DEV_MODE" = true ] && echo "development" || echo "production") \
+        PORT=$PORT \
+        HOST=0.0.0.0 \
+        npm run $([ "$DEV_MODE" = true ] && echo "dev" || echo "preview") -- \
+        --host "0.0.0.0" \
+        --port "$PORT" \
+        --strictPort \
+        >> "$WEB_LOG_FILE" 2>&1 &
+
+    WEB_PID=$!
+    echo $WEB_PID >> $PID_FILE
+    cd - || exit 1
 }
 
-service_restart() {
-    sudo systemctl restart radio
-}
+start_api_server() {
+    echo "Starting API server..."
 
-service_status() {
-    sudo systemctl status radio
-}
+    # Activate virtual environment and start uvicorn
+    source "$VENV_PATH/bin/activate"
 
-open_monitor() {
-    echo "Opening monitor website..."
-    
-    # Get configuration values first
-    get_config
-    
-    # Clean up any existing processes
-    echo "Cleaning up existing processes..."
-    pkill -f chromium || true
-    
-    # Start Chromium in kiosk mode
-    echo "Starting Chromium in kiosk mode..."
-    DISPLAY=:0 chromium-browser \
-        --kiosk \
-        --noerrdialogs \
-        --disable-session-crashed-bubble \
-        --disable-infobars \
-        --no-first-run \
-        --start-maximized \
-        --no-sandbox \
-        --disable-gpu \
-        --disable-software-rasterizer \
-        --disable-dev-shm-usage \
-        --user-data-dir=/tmp/chromium \
-        --no-zygote \
-        "http://$HOSTNAME.local:$DEV_PORT/monitor" > /dev/null 2>&1 &
-    
-    # Wait for process to start
-    sleep 2
-    
-    echo "Monitor URL: http://$HOSTNAME.local:$DEV_PORT/monitor"
+    # Start the API server with nohup
+    nohup "$VENV_PATH/bin/python" -m uvicorn \
+        src.api.main:app \
+        --host "0.0.0.0" \
+        --port "$API_PORT" \
+        --reload \
+        >> "$LOG_FILE" 2>&1 &
+
+    API_PID=$!
+    echo $API_PID >> $PID_FILE
+
+    # Wait for API server to start
+    echo "Waiting for API server to start..."
+    for i in {1..30}; do
+        if curl -s "http://localhost:$API_PORT/api/v1/health" >/dev/null; then
+            echo "API server started successfully on port $API_PORT"
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "Error: API server failed to start"
+    tail -n 20 "$LOG_FILE"
+    return 1
 }
 
 start() {
-    setup_service
-    
     echo "Starting $APP_NAME..."
-    get_config
-    
-    # Validate port values
-    if [ -z "$API_PORT" ] || [ -z "$DEV_PORT" ]; then
-        echo "Error: Invalid port configuration"
-        exit 1
-    fi
-    
-    echo "Using ports: API=$API_PORT, DEV=$DEV_PORT"
-    
-    # Check if already running
-    if [ -f $PID_FILE ]; then
-        echo "$APP_NAME is already running."
-        exit 1
-    fi
-    
-    # Create log directory if it doesn't exist
-    mkdir -p $(dirname $LOG_FILE)
-    WEB_LOG_FILE="${LOG_FILE%.*}_web.log"
-    
-    # Clean up any existing processes and ports
-    check_ports
-    
-    # Add check_avahi to the startup sequence
-    check_pigpiod
-    check_avahi
-    check_nmcli_permissions
-    check_audio_permissions
+    validate_network
+    validate_installation
     ensure_client_mode
-    
-    # Start FastAPI server
-    echo "Starting FastAPI server on port $API_PORT..."
-    if [ "$DEV_MODE" = true ]; then
-        nohup sudo -E env "PATH=$PATH" \
-            "PYTHONPATH=/home/radio/radio" \
-            "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
-            "PULSE_RUNTIME_PATH=$PULSE_RUNTIME_PATH" \
-            "$VENV_PATH/bin/uvicorn" src.api.main:app \
-            --reload \
-            --host "0.0.0.0" \
-            --port "$API_PORT" \
-            > $LOG_FILE 2>&1 &
-    else
-        nohup sudo -E env "PATH=$PATH" \
-            "PYTHONPATH=/home/radio/radio" \
-            "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
-            "PULSE_RUNTIME_PATH=$PULSE_RUNTIME_PATH" \
-            "$VENV_PATH/bin/uvicorn" src.api.main:app \
-            --host "0.0.0.0" \
-            --port "$API_PORT" \
-            > $LOG_FILE 2>&1 &
-    fi
-    API_PID=$!
-    echo $API_PID > $PID_FILE
-    
-    sleep 3
-    
-    # Start web server based on mode
-    echo "Starting web server on port $DEV_PORT..."
-    
-    # Change to web directory as radio user
-    cd /home/radio/radio/web
-    if [ "$DEV_MODE" = true ]; then
-        echo "Starting in development mode..."
-        sudo -u radio NODE_ENV=development \
-            HOME=/home/radio \
-            npm run dev -- \
-            --host "0.0.0.0" \
-            --port "$DEV_PORT" \
-            >> "$WEB_LOG_FILE" 2>&1 &
-    else
-        echo "Starting in production mode..."
-        sudo -u radio NODE_ENV=production \
-            HOME=/home/radio \
-            bash -c "npm run build && npm run preview -- \
-            --host \"0.0.0.0\" \
-            --port \"$DEV_PORT\"" \
-            >> "$WEB_LOG_FILE" 2>&1 &
-    fi
-    DEV_PID=$!
-    echo $DEV_PID >> $PID_FILE
-    cd - # Return to original directory
-    
+    check_ports
+
+    # Start the API server first
+    start_api_server || exit 1
+
+    # Then start the web server
+    start_web_server || exit 1
+
     echo "$APP_NAME started successfully"
-    echo "FastAPI PID: $API_PID"
-    echo "Dev Server PID: $DEV_PID"
-    
-    # Show initial log entries
-    echo "Initial log entries:"
-    tail -n 5 $LOG_FILE
-    
-    # Open monitor page regardless of mode
-    open_monitor
 }
 
 stop() {
@@ -440,20 +382,17 @@ stop() {
             echo "Stopping process with PID $PID..."
             sudo kill -15 $PID 2>/dev/null || true
             sleep 2
-            # Force kill if still running
             sudo kill -9 $PID 2>/dev/null || true
         done < $PID_FILE
         rm -f $PID_FILE
         echo "$APP_NAME stopped."
-        
-        # Kill any remaining processes
+
         sudo pkill -f "uvicorn.*$APP_PATH"
         pkill -f "npm run dev"
     else
         echo "$APP_NAME is not running."
     fi
-    
-    # Double check ports are free
+
     check_ports
 }
 
@@ -465,7 +404,6 @@ restart() {
 }
 
 status() {
-    get_config
     if [ -f $PID_FILE ]; then
         PID=$(cat $PID_FILE)
         if ps -p $PID > /dev/null; then
@@ -496,22 +434,11 @@ case "$1" in
     status)
         status
         ;;
-    monitor)
-        open_monitor
-        ;;
-    service-start)
-        service_start
-        ;;
-    service-stop)
-        service_stop
-        ;;
-    service-restart)
-        service_restart
-        ;;
-    service-status)
-        service_status
+    setup)
+        setup_system
         ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status|monitor|service-start|service-stop|service-restart|service-status}"
+        echo "Usage: $0 {start|stop|restart|status|setup}"
         exit 1
+        ;;
 esac
