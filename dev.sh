@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Get script directory for absolute paths
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Activate virtual environment
+source "${SCRIPT_DIR}/venv/bin/activate"
+
 # Get configuration from Python
 get_config() {
     python3 -c "
@@ -147,7 +153,7 @@ EOF
 
 # Function to detect hardware environment
 detect_environment() {
-    if [ -f /etc/rpi-issue ]; then
+    if [ -f /etc/rpi-issue ] || [ -f /proc/device-tree/model ] && grep -q "Raspberry Pi" /proc/device-tree/model; then
         echo "Running on Raspberry Pi - using real hardware"
         export MOCK_SERVICES=false
     elif [ "$CI" = "true" ]; then
@@ -163,30 +169,33 @@ detect_environment() {
 start_dev() {
     check_running
     check_ports
+    detect_environment
 
-    echo "Starting development environment..."
+    echo "Starting development environment using Docker..."
 
-    # Start backend
+    # Stop any existing containers and processes
+    docker compose -f docker/compose/docker-compose.dev.yml down
+    kill_frontend
+
+    # Start Docker services
     docker compose -f docker/compose/docker-compose.dev.yml up -d --build
 
-    # Wait for backend
-    echo "Waiting for backend..."
+    # Wait for services to be ready
+    echo "Waiting for services to start..."
     for i in {1..30}; do
         if curl -s "http://localhost:$API_PORT/api/v1/health" >/dev/null; then
-            break
+            echo "Development environment started:"
+            echo "Backend: http://localhost:$API_PORT"
+            echo "Frontend: http://localhost:$DEV_PORT"
+            echo "Use './dev.sh stop' to stop the development environment"
+            return 0
         fi
         sleep 1
     done
 
-    # Start frontend
-    if [ -d "web" ]; then
-        [ ! -d "web/node_modules" ] && (cd web && npm install)
-        cd web && VITE_HOST=0.0.0.0 VITE_PORT=$DEV_PORT npm run dev &
-    fi
-
-    echo "Development environment started:"
-    echo "Backend: http://localhost:$API_PORT"
-    echo "Frontend: http://localhost:$DEV_PORT"
+    echo "Error: Services failed to start"
+    docker compose -f docker/compose/docker-compose.dev.yml logs
+    return 1
 }
 
 # Function to rebuild environment

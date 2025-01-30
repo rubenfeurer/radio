@@ -9,6 +9,7 @@ default_environment:
     LANG: C
     LC_ALL: C
     LC_CTYPE: C
+    PYTHONIOENCODING: utf-8
 
 repos:
   # 1. Essential Formatting Only
@@ -18,12 +19,20 @@ repos:
       - id: black
         language_version: python3
         args: ["--fast", "--quiet", "--workers", "1"]
+        env:
+          LANG: C
+          LC_ALL: C
+          LC_CTYPE: C
 
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
         args: ["--profile", "black", "--quiet", "--jobs", "1"]
+        env:
+          LANG: C
+          LC_ALL: C
+          LC_CTYPE: C
 
   # 2. Basic Linting Only
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -31,12 +40,32 @@ repos:
     hooks:
       - id: ruff
         args: ["--fix", "--no-cache", "--quiet"]
+        env:
+          LANG: C
+          LC_ALL: C
+          LC_CTYPE: C
 
   # 3. Essential File Checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
+        env:
+          LANG: C
+          LC_ALL: C
+          LC_CTYPE: C
       - id: end-of-file-fixer
+        env:
+          LANG: C
+          LC_ALL: C
+          LC_CTYPE: C
       - id: check-yaml
+        env:
+          LANG: C
+          LC_ALL: C
+          LC_CTYPE: C
       - id: check-json
+        env:
+          LANG: C
+          LC_ALL: C
+          LC_CTYPE: C

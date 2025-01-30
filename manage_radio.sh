@@ -330,11 +330,21 @@ start_web_server() {
 
 start_api_server() {
     echo "Starting API server..."
+    echo "Using API port: $API_PORT"  # Debug line
+
+    # Set default port if not set
+    if [ -z "$API_PORT" ]; then
+        export API_PORT=5000
+        echo "Using default API port: $API_PORT"
+    fi
 
     # Activate virtual environment and start uvicorn
     source "$VENV_PATH/bin/activate"
 
-    # Start the API server with nohup
+    # Install pydantic if needed
+    pip install pydantic
+
+    # Start the API server with explicit port
     nohup "$VENV_PATH/bin/python" -m uvicorn \
         src.api.main:app \
         --host "0.0.0.0" \
@@ -361,38 +371,41 @@ start_api_server() {
 }
 
 start() {
-    echo "Starting $APP_NAME..."
+    echo "Starting $APP_NAME in production mode..."
     validate_network
     validate_installation
     ensure_client_mode
     check_ports
 
-    # Start the API server first
-    start_api_server || exit 1
+    # Create required directories
+    sudo mkdir -p /home/radio/radio/{logs,data}
+    sudo mkdir -p /tmp/mpv-socket
+    sudo chown -R radio:radio /home/radio/radio/{logs,data} /tmp/mpv-socket
 
-    # Then start the web server
-    start_web_server || exit 1
+    # Pull latest image if available
+    docker compose -f docker/compose/docker-compose.prod.yml pull || true
 
-    echo "$APP_NAME started successfully"
+    # Start using Docker compose
+    docker compose -f docker/compose/docker-compose.prod.yml up -d
+
+    # Wait for service to be healthy
+    echo "Waiting for service to be healthy..."
+    for i in {1..30}; do
+        if curl -s "http://localhost:${PROD_PORT:-80}/health" >/dev/null; then
+            echo "$APP_NAME started successfully"
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "Error: Service failed to start"
+    docker compose -f docker/compose/docker-compose.prod.yml logs
+    return 1
 }
 
 stop() {
-    if [ -f $PID_FILE ]; then
-        while read PID; do
-            echo "Stopping process with PID $PID..."
-            sudo kill -15 $PID 2>/dev/null || true
-            sleep 2
-            sudo kill -9 $PID 2>/dev/null || true
-        done < $PID_FILE
-        rm -f $PID_FILE
-        echo "$APP_NAME stopped."
-
-        sudo pkill -f "uvicorn.*$APP_PATH"
-        pkill -f "npm run dev"
-    else
-        echo "$APP_NAME is not running."
-    fi
-
+    echo "Stopping $APP_NAME..."
+    docker compose -f docker/compose/docker-compose.prod.yml down
     check_ports
 }
 
