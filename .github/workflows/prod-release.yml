@@ -88,7 +88,8 @@ jobs:
           ENV MOCK_SERVICES=true \
               SKIP_HARDWARE=1 \
               SKIP_NETWORK_SETUP=1 \
-              TEST_MODE=1
+              TEST_MODE=1 \
+              PROD_PORT=80  # Add production port
 
           # Switch to radio user
           USER radio

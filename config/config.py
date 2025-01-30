@@ -10,19 +10,21 @@ class Settings(BaseModel):
     # API Settings
     API_V1_STR: str = "/api/v1"
     WS_PATH: str = "/ws"
-    API_PORT: int = 8000  # External API port
-    DEV_PORT: int = 3000  # Frontend dev server port
+    API_PORT: int = 8000  # Backend API port
+    DEV_PORT: int = 3000  # Frontend development port
+    PROD_PORT: int = 80  # Frontend production port
     CONTAINER_PORT: int = 8000  # Internal container port (keep constant)
 
     # API Path Settings
-    API_PREFIX: str = "/api"  # New setting for the API prefix
+    API_PREFIX: str = "/api"
 
     # Network Settings
     HOSTNAME: str = socket.gethostname()  # Dynamically get system hostname
     COUNTRY_CODE: str = "CH"  # Default to Switzerland
 
     # Frontend paths
-    FRONTEND_DEV_URL: str = f"http://{HOSTNAME}.local:{DEV_PORT}"  # Updated
+    FRONTEND_DEV_URL: str = f"http://{HOSTNAME}.local:{DEV_PORT}"
+    FRONTEND_PROD_URL: str = f"http://{HOSTNAME}.local"  # No port in production
     FRONTEND_BUILD_PATH: str = "web/build"
 
     # Network Settings
@@ -71,6 +73,7 @@ class Settings(BaseModel):
             "WS_PATH": self.WS_PATH,
             "API_PORT": self.API_PORT,
             "DEV_PORT": self.DEV_PORT,
+            "PROD_PORT": self.PROD_PORT,
             "HOSTNAME": f"{self.HOSTNAME}.local",
         }
 
@@ -85,6 +88,7 @@ class Settings(BaseModel):
         vite_config = f"""
 // This file is auto-generated from config.py - do not edit directly
 export const DEV_PORT = {self.DEV_PORT}
+export const PROD_PORT = {self.PROD_PORT}
 export const API_PORT = {self.API_PORT}
 export const API_V1_STR = "{self.API_V1_STR}"
 export const API_PREFIX = "{self.API_PREFIX}"

@@ -122,10 +122,43 @@ The development environment will be available at:
 
 ### Port Configuration
 
-The application uses the following ports (configured in `config/config.py`):
-- `DEV_PORT=3000`: Frontend development server
-- `API_PORT=8000`: Backend API server
-- `CONTAINER_PORT=8000`: Internal container port
+The application uses the following ports:
+- Production Frontend: Port 80 (default HTTP port)
+- Development Frontend: Port 3000 (DEV_PORT)
+- Backend API: Port 8000 (API_PORT)
+
+#### Accessing the Interface
+
+1. **Production Mode**:
+   ```bash
+   # Start production server
+   ./manage_radio.sh start
+
+   # Access at:
+   http://radiod.local         # No port needed
+   ```
+
+2. **Development Mode**:
+   ```bash
+   # Start development server
+   DEV_MODE=true ./manage_radio.sh start
+
+   # Access at:
+   http://radiod.local:3000   # Frontend with hot reload
+   http://radiod.local:8000   # API and docs
+   ```
+
+The development mode provides:
+- Hot reload for frontend changes
+- API documentation at `/docs`
+- WebSocket debugging tools
+- Real-time logging
+
+The production mode provides:
+- Standard HTTP port (80)
+- Optimized build
+- Better performance
+- Simpler URL access
 
 ### Finding Your Radio on the Network
 

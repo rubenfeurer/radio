@@ -491,7 +491,7 @@ PYEOF
 EOF
 
 COUNTRY_CODE=$(sudo -u ${RADIO_USER} bash -c "source ${VENV_PATH}/bin/activate && \
-    PYTHONPATH=${RADIO_HOME} python3 -c 'from config.config import settings; print(settings.COUNTRY_CODE)' 2>/dev/null || echo 'GB'")
+    PYTHONPATH=${RADIO_HOME} python3 -c 'from config.config import settings; print(settings.COUNTRY_CODE)' 2>/dev/null || echo 'GB')
 
 # Configure wireless regulatory domain
 sudo tee /etc/default/crda <<EOF
@@ -524,6 +524,7 @@ Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
 Environment="PYTHONOPTIMIZE=2"
 Environment="PYTHONDONTWRITEBYTECODE=1"
 Environment="PYTHONUNBUFFERED=1"
+Environment="PROD_PORT=${PROD_PORT}"
 RuntimeDirectory=radio
 RuntimeDirectoryMode=0755
 
@@ -551,7 +552,7 @@ sleep 5
 # Check if service is running
 if systemctl is-active --quiet radio; then
     echo "✓ Installation successful!"
-    echo "Access your radio at: http://radiod.local"
+    echo "Access your radio at: http://radiod.local:${PROD_PORT}"
     echo "If radiod.local doesn't work, find your IP with: hostname -I"
 else
     echo "! Service failed to start. Check logs with: journalctl -u radio -f"
@@ -695,3 +696,6 @@ fi
 
 # Call the function where appropriate
 install_system_dependencies
+
+# Add to environment variables section
+PROD_PORT=${PROD_PORT:-80}

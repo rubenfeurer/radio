@@ -301,17 +301,15 @@ setup_system() {
 start_web_server() {
     if [ "$DEV_MODE" = true ]; then
         echo "Starting web server in development mode on port $DEV_PORT..."
-
-        # Ensure we're in the web directory
         cd /home/radio/radio/web || exit 1
 
-        # Clean install if needed
+        # Install dependencies if needed
         if [ ! -d "node_modules" ]; then
             echo "Installing npm dependencies..."
             npm install
         fi
 
-        # Start the dev server with explicit environment variables
+        # Start dev server on port 3000
         sudo -E -u radio \
             PATH="/home/radio/.nvm/versions/node/v22.13.1/bin:$PATH" \
             NODE_ENV=development \
@@ -323,28 +321,34 @@ start_web_server() {
             --port "$DEV_PORT" \
             --strictPort \
             >> "$WEB_LOG_FILE" 2>&1 &
+    else
+        echo "Starting web server in production mode on port ${PROD_PORT}..."
+        cd /home/radio/radio/web || exit 1
 
-        # Store PID
-        WEB_PID=$!
-        echo $WEB_PID >> $PID_FILE
+        # Install dependencies if needed
+        if [ ! -d "node_modules" ]; then
+            echo "Installing npm dependencies..."
+            npm install
+        fi
 
-        # Return to original directory
-        cd - || exit 1
-
-        # Wait for server to start
-        echo "Waiting for web server to start..."
-        for i in {1..30}; do
-            if curl -s "http://localhost:$DEV_PORT" >/dev/null; then
-                echo "Web server started successfully on port $DEV_PORT"
-                return 0
-            fi
-            sleep 1
-        done
-
-        echo "Error: Web server failed to start"
-        tail -n 20 "$WEB_LOG_FILE"
-        return 1
+        # Start production server
+        sudo -E -u radio \
+            PATH="/home/radio/.nvm/versions/node/v22.13.1/bin:$PATH" \
+            NODE_ENV=production \
+            PORT=$PROD_PORT \
+            HOST=0.0.0.0 \
+            HOME=/home/radio \
+            /home/radio/.nvm/versions/node/v22.13.1/bin/npm run preview -- \
+            --host "0.0.0.0" \
+            --port "$PROD_PORT" \
+            --strictPort \
+            >> "$WEB_LOG_FILE" 2>&1 &
     fi
+
+    # Store PID
+    WEB_PID=$!
+    echo $WEB_PID >> $PID_FILE
+    cd - || exit 1
 }
 
 start_api_server() {
