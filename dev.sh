@@ -3,6 +3,11 @@
 # Get script directory for absolute paths
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# Source configuration if it exists
+if [ -f "$SCRIPT_DIR/config/config.sh" ]; then
+    source "$SCRIPT_DIR/config/config.sh"
+fi
+
 # Activate virtual environment
 source "${SCRIPT_DIR}/venv/bin/activate"
 
@@ -314,6 +319,28 @@ update_deps() {
     echo "Dependencies updated successfully"
 }
 
+# Define functions first
+setup_hooks() {
+    echo "Setting up Git hooks..."
+
+    # Unset any global hooks path
+    git config --unset-all core.hooksPath || true
+
+    # Install pre-commit hooks
+    echo "Installing pre-commit hooks locally..."
+    pre-commit install
+    echo "Pre-commit setup complete"
+
+    # Install pre-push hook
+    echo "Installing pre-push hook..."
+    HOOK_DIR=".git/hooks"
+    mkdir -p "$HOOK_DIR"
+    cp install/hooks/pre-push "$HOOK_DIR/"
+    chmod +x "$HOOK_DIR/pre-push"
+
+    echo "All hooks installed successfully!"
+}
+
 # Main script
 check_docker
 check_node
@@ -350,7 +377,7 @@ case "$1" in
         run_fix
         ;;
     "setup-hooks")
-        check_precommit
+        setup_hooks
         ;;
     "cleanup")
         cleanup_git_locks

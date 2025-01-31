@@ -315,12 +315,29 @@ class WiFiManager:
                 stderr=str(e),
             )
 
+    def _connection_exists(self, ssid: str) -> bool:
+        """Check if a connection profile exists for the given SSID"""
+        try:
+            result = self._run_command(
+                ["sudo", "nmcli", "-t", "-f", "NAME", "connection", "show"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                connections = [line.strip() for line in result.stdout.splitlines()]
+                return ssid in connections
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking connection existence: {e}")
+            return False
+
     async def connect_to_network(
         self,
         ssid: str,
         password: Optional[str] = None,
     ) -> bool:
         """Connect to a WiFi network"""
+        is_saved = False
         try:
             # Check if network is already saved
             is_saved = self._connection_exists(ssid)
@@ -363,6 +380,29 @@ class WiFiManager:
                     error_msg = connect_result.stderr or "Invalid password"
                     raise Exception(error_msg)
 
+            # Verify connection state
+            verify_result = self._run_command(
+                [
+                    "sudo",
+                    "nmcli",
+                    "-t",
+                    "-f",
+                    "GENERAL.STATE",
+                    "device",
+                    "show",
+                    "wlan0",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if not (
+                verify_result.returncode == 0
+                and "100 (connected)" in verify_result.stdout
+            ):
+                if not is_saved:
+                    self._remove_connection(ssid)
+                return False
+
             return True
 
         except Exception as e:
@@ -370,7 +410,7 @@ class WiFiManager:
             # Ensure connection is removed on any error
             if not is_saved:
                 self._remove_connection(ssid)
-            raise  # Re-raise to let API handle error message
+            return False
 
     def _remove_connection(self, ssid: str) -> bool:
         """Remove a saved connection"""

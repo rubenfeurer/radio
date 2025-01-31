@@ -48,9 +48,8 @@ async def test_connect_to_network(wifi_manager):
     """Test connecting to a WiFi network"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
-        MagicMock(returncode=0, stdout=""),  # rescan
-        MagicMock(returncode=0, stdout=""),  # check saved networks
-        MagicMock(returncode=0, stdout="TestNetwork:80:WPA2:no\n"),  # scan networks
+        # First call checks if connection exists
+        MagicMock(returncode=0, stdout=""),  # _connection_exists check
         MagicMock(returncode=0, stdout=""),  # connect command
         MagicMock(
             returncode=0,
@@ -91,12 +90,11 @@ async def test_connect_to_saved_network(wifi_manager):
     """Test connecting to a saved network"""
     wifi_manager._run_command = MagicMock()
     wifi_manager._run_command.side_effect = [
-        MagicMock(returncode=0, stdout=""),  # rescan
+        # First call checks if connection exists - return that it does
         MagicMock(
             returncode=0,
-            stdout="SavedNetwork:wifi:/etc/NetworkManager/system-connections/saved.nmconnection\n",
-        ),  # check saved networks
-        MagicMock(returncode=0, stdout="SavedNetwork:80:WPA2:no\n"),  # scan networks
+            stdout="SavedNetwork\n",
+        ),  # _connection_exists check
         MagicMock(returncode=0, stdout=""),  # connect command
         MagicMock(
             returncode=0,
