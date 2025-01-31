@@ -40,6 +40,7 @@ async def get_system_info() -> SystemInfo:
 
     # Check internet connectivity
     try:
+        # First try nmcli
         result = subprocess.run(
             ["nmcli", "networking", "connectivity", "check"],
             capture_output=True,
@@ -47,6 +48,16 @@ async def get_system_info() -> SystemInfo:
             check=False,
         )
         internet_connected = "full" in result.stdout.lower()
+
+        # If nmcli shows no connection, try ping as backup
+        if not internet_connected:
+            ping_result = subprocess.run(
+                ["ping", "-c", "1", "-W", "2", "8.8.8.8"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            internet_connected = ping_result.returncode == 0
+
         logging.debug(f"[MONITOR] Internet connectivity check: {internet_connected}")
     except Exception as e:
         logging.exception(f"[MONITOR] Error checking internet connectivity: {e}")

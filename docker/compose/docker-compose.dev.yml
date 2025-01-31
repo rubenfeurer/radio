@@ -15,12 +15,48 @@ services:
       - ../../install/requirements.txt:/home/radio/radio/requirements.txt
       - ../../.git:/home/radio/radio/.git
       - ../../sounds:/home/radio/radio/sounds
+      - /dev/snd:/dev/snd  # Map sound device
+      - /dev/gpiomem:/dev/gpiomem  # Map GPIO
+      - /run/user/1000/pulse:/run/user/1000/pulse  # Map PulseAudio socket
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "8000:8000"
     environment:
       - DEV_MODE=true
-      - MOCK_SERVICES=${MOCK_SERVICES:-false}
+      - MOCK_SERVICES=${MOCK_SERVICES:-false}  # Will be set by dev.sh
       - API_PORT=8000
       - DEV_PORT=3000
-      - CONTAINER_PORT=8000
+      - PYTHONUNBUFFERED=1
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - XDG_RUNTIME_DIR=/run/user/1000
+    devices:
+      - "/dev/snd:/dev/snd"
+      - "/dev/gpiomem:/dev/gpiomem"
+    group_add:
+      - audio
+    privileged: true  # For hardware access
+    healthcheck:
+      test: curl -f http://localhost:8000/api/v1/health || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     command: /home/radio/radio/venv/bin/python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    container_name: radio-frontend
+    build:
+      context: ../../web
+      dockerfile: ../docker/dev/Dockerfile.web.dev
+    volumes:
+      - ../../web:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - PORT=3000
+      - VITE_API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy

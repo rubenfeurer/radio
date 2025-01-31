@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Exit on any error
+set -e
+
+echo "Running pre-push checks..."
+
+# Get the current branch name
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "Current branch: $BRANCH"
+
+# Run tests
+echo "Running tests..."
+if ! ./dev.sh test; then
+    echo "Tests failed! Push aborted."
+    exit 1
+fi
+
+# If we get here, tests passed
+echo "Pre-push checks passed! Proceeding with push..."
+exit 0

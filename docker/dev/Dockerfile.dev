@@ -33,6 +33,7 @@ RUN apt-get update && \
     && apt-get install -y \
     lsof \
     procps \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create radio user and group

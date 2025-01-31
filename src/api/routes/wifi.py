@@ -35,7 +35,6 @@ async def connect_to_network(request: WiFiConnectionRequest):
     """Connect to a WiFi network"""
     try:
         logger.debug(f"Attempting to connect to SSID: {request.ssid}")
-
         result = await wifi_manager.connect_to_network(request.ssid, request.password)
 
         if result:
@@ -43,8 +42,11 @@ async def connect_to_network(request: WiFiConnectionRequest):
         raise HTTPException(status_code=400, detail="Failed to connect to network")
 
     except Exception as e:
-        logger.error(f"Error connecting to network: {e!s}")
-        raise HTTPException(status_code=400, detail=str(e))
+        error_msg = str(e)
+        if "invalid password" in error_msg.lower():
+            error_msg = "Invalid password"
+        logger.error(f"Error connecting to network: {error_msg}")
+        raise HTTPException(status_code=400, detail=error_msg)
 
 
 @router.get("/current", tags=["WiFi"])

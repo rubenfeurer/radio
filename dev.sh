@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# Get script directory for absolute paths
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Source configuration if it exists
+if [ -f "$SCRIPT_DIR/config/config.sh" ]; then
+    source "$SCRIPT_DIR/config/config.sh"
+fi
+
+# Activate virtual environment
+source "${SCRIPT_DIR}/venv/bin/activate"
+
 # Get configuration from Python
 get_config() {
     python3 -c "
@@ -147,7 +158,7 @@ EOF
 
 # Function to detect hardware environment
 detect_environment() {
-    if [ -f /etc/rpi-issue ]; then
+    if [ -f /etc/rpi-issue ] || [ -f /proc/device-tree/model ] && grep -q "Raspberry Pi" /proc/device-tree/model; then
         echo "Running on Raspberry Pi - using real hardware"
         export MOCK_SERVICES=false
     elif [ "$CI" = "true" ]; then
@@ -163,30 +174,33 @@ detect_environment() {
 start_dev() {
     check_running
     check_ports
+    detect_environment
 
-    echo "Starting development environment..."
+    echo "Starting development environment using Docker..."
 
-    # Start backend
+    # Stop any existing containers and processes
+    docker compose -f docker/compose/docker-compose.dev.yml down
+    kill_frontend
+
+    # Start Docker services
     docker compose -f docker/compose/docker-compose.dev.yml up -d --build
 
-    # Wait for backend
-    echo "Waiting for backend..."
+    # Wait for services to be ready
+    echo "Waiting for services to start..."
     for i in {1..30}; do
         if curl -s "http://localhost:$API_PORT/api/v1/health" >/dev/null; then
-            break
+            echo "Development environment started:"
+            echo "Backend: http://localhost:$API_PORT"
+            echo "Frontend: http://localhost:$DEV_PORT"
+            echo "Use './dev.sh stop' to stop the development environment"
+            return 0
         fi
         sleep 1
     done
 
-    # Start frontend
-    if [ -d "web" ]; then
-        [ ! -d "web/node_modules" ] && (cd web && npm install)
-        cd web && VITE_HOST=0.0.0.0 VITE_PORT=$DEV_PORT npm run dev &
-    fi
-
-    echo "Development environment started:"
-    echo "Backend: http://localhost:$API_PORT"
-    echo "Frontend: http://localhost:$DEV_PORT"
+    echo "Error: Services failed to start"
+    docker compose -f docker/compose/docker-compose.dev.yml logs
+    return 1
 }
 
 # Function to rebuild environment
@@ -305,6 +319,28 @@ update_deps() {
     echo "Dependencies updated successfully"
 }
 
+# Define functions first
+setup_hooks() {
+    echo "Setting up Git hooks..."
+
+    # Unset any global hooks path
+    git config --unset-all core.hooksPath || true
+
+    # Install pre-commit hooks
+    echo "Installing pre-commit hooks locally..."
+    pre-commit install
+    echo "Pre-commit setup complete"
+
+    # Install pre-push hook
+    echo "Installing pre-push hook..."
+    HOOK_DIR=".git/hooks"
+    mkdir -p "$HOOK_DIR"
+    cp install/hooks/pre-push "$HOOK_DIR/"
+    chmod +x "$HOOK_DIR/pre-push"
+
+    echo "All hooks installed successfully!"
+}
+
 # Main script
 check_docker
 check_node
@@ -341,7 +377,7 @@ case "$1" in
         run_fix
         ;;
     "setup-hooks")
-        check_precommit
+        setup_hooks
         ;;
     "cleanup")
         cleanup_git_locks

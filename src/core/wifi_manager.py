@@ -315,61 +315,32 @@ class WiFiManager:
                 stderr=str(e),
             )
 
+    def _connection_exists(self, ssid: str) -> bool:
+        """Check if a connection profile exists for the given SSID"""
+        try:
+            result = self._run_command(
+                ["sudo", "nmcli", "-t", "-f", "NAME", "connection", "show"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                connections = [line.strip() for line in result.stdout.splitlines()]
+                return ssid in connections
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking connection existence: {e}")
+            return False
+
     async def connect_to_network(
         self,
         ssid: str,
         password: Optional[str] = None,
     ) -> bool:
         """Connect to a WiFi network"""
+        is_saved = False
         try:
-            self.logger.debug(
-                f"Received connection request for SSID: {ssid} with password: {'(none)' if password is None else '****'}",
-            )
-
-            # Force a rescan to ensure network list is up to date
-            await self._rescan_networks()
-
-            # Check if network is saved
-            saved_result = self._run_command(
-                ["sudo", "nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"],
-                capture_output=True,
-                text=True,
-            )
-
-            is_saved = False
-            if saved_result.returncode == 0:
-                for line in saved_result.stdout.strip().split("\n"):
-                    parts = line.split(":")
-                    if len(parts) >= 2 and parts[0].strip() == ssid:
-                        is_saved = True
-                        break
-
-            # Verify network exists
-            scan_result = self._run_command(
-                [
-                    "sudo",
-                    "nmcli",
-                    "-t",
-                    "-f",
-                    "SSID,SIGNAL,SECURITY,IN-USE",
-                    "device",
-                    "wifi",
-                    "list",
-                ],
-                capture_output=True,
-                text=True,
-            )
-
-            network_exists = False
-            if scan_result.returncode == 0:
-                for line in scan_result.stdout.strip().split("\n"):
-                    if line.startswith(f"{ssid}:"):
-                        network_exists = True
-                        break
-
-            if not network_exists:
-                self.logger.error(f"Network {ssid} not found in scan results")
-                return False
+            # Check if network is already saved
+            is_saved = self._connection_exists(ssid)
 
             # Connect to network
             if is_saved:
@@ -389,7 +360,6 @@ class WiFiManager:
                     return False
 
                 self.logger.debug(f"Creating new connection for {ssid}")
-                # Check the return value instead of ignoring it
                 connect_result = self._run_command(
                     [
                         "sudo",
@@ -401,14 +371,16 @@ class WiFiManager:
                         "password",
                         password,
                     ],
+                    capture_output=True,
+                    text=True,
                 )
                 if connect_result.returncode != 0:
-                    self.logger.error(
-                        f"Failed to create connection: {connect_result.stderr}",
-                    )
-                    return False
+                    # Remove failed connection attempt
+                    self._remove_connection(ssid)
+                    error_msg = connect_result.stderr or "Invalid password"
+                    raise Exception(error_msg)
 
-            # Verify connection was successful
+            # Verify connection state
             verify_result = self._run_command(
                 [
                     "sudo",
@@ -423,20 +395,21 @@ class WiFiManager:
                 capture_output=True,
                 text=True,
             )
-
-            success = (
+            if not (
                 verify_result.returncode == 0
                 and "100 (connected)" in verify_result.stdout
-            )
-            self.logger.debug(f"Connection verification result: {success}")
+            ):
+                if not is_saved:
+                    self._remove_connection(ssid)
+                return False
 
-            if not success and not is_saved:
-                self._remove_connection(ssid)
-
-            return success
+            return True
 
         except Exception as e:
             self.logger.error(f"Error connecting to network: {e!s}", exc_info=True)
+            # Ensure connection is removed on any error
+            if not is_saved:
+                self._remove_connection(ssid)
             return False
 
     def _remove_connection(self, ssid: str) -> bool:

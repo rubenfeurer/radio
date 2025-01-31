@@ -25,7 +25,7 @@ export default defineConfig({
 	plugins: [sveltekit()],
 	server: {
 		host: '0.0.0.0',
-		port: DEV_PORT,
+		port: 3000,
 		strictPort: true,
 		fs: {
 			allow: ['..']
@@ -34,7 +34,12 @@ export default defineConfig({
 			usePolling: true
 		},
 		https: false,
-		proxy: getProxyConfig('localhost'),
+		proxy: {
+			'/api': {
+				target: 'http://backend:8000',
+				changeOrigin: true
+			}
+		},
 		headers: {
 			'Access-Control-Allow-Origin': '*',
 			'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE',
@@ -52,5 +57,8 @@ export default defineConfig({
 		port: PROD_PORT,
 		strictPort: true,
 		proxy: getProxyConfig(HOSTNAME)
+	},
+	optimizeDeps: {
+		exclude: ['@sveltejs/kit']
 	}
 });
